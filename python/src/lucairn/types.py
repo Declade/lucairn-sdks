@@ -18,7 +18,7 @@ __all__ = [
     "ProxyResponse",
     "ProxySyncResponse",
     "ProxyVeilReceipt",
-    "TheVeilConfig",
+    "LucairnConfig",
     "VeilAnchorStatusInfo",
     "VeilCertAnchorStatus",
     "VeilCertificate",
@@ -43,8 +43,8 @@ __all__ = [
 
 
 @dataclass
-class TheVeilConfig:
-    """Constructor configuration for :class:`theveil.TheVeil`.
+class LucairnConfig:
+    """Constructor configuration for :class:`lucairn.Lucairn`.
 
     Attributes:
         api_key: DSA API key. Must match ``^dsa_[0-9a-f]{32}$``.
@@ -58,8 +58,8 @@ class TheVeilConfig:
             ``anthropic-python`` convention.
         max_response_bytes: Maximum response-body size the SDK will read
             from the gateway, in bytes. Responses exceeding this cap raise
-            :class:`TheVeilResponseValidationError` on a 2xx status (the
-            body was not consumable) or :class:`TheVeilHttpError` on a
+            :class:`LucairnResponseValidationError` on a 2xx status (the
+            body was not consumable) or :class:`LucairnHttpError` on a
             non-2xx status (the transport status is the dominant signal).
             The prefix of the body read before the cap was hit is
             preserved on the error's ``body`` attribute so callers can
@@ -88,7 +88,7 @@ class TheVeilConfig:
 
 @dataclass
 class MessagesOptions:
-    """Per-call options for :meth:`TheVeil.messages` and related methods.
+    """Per-call options for :meth:`Lucairn.messages` and related methods.
 
     Attributes:
         timeout: Per-call timeout in seconds, overrides client default for
@@ -142,11 +142,11 @@ class ProxyRequest(BaseModel):
 
 class ProxyMessagesRequest(ProxyRequest):
     """Narrows :class:`ProxyRequest`: streaming is not supported by
-    :meth:`TheVeil.messages`, so ``stream=True`` is rejected at send time.
+    :meth:`Lucairn.messages`, so ``stream=True`` is rejected at send time.
     """
 
     # The field itself is inherited; runtime rejection happens in
-    # TheVeil.messages() by raising TheVeilConfigError when stream is True.
+    # Lucairn.messages() by raising LucairnConfigError when stream is True.
     # Keeping it as bool | None mirrors the TS declaration
     # (`stream?: false`) which is a compile-time narrowing with no runtime
     # type guard either — the gateway simply ignores stream on the /messages

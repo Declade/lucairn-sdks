@@ -51,7 +51,7 @@ def canonical_json(value: Any) -> bytes:
         # Lone / mismatched surrogates survive json.dumps(ensure_ascii=False)
         # as Python str codepoints but fail to encode to UTF-8. Convert to
         # TypeError so the verify_certificate pipeline wraps it as
-        # TheVeilCertificateError(reason="malformed") rather than leaking
+        # LucairnCertificateError(reason="malformed") rather than leaking
         # a raw UnicodeEncodeError.
         raise TypeError(
             f"canonical_json: input contains invalid UTF-16 surrogate bytes: {exc}"
@@ -96,7 +96,7 @@ def _marshal_sorted(v: Any, seen: set[int]) -> str:
     if isinstance(v, float):
         # Defensive: refuse floats at the canonical-JSON boundary. Go and
         # Python disagree on float formatting (Python: "1.0", Go depending
-        # on value). The Veil signed subset carries no floats, so this is
+        # on value). The witness signed subset carries no floats, so this is
         # a pure safety rail against accidental float-typing of an integer
         # field by a dict-literal caller.
         raise TypeError(

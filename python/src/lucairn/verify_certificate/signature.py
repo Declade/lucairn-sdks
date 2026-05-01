@@ -21,7 +21,7 @@ def verify_ed25519(
     :class:`TypeError` if ``public_key`` is malformed (wrong length,
     non-base64 string, unsupported type). The orchestrator layer
     (:func:`verify_certificate`) is responsible for translating ``False``
-    into a :class:`TheVeilCertificateError`.
+    into a :class:`LucairnCertificateError`.
     """
 
     raw = normalize_ed25519_public_key(public_key)

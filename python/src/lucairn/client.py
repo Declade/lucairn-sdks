@@ -1,4 +1,4 @@
-"""TheVeil Python SDK client.
+"""Lucairn Python SDK client.
 
 Port of theveil-sdks/ts/src/client.ts. Behavioural-parity with TS at the
 observable level; surface adapts to Python idiom (seconds not milliseconds,
@@ -17,11 +17,11 @@ import httpx
 from pydantic import TypeAdapter, ValidationError
 
 from lucairn.errors import (
-    TheVeilConfigError,
-    TheVeilError,
-    TheVeilHttpError,
-    TheVeilResponseValidationError,
-    TheVeilTimeoutError,
+    LucairnConfigError,
+    LucairnError,
+    LucairnHttpError,
+    LucairnResponseValidationError,
+    LucairnTimeoutError,
 )
 from lucairn.types import (
     MessagesOptions,
@@ -29,7 +29,7 @@ from lucairn.types import (
     ProxyMessagesRequest,
     ProxyResponse,
     ProxySyncResponse,
-    TheVeilConfig,
+    LucairnConfig,
     VeilCertificate,
     VerifyCertificateKeys,
     VerifyCertificateResult,
@@ -38,7 +38,7 @@ from lucairn.verify_certificate.pipeline import (
     verify_certificate as _verify_certificate_impl,
 )
 
-__all__ = ["TheVeil"]
+__all__ = ["Lucairn"]
 
 
 _API_KEY_PATTERN = re.compile(r"^dsa_[0-9a-f]{32}$")
@@ -54,7 +54,7 @@ _DEFAULT_TIMEOUT_S = 30.0
 # messages responses rarely exceed 1 MB. The cap exists as a DoS backstop
 # against a malicious or misbehaving gateway returning a pathologically
 # large body, not as a product constraint. Callers expecting larger bodies
-# can raise it via TheVeilConfig.max_response_bytes.
+# can raise it via LucairnConfig.max_response_bytes.
 _DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 
 
@@ -65,13 +65,13 @@ def _normalize_base_url(raw: str) -> str:
     try:
         parsed = urlparse(raw)
     except Exception as exc:
-        raise TheVeilConfigError(f"Invalid base_url: {raw}") from exc
+        raise LucairnConfigError(f"Invalid base_url: {raw}") from exc
     if parsed.scheme not in ("http", "https"):
-        raise TheVeilConfigError(
+        raise LucairnConfigError(
             f"base_url must use http or https, got: {parsed.scheme or '<empty>'}"
         )
     if not parsed.netloc:
-        raise TheVeilConfigError(f"Invalid base_url: {raw}")
+        raise LucairnConfigError(f"Invalid base_url: {raw}")
     # Security: reject ``http://`` outside loopback / mDNS-local hosts so a
     # misconfigured base_url cannot silently ship the api_key across a
     # network in cleartext. Enterprise self-hosters binding to localhost
@@ -80,7 +80,7 @@ def _normalize_base_url(raw: str) -> str:
     if parsed.scheme == "http":
         host = (parsed.hostname or "").lower()
         if host not in _LOOPBACK_HOSTS and not host.endswith(".local"):
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 f"base_url must use https:// for non-loopback hosts; got http://{host}"
             )
     return raw.rstrip("/")
@@ -91,47 +91,47 @@ def _validate_timeout_s(value: float, source: str) -> float:
     shape identical: rejects 0, negative, NaN, +/-Infinity."""
 
     if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise TheVeilConfigError(
+        raise LucairnConfigError(
             f"Invalid {source}: {value!r} — must be a positive finite number"
         )
     f = float(value)
     if not math.isfinite(f) or f <= 0:
-        raise TheVeilConfigError(
+        raise LucairnConfigError(
             f"Invalid {source}: {value} — must be a positive finite number"
         )
     return f
 
 
-class TheVeil:
-    """Synchronous client for The Veil privacy-preserving AI gateway.
+class Lucairn:
+    """Synchronous client for the Lucairn privacy-preserving AI gateway.
 
     Example:
-        from lucairn import TheVeil, TheVeilConfig
+        from lucairn import Lucairn, LucairnConfig
 
-        client = TheVeil(TheVeilConfig(api_key="dsa_" + "0" * 32))
+        client = Lucairn(LucairnConfig(api_key="dsa_" + "0" * 32))
         cert = client.get_certificate("req_abc123")
         result = client.verify_certificate(cert, keys)
     """
 
-    def __init__(self, config: TheVeilConfig) -> None:
+    def __init__(self, config: LucairnConfig) -> None:
         # Validate every constructor input up front — same philosophy as the
         # TS client, where early rejection beats late-fail surprises inside
         # _request.
-        if not isinstance(config, TheVeilConfig):
-            raise TheVeilConfigError(
-                "TheVeil() requires a TheVeilConfig instance"
+        if not isinstance(config, LucairnConfig):
+            raise LucairnConfigError(
+                "Lucairn() requires a LucairnConfig instance"
             )
         if not isinstance(config.api_key, str) or not _API_KEY_PATTERN.fullmatch(
             config.api_key
         ):
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 'Invalid api_key — expected format "dsa_" followed by 32 '
                 "lowercase hex characters"
             )
 
         raw_base_url = config.base_url if config.base_url is not None else _DEFAULT_BASE_URL
         if not isinstance(raw_base_url, str):
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 f"Invalid base_url: {raw_base_url!r} — must be a string"
             )
         base_url = _normalize_base_url(raw_base_url)
@@ -149,7 +149,7 @@ class TheVeil:
                 or isinstance(config.max_response_bytes, bool)
                 or config.max_response_bytes <= 0
             ):
-                raise TheVeilConfigError(
+                raise LucairnConfigError(
                     f"Invalid max_response_bytes: {config.max_response_bytes!r} "
                     "— must be a positive int"
                 )
@@ -157,7 +157,7 @@ class TheVeil:
 
         # API key stored on a name-mangled private attribute. Python has no
         # JS-style hard private fields, but ``__api_key`` triggers name
-        # mangling (``_TheVeil__api_key``) which keeps the credential out
+        # mangling (``_Lucairn__api_key``) which keeps the credential out
         # of casual ``vars(client)`` / ``__dict__`` access paths. Not a
         # security boundary — Python has no such primitive — but matches
         # the TS spirit of "not on the public surface."
@@ -184,13 +184,13 @@ class TheVeil:
             try:
                 params = ProxyMessagesRequest.model_validate(params)
             except ValidationError as exc:
-                raise TheVeilConfigError(f"Invalid messages params: {exc}") from exc
+                raise LucairnConfigError(f"Invalid messages params: {exc}") from exc
         elif not isinstance(params, ProxyMessagesRequest):
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 "messages() params must be a ProxyMessagesRequest or dict"
             )
         if params.stream is True:
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 "messages() does not support stream=True — use a future streaming "
                 "API once available"
             )
@@ -211,7 +211,7 @@ class TheVeil:
     ) -> VerifyCertificateResult:
         """Verify a Veil Certificate's witness Ed25519 signature.
 
-        See :func:`theveil.verify_certificate.verify_certificate` for the
+        See :func:`lucairn.verify_certificate.verify_certificate` for the
         full failure-reason list and key-format conventions. External RFC
         3161 timestamp + Sigstore Rekor transparency-log verification are
         out of scope for this SDK release.
@@ -230,7 +230,7 @@ class TheVeil:
         return is narrowly :class:`VeilCertificate`; the gateway's 202
         pending wrapper (certificate not yet assembled, or unknown
         ``request_id`` — the gateway does not distinguish) surfaces as
-        :class:`TheVeilHttpError` with ``status=202`` and ``body`` holding
+        :class:`LucairnHttpError` with ``status=202`` and ``body`` holding
         ``{"status": "pending", "retry_after_seconds": 30, ...}`` so
         callers get a narrow happy-path type and an explicit retry signal.
 
@@ -239,7 +239,7 @@ class TheVeil:
         """
 
         if not isinstance(request_id, str):
-            raise TheVeilConfigError(
+            raise LucairnConfigError(
                 f"request_id must be str, got {type(request_id).__name__}"
             )
         # quote(..., safe="") URL-encodes slashes, question marks, and every
@@ -256,7 +256,7 @@ class TheVeil:
         )
 
         if status == 202:
-            raise TheVeilHttpError(
+            raise LucairnHttpError(
                 "Veil certificate is not yet assembled; retry after the indicated delay.",
                 status=status,
                 body=body,
@@ -267,14 +267,14 @@ class TheVeil:
         except ValidationError as exc:
             # 2xx-but-wrong-shape is NOT an HTTP error — surface via the
             # dedicated response-validation class so callers can branch on
-            # "transport failed (TheVeilHttpError)" vs "body doesn't look
-            # like a VeilCertificate (TheVeilResponseValidationError)".
+            # "transport failed (LucairnHttpError)" vs "body doesn't look
+            # like a VeilCertificate (LucairnResponseValidationError)".
             #
             # When the parsed body is None (literal JSON null response),
             # fall back to the raw text ("null") so callers can distinguish
             # "gateway sent null" from "error body not populated."
             effective_body = raw_text if body is None else body
-            raise TheVeilResponseValidationError(
+            raise LucairnResponseValidationError(
                 "Response body failed to deserialize as VeilCertificate",
                 body=effective_body,
                 cause=exc,
@@ -299,9 +299,9 @@ class TheVeil:
         fall back to this when the parsed body is ``None`` so the error
         surface can preserve the "gateway sent null / empty" signal
         without being confused with "SDK forgot to set .body".
-        Non-2xx responses raise :class:`TheVeilHttpError`. A timeout
-        raises :class:`TheVeilTimeoutError`. Other transport failures
-        raise :class:`TheVeilError` with ``__cause__`` set.
+        Non-2xx responses raise :class:`LucairnHttpError`. A timeout
+        raises :class:`LucairnTimeoutError`. Other transport failures
+        raise :class:`LucairnError` with ``__cause__`` set.
 
         The 2xx happy-path body passes through without shape validation —
         thin-transport rule (matches TS SDK). Callers doing meaningful
@@ -321,7 +321,7 @@ class TheVeil:
         if options is not None and options.headers:
             for k, v in options.headers.items():
                 if not isinstance(k, str) or not isinstance(v, str):
-                    raise TheVeilConfigError(
+                    raise LucairnConfigError(
                         "options.headers must be a dict[str, str]"
                     )
                 merged[k.lower()] = v
@@ -378,12 +378,12 @@ class TheVeil:
                         # "HTTPError never fires on 2xx" invariant holds
                         # uniformly across every 2xx-body-unusable path.
                         if 200 <= status_code < 300:
-                            raise TheVeilResponseValidationError(
+                            raise LucairnResponseValidationError(
                                 "response body exceeded max_response_bytes cap of "
                                 f"{self.max_response_bytes}",
                                 body=partial,
                             )
-                        raise TheVeilHttpError(
+                        raise LucairnHttpError(
                             "response body exceeded max_response_bytes cap of "
                             f"{self.max_response_bytes}",
                             status=status_code,
@@ -391,14 +391,14 @@ class TheVeil:
                         )
                     raw_bytes = b"".join(chunks)
         except httpx.TimeoutException as exc:
-            raise TheVeilTimeoutError(
+            raise LucairnTimeoutError(
                 f"Request timed out after {timeout_s}s",
                 cause=exc,
             ) from exc
-        except TheVeilError:
+        except LucairnError:
             raise
         except httpx.HTTPError as exc:
-            raise TheVeilError("Request failed", cause=exc) from exc
+            raise LucairnError("Request failed", cause=exc) from exc
 
         text = raw_bytes.decode("utf-8", errors="replace")
         parsed_body: Any
@@ -412,8 +412,8 @@ class TheVeil:
             parsed_body = text
 
         if not (200 <= status_code < 300):
-            raise TheVeilHttpError(
-                f"TheVeil request failed: {status_code} {reason_phrase}",
+            raise LucairnHttpError(
+                f"Lucairn request failed: {status_code} {reason_phrase}",
                 status=status_code,
                 body=parsed_body,
             )
@@ -426,7 +426,7 @@ def _parse_proxy_response(status: int, body: Any, raw_text: str) -> ProxyRespons
 
     Mirrors the TS SDK's behaviour: ``body["status"] == "processing"`` →
     async; anything else → sync. On malformed bodies, wraps the Pydantic
-    ``ValidationError`` in :class:`TheVeilResponseValidationError` — the
+    ``ValidationError`` in :class:`LucairnResponseValidationError` — the
     dedicated class for 2xx-wrong-shape responses. The ``status`` kwarg
     is kept for future use (e.g. a follow-up 201/204 semantic branch);
     the current 2xx paths share the same discrimination.
@@ -444,7 +444,7 @@ def _parse_proxy_response(status: int, body: Any, raw_text: str) -> ProxyRespons
             # 2xx-but-wrong-shape — dedicated validation error, not HTTP error.
             # The ``isinstance(body, dict)`` guard above means ``body`` is
             # always a dict here, so no raw-text null-fallback is needed.
-            raise TheVeilResponseValidationError(
+            raise LucairnResponseValidationError(
                 "Response body failed to deserialize as ProxyAcceptedResponse",
                 body=body,
                 cause=exc,
@@ -458,7 +458,7 @@ def _parse_proxy_response(status: int, body: Any, raw_text: str) -> ProxyRespons
         # ``None`` (which would be indistinguishable from "SDK forgot
         # to populate the field").
         effective_body = raw_text if body is None else body
-        raise TheVeilResponseValidationError(
+        raise LucairnResponseValidationError(
             "Response body failed to deserialize as ProxySyncResponse",
             body=effective_body,
             cause=exc,

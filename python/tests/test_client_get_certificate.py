@@ -1,4 +1,4 @@
-"""TheVeil.get_certificate() — HTTP-level tests via respx.
+"""Lucairn.get_certificate() — HTTP-level tests via respx.
 
 Port of client.getCertificate.test.ts at the observable level. Language
 divergences:
@@ -10,8 +10,8 @@ divergences:
 * Malformed 200 body: TS returns raw text typed as ``VeilCertificate``
   (thin-transport, passes through). Python calls
   ``VeilCertificate.model_validate(body)`` at deserialize time and
-  wraps ``ValidationError`` as :class:`TheVeilResponseValidationError`
-  — a dedicated error class distinct from :class:`TheVeilHttpError`
+  wraps ``ValidationError`` as :class:`LucairnResponseValidationError`
+  — a dedicated error class distinct from :class:`LucairnHttpError`
   (which is reserved for gateway non-2xx). Both languages surface a
   typed error to the caller; Python fails at fetch, TS at
   ``verify_certificate``.
@@ -26,15 +26,15 @@ import httpx
 import pytest
 import respx
 
-from theveil import (
+from lucairn import (
     MessagesOptions,
-    TheVeil,
-    TheVeilConfig,
-    TheVeilConfigError,
-    TheVeilError,
-    TheVeilHttpError,
-    TheVeilResponseValidationError,
-    TheVeilTimeoutError,
+    Lucairn,
+    LucairnConfig,
+    LucairnConfigError,
+    LucairnError,
+    LucairnHttpError,
+    LucairnResponseValidationError,
+    LucairnTimeoutError,
 )
 
 VALID_KEY = "dsa_0123456789abcdef0123456789abcdef"
@@ -42,8 +42,8 @@ BASE = "https://gateway.dsaveil.io"
 CERT_PATH_PREFIX = "/api/v1/veil/certificate/"
 
 
-def _client() -> TheVeil:
-    return TheVeil(TheVeilConfig(api_key=VALID_KEY))
+def _client() -> Lucairn:
+    return Lucairn(LucairnConfig(api_key=VALID_KEY))
 
 
 class TestHappyPath:
@@ -95,7 +95,7 @@ class TestPending202:
             202, json=pending_body
         )
         client = _client()
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             client.get_certificate("req_pending_0001")
         err = exc_info.value
         assert err.status == 202
@@ -105,7 +105,7 @@ class TestPending202:
 
 
 class TestHttpErrorMapping:
-    """Each gateway error envelope maps to TheVeilHttpError preserving status + body."""
+    """Each gateway error envelope maps to LucairnHttpError preserving status + body."""
 
     @pytest.mark.parametrize(
         ("status", "label"),
@@ -126,10 +126,10 @@ class TestHttpErrorMapping:
             status_code=status, json=body
         )
         client = _client()
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             client.get_certificate("req_err_0001")
         err = exc_info.value
-        assert isinstance(err, TheVeilError)
+        assert isinstance(err, LucairnError)
         assert err.status == status
         assert err.body == body
         assert err.body["error"]["code"] == label
@@ -147,7 +147,7 @@ class TestHttpErrorMapping:
             status_code=503, json=body
         )
         client = _client()
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             client.get_certificate("req_unavailable_0001")
         err = exc_info.value
         assert err.status == 503
@@ -161,10 +161,10 @@ class TestTransportErrors:
             side_effect=httpx.ConnectError("boom")
         )
         client = _client()
-        with pytest.raises(TheVeilError) as exc_info:
+        with pytest.raises(LucairnError) as exc_info:
             client.get_certificate("req_network_0001")
         err = exc_info.value
-        assert not isinstance(err, TheVeilHttpError)
+        assert not isinstance(err, LucairnHttpError)
 
 
 class TestTimeout:
@@ -174,14 +174,14 @@ class TestTimeout:
             side_effect=httpx.TimeoutException("simulated")
         )
         client = _client()
-        with pytest.raises(TheVeilTimeoutError, match=r"\d"):
+        with pytest.raises(LucairnTimeoutError, match=r"\d"):
             client.get_certificate(
                 "req_slow_0001", options=MessagesOptions(timeout=0.05)
             )
 
     def test_rejects_invalid_per_call_timeout(self) -> None:
         client = _client()
-        with pytest.raises(TheVeilConfigError, match="options.timeout"):
+        with pytest.raises(LucairnConfigError, match="options.timeout"):
             client.get_certificate(
                 "req_x", options=MessagesOptions(timeout=-1)
             )
@@ -207,7 +207,7 @@ class TestPathEncoding:
 
     def test_rejects_non_string_request_id(self) -> None:
         client = _client()
-        with pytest.raises(TheVeilConfigError, match="request_id"):
+        with pytest.raises(LucairnConfigError, match="request_id"):
             client.get_certificate(12345)  # type: ignore[arg-type]
 
 
@@ -216,14 +216,14 @@ class TestLiteralNullBody:
     def test_literal_null_body_preserves_null_signal(self) -> None:
         # A 2xx with literal JSON null parses to Python None, fails
         # Pydantic validation, and must surface as
-        # TheVeilResponseValidationError with body = "null" (the raw
+        # LucairnResponseValidationError with body = "null" (the raw
         # pre-parse text) — NOT None. Callers can distinguish "gateway
         # sent null" from "SDK forgot to populate .body."
         respx.get(f"{BASE}{CERT_PATH_PREFIX}req_null").respond(
             200, text="null", headers={"content-type": "application/json"}
         )
         client = _client()
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             client.get_certificate("req_null")
         err = exc_info.value
         # body is the raw pre-parse text, not parsed None.
@@ -233,8 +233,8 @@ class TestLiteralNullBody:
 
 class TestMalformed200:
     """Observed behaviour: non-JSON / wrong-shape 200 surfaces as
-    :class:`TheVeilResponseValidationError` — distinct from
-    :class:`TheVeilHttpError` so callers can branch cleanly on
+    :class:`LucairnResponseValidationError` — distinct from
+    :class:`LucairnHttpError` so callers can branch cleanly on
     "transport failed" vs "body doesn't fit declared type".
     """
 
@@ -244,20 +244,20 @@ class TestMalformed200:
             200, text="not json at all", headers={"content-type": "text/plain"}
         )
         client = _client()
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             client.get_certificate("req_malformed_0001")
         err = exc_info.value
         # The body is the raw text since it failed JSON parsing upstream.
         assert err.body == "not json at all"
         # And NOT an HTTP error — that would lie about the transport layer.
-        assert not isinstance(err, TheVeilHttpError)
+        assert not isinstance(err, LucairnHttpError)
 
     @respx.mock
     def test_missing_required_fields_200_raises_response_validation_error(
         self,
     ) -> None:
         # A 200 with JSON but missing `certificate_id` — Pydantic raises
-        # ValidationError; the client wraps as TheVeilResponseValidationError
+        # ValidationError; the client wraps as LucairnResponseValidationError
         # and preserves the Pydantic error as __cause__ for field-level
         # inspection by callers.
         from pydantic import ValidationError
@@ -266,7 +266,7 @@ class TestMalformed200:
             200, json={"not_a_cert": True}
         )
         client = _client()
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             client.get_certificate("req_partial_0001")
         err = exc_info.value
         assert isinstance(err.body, dict)
@@ -274,30 +274,30 @@ class TestMalformed200:
         # Callers can introspect the Pydantic validation details.
         assert isinstance(err.__cause__, ValidationError)
         # Still satisfies the base SDK error class — callers doing
-        # ``except TheVeilError`` still catch it.
-        assert isinstance(err, TheVeilError)
+        # ``except LucairnError`` still catch it.
+        assert isinstance(err, LucairnError)
 
     @respx.mock
     def test_non_2xx_still_raises_http_error_not_response_validation_error(
         self,
     ) -> None:
-        # Invariant: non-2xx keeps TheVeilHttpError. The new class must NEVER
+        # Invariant: non-2xx keeps LucairnHttpError. The new class must NEVER
         # fire for a transport-level failure.
         respx.get(f"{BASE}{CERT_PATH_PREFIX}req_gone").respond(
             404, json={"error": {"code": "veil_not_configured"}}
         )
         client = _client()
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             client.get_certificate("req_gone")
         assert exc_info.value.status == 404
-        assert not isinstance(exc_info.value, TheVeilResponseValidationError)
+        assert not isinstance(exc_info.value, LucairnResponseValidationError)
 
 
 class TestMaxResponseBytesEnforcement:
     @respx.mock
     def test_2xx_over_cap_raises_response_validation_error(self) -> None:
         # Deliberately ship 1 KB when the cap is 256 bytes. On a 2xx status
-        # the over-cap path raises TheVeilResponseValidationError — the
+        # the over-cap path raises LucairnResponseValidationError — the
         # body was not consumable, which is semantically the same class of
         # 2xx-body-unusable failure as a wrong-shape body. *HTTPError*
         # stays reserved for non-2xx transport failures.
@@ -306,15 +306,15 @@ class TestMaxResponseBytesEnforcement:
             text="PREFIX_MARKER_" + "x" * 1024,
             headers={"content-type": "text/plain"},
         )
-        client = TheVeil(
-            TheVeilConfig(api_key=VALID_KEY, max_response_bytes=256)
+        client = Lucairn(
+            LucairnConfig(api_key=VALID_KEY, max_response_bytes=256)
         )
         with pytest.raises(
-            TheVeilResponseValidationError, match="max_response_bytes"
+            LucairnResponseValidationError, match="max_response_bytes"
         ) as exc_info:
             client.get_certificate("req_big")
-        # Invariant: must NOT also be TheVeilHttpError.
-        assert not isinstance(exc_info.value, TheVeilHttpError)
+        # Invariant: must NOT also be LucairnHttpError.
+        assert not isinstance(exc_info.value, LucairnHttpError)
         # Body preservation: the accumulated prefix bytes must be on the
         # error so callers can diagnose misbehaving gateways. We check
         # both non-emptiness and the marker is present.
@@ -332,10 +332,10 @@ class TestMaxResponseBytesEnforcement:
             text="ERROR_MARKER_" + "x" * 1024,
             headers={"content-type": "text/plain"},
         )
-        client = TheVeil(
-            TheVeilConfig(api_key=VALID_KEY, max_response_bytes=256)
+        client = Lucairn(
+            LucairnConfig(api_key=VALID_KEY, max_response_bytes=256)
         )
-        with pytest.raises(TheVeilHttpError, match="max_response_bytes") as exc_info:
+        with pytest.raises(LucairnHttpError, match="max_response_bytes") as exc_info:
             client.get_certificate("req_big_err")
         assert exc_info.value.status == 502
         assert exc_info.value.body, "body should carry the accumulated prefix"
@@ -350,8 +350,8 @@ class TestMaxResponseBytesEnforcement:
         respx.get(f"{BASE}{CERT_PATH_PREFIX}req_ok").respond(
             200, json=cert_valid_anchored
         )
-        client = TheVeil(
-            TheVeilConfig(api_key=VALID_KEY, max_response_bytes=1024 * 1024)
+        client = Lucairn(
+            LucairnConfig(api_key=VALID_KEY, max_response_bytes=1024 * 1024)
         )
         cert = client.get_certificate("req_ok")
         assert cert.certificate_id == cert_valid_anchored["certificate_id"]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from lucairn.errors import TheVeilCertificateError
+from lucairn.errors import LucairnCertificateError
 from lucairn.types import VeilCertificate
 
 __all__ = ["parse_certificate"]
@@ -19,12 +19,12 @@ def parse_certificate(raw: Any) -> VeilCertificate:
     belongs semantically.
 
     Raises:
-        TheVeilCertificateError: with ``reason="malformed"`` on bad shape
+        LucairnCertificateError: with ``reason="malformed"`` on bad shape
             or missing required fields.
     """
 
     if not isinstance(raw, dict):
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Certificate is not a JSON object",
             reason="malformed",
         )
@@ -41,7 +41,7 @@ def parse_certificate(raw: Any) -> VeilCertificate:
     )
     for field_name in required_str_fields:
         if not isinstance(raw.get(field_name), str):
-            raise TheVeilCertificateError(
+            raise LucairnCertificateError(
                 "Certificate missing required fields",
                 reason="malformed",
                 certificate_id=cert_id,
@@ -51,26 +51,26 @@ def parse_certificate(raw: Any) -> VeilCertificate:
     ):
         # bool subclasses int in Python; exclude it so True/False never
         # passes as a protocol version.
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Certificate missing required fields",
             reason="malformed",
             certificate_id=cert_id,
         )
     if not isinstance(raw.get("claims"), list):
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Certificate missing required fields",
             reason="malformed",
             certificate_id=cert_id,
         )
     verification = raw.get("verification")
     if not isinstance(verification, dict):
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Certificate missing required fields",
             reason="malformed",
             certificate_id=cert_id,
         )
     if not isinstance(verification.get("overall_verdict"), str):
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "verification.overall_verdict must be a string enum literal",
             reason="malformed",
             certificate_id=cert_id,
@@ -81,7 +81,7 @@ def parse_certificate(raw: Any) -> VeilCertificate:
     except Exception as exc:  # pydantic.ValidationError etc.
         # Any Pydantic-level coercion failure on the declared fields
         # (e.g. claim with non-int nested field) surfaces as malformed.
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Certificate validation failed: {exc}",
             reason="malformed",
             certificate_id=cert_id,
