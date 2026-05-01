@@ -225,6 +225,37 @@ func (c *Client) GetCertificate(ctx context.Context, requestID string, opts ...C
 	return &cert, nil
 }
 
+// GetCertificateSummary calls GET /api/v1/veil/certificate/{requestID}/summary
+// and returns the gateway's HTML DPO-friendly summary view as a raw
+// string (Content-Type: text/html; charset=utf-8). Both the assembled
+// and pending states return HTTP 200 with HTML bodies — pending shows a
+// `PENDING` banner instructing the caller to retry in ~30s — so callers
+// who want to distinguish pending from assembled should chain
+// GetCertificate first or pattern-match the HTML.
+//
+// Source: dual-sandbox-architecture/services/gateway/internal/api/
+// veil.go:364-408 (HandleGetCertificateSummary). 503 from the gateway
+// when veil-witness is temporarily unavailable surfaces as an
+// *HTTPError with Status=503 (handler falls through to WriteError on
+// the upstream error path).
+//
+// No HTML escaping or sanitization is performed by the SDK — the
+// gateway's own template (renderSummaryHTML) is the source of truth
+// for the rendered output.
+func (c *Client) GetCertificateSummary(ctx context.Context, requestID string, opts ...CallOption) (string, error) {
+	if requestID == "" {
+		return "", &ConfigError{Message: "requestID must be non-empty"}
+	}
+	encoded := url.PathEscape(requestID)
+	path := "/api/v1/veil/certificate/" + encoded + "/summary"
+
+	_, html, err := c.doRaw(ctx, http.MethodGet, path, nil, opts)
+	if err != nil {
+		return "", err
+	}
+	return html, nil
+}
+
 // validateVeilCertificate enforces the set of fields a genuine Veil
 // Certificate MUST carry — zero-value on any of these means the body
 // wasn't a cert even though json.Unmarshal accepted it. Kept minimal:
@@ -344,19 +375,25 @@ func (c *Client) VerifyCertificate(cert any, keys VerifyCertificateKeys) (*Verif
 
 // -- Transport primitive --------------------------------------------------
 
-// do executes a single HTTP request. Returns (status, parsedBody, error).
+// doBytes executes a single HTTP request and returns the raw response
+// bytes plus status. It is the shared transport workhorse for both `do`
+// (which JSON-parses the body for typed callers) and `doRaw` (which
+// preserves the body verbatim for endpoints that emit non-JSON content
+// types like text/html).
 //
-// Body is parsed as JSON when the response text is non-empty; otherwise
-// returned as the raw string. Non-2xx status codes return (_, _, *HTTPError).
-// Context cancellation / deadline exceeded returns (_, _, *TimeoutError)
-// or (_, _, *NetworkError) depending on which fired. The 2xx happy-path
-// body passes through without shape validation — thin-transport rule.
-func (c *Client) do(
+// On context-cancel / deadline-exceeded / network failure returns
+// (_, nil, *TimeoutError | *NetworkError). On over-cap response body
+// returns (_, nil, *ResponseValidationError) for 2xx and (_, nil,
+// *HTTPError) for non-2xx — the prefix bytes up to the cap are
+// preserved on the error's Body field for diagnostics. On non-2xx with
+// a within-cap body returns (status, bytes, *HTTPError) with the raw
+// bytes attached so the caller can format a typed message.
+func (c *Client) doBytes(
 	ctx context.Context,
 	method, path string,
 	body []byte,
 	opts []CallOption,
-) (int, any, error) {
+) (int, []byte, error) {
 	cc := callConfig{}
 	for _, opt := range opts {
 		opt(&cc)
@@ -452,29 +489,88 @@ func (c *Client) do(
 		}
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp.StatusCode, respBytes, &HTTPError{
+			Status:  resp.StatusCode,
+			Body:    bytesToHTTPErrorBody(respBytes),
+			Message: fmt.Sprintf("Lucairn request failed: %d %s", resp.StatusCode, resp.Status),
+		}
+	}
+
+	return resp.StatusCode, respBytes, nil
+}
+
+// bytesToHTTPErrorBody is the JSON-or-text reduction reused by `do` and
+// `doRaw` when constructing the *HTTPError.Body field on non-2xx
+// responses. JSON-parses the bytes when possible (so map/slice/scalar
+// payloads stay structured for callers branching on body fields like
+// status="pending" or code="rate_limited"); falls back to the raw
+// string when the bytes don't parse as JSON. Mirrors the pre-refactor
+// `do(...)` behaviour exactly.
+func bytesToHTTPErrorBody(respBytes []byte) any {
+	if len(respBytes) == 0 {
+		return ""
+	}
+	var jsonVal any
+	if json.Unmarshal(respBytes, &jsonVal) == nil {
+		return jsonVal
+	}
+	return string(respBytes)
+}
+
+// do executes a single HTTP request. Returns (status, parsedBody, error).
+//
+// Body is parsed as JSON when the response text is non-empty; otherwise
+// returned as the raw string. Non-2xx status codes return (_, _, *HTTPError).
+// Context cancellation / deadline exceeded returns (_, _, *TimeoutError)
+// or (_, _, *NetworkError) depending on which fired. The 2xx happy-path
+// body passes through without shape validation — thin-transport rule.
+func (c *Client) do(
+	ctx context.Context,
+	method, path string,
+	body []byte,
+	opts []CallOption,
+) (int, any, error) {
+	status, respBytes, err := c.doBytes(ctx, method, path, body, opts)
+	if err != nil {
+		// On non-2xx the *HTTPError already has a parsed-JSON-or-text
+		// Body attached by doBytes. On other typed errors the body is
+		// nil; callers don't inspect parsed body on those paths anyway.
+		return status, nil, err
+	}
+
 	var parsed any
-	text := string(respBytes)
 	if len(respBytes) > 0 {
 		// Try JSON parse; on failure keep the raw text.
 		var jsonVal any
 		if json.Unmarshal(respBytes, &jsonVal) == nil {
 			parsed = jsonVal
 		} else {
-			parsed = text
+			parsed = string(respBytes)
 		}
 	} else {
-		parsed = text
+		parsed = ""
 	}
+	return status, parsed, nil
+}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.StatusCode, parsed, &HTTPError{
-			Status:  resp.StatusCode,
-			Body:    parsed,
-			Message: fmt.Sprintf("Lucairn request failed: %d %s", resp.StatusCode, resp.Status),
-		}
+// doRaw executes a single HTTP request and returns the raw response
+// body as a string — the right primitive for endpoints that emit
+// non-JSON Content-Types (text/html, text/plain, etc.). Error
+// semantics match `do(...)`: 2xx returns (_, body, nil); non-2xx
+// returns (_, "", *HTTPError); transport failures return the typed
+// timeout/network/config error families.
+func (c *Client) doRaw(
+	ctx context.Context,
+	method, path string,
+	body []byte,
+	opts []CallOption,
+) (int, string, error) {
+	status, respBytes, err := c.doBytes(ctx, method, path, body, opts)
+	if err != nil {
+		return status, "", err
 	}
-
-	return resp.StatusCode, parsed, nil
+	return status, string(respBytes), nil
 }
 
 // decodeInto round-trips a parsed-JSON any through json.Marshal/Unmarshal
