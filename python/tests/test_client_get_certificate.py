@@ -38,7 +38,7 @@ from lucairn import (
 )
 
 VALID_KEY = "dsa_0123456789abcdef0123456789abcdef"
-BASE = "https://gateway.dsaveil.io"
+BASE = "https://gateway.lucairn.eu"
 CERT_PATH_PREFIX = "/api/v1/veil/certificate/"
 
 

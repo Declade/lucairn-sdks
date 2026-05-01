@@ -50,7 +50,7 @@ class TestApiKeyValidation:
 class TestBaseUrl:
     def test_default_base_url(self) -> None:
         client = Lucairn(LucairnConfig(api_key=VALID_KEY))
-        assert client.base_url == "https://gateway.dsaveil.io"
+        assert client.base_url == "https://gateway.lucairn.eu"
 
     def test_accepts_https_override(self) -> None:
         client = Lucairn(
@@ -158,7 +158,7 @@ class TestHTTPBaseURLGuard:
             )
 
     def test_accepts_https_everywhere(self) -> None:
-        for url in ("https://gateway.dsaveil.io", "https://10.0.0.1", "https://example.com"):
+        for url in ("https://gateway.lucairn.eu", "https://10.0.0.1", "https://example.com"):
             client = Lucairn(LucairnConfig(api_key=VALID_KEY, base_url=url))
             assert client.base_url == url
 

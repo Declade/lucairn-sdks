@@ -45,7 +45,7 @@ _API_KEY_PATTERN = re.compile(r"^dsa_[0-9a-f]{32}$")
 
 # Default points at the hosted gateway for solo-dev tier.
 # Enterprise self-hosters must pass base_url explicitly.
-_DEFAULT_BASE_URL = "https://gateway.dsaveil.io"
+_DEFAULT_BASE_URL = "https://gateway.lucairn.eu"
 
 # 30 seconds, matching TS DEFAULT_TIMEOUT_MS = 30_000.
 _DEFAULT_TIMEOUT_S = 30.0

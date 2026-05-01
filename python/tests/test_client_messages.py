@@ -27,7 +27,7 @@ from lucairn import (
 )
 
 VALID_KEY = "dsa_0123456789abcdef0123456789abcdef"
-BASE = "https://gateway.dsaveil.io"
+BASE = "https://gateway.lucairn.eu"
 MESSAGES_URL = f"{BASE}/api/v1/proxy/messages"
 
 
