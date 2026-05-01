@@ -1,4 +1,4 @@
-package theveil
+package lucairn
 
 import (
 	"encoding/json"
@@ -9,19 +9,19 @@ import (
 
 // tsFixturesDir returns the path to the TS-side fixture directory the Go
 // SDK tests share with the TS + Python suites. Tests assume the monorepo
-// layout: theveil-sdks/go → theveil-sdks/ts/src/verify-certificate/__fixtures__.
+// layout: <repo>/go → <repo>/ts/src/verify-certificate/__fixtures__.
 func tsFixturesDir(t *testing.T) string {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
-	// cwd = theveil-sdks/go; monorepo root one up.
+	// cwd = <repo>/go; monorepo root one up.
 	root := filepath.Join(cwd, "..")
 	fixtures := filepath.Join(root, "ts", "src", "verify-certificate", "__fixtures__")
 	info, err := os.Stat(fixtures)
 	if err != nil || !info.IsDir() {
-		t.Fatalf("expected TS fixtures at %s (run tests from theveil-sdks/go): %v", fixtures, err)
+		t.Fatalf("expected TS fixtures at %s (run tests from <repo>/go): %v", fixtures, err)
 	}
 	return fixtures
 }

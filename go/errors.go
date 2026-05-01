@@ -1,10 +1,10 @@
-// Package theveil is the Go client for The Veil — privacy-preserving AI
+// Package lucairn is the Go client for Lucairn — privacy-preserving AI
 // infrastructure.
 //
-// See https://dsaveil.io for product documentation and the TypeScript SDK at
-// https://github.com/Declade/theveil-sdks/tree/main/ts for cross-language
+// See https://lucairn.eu for product documentation and the TypeScript SDK at
+// https://github.com/Declade/lucairn-sdks/tree/main/ts for cross-language
 // behaviour parity notes.
-package theveil
+package lucairn
 
 import (
 	"fmt"
@@ -12,12 +12,12 @@ import (
 
 // Error is the base sentinel for errors returned by this package. All
 // concrete error types below satisfy this interface, so callers can check
-// "did this come from the SDK?" with errors.As(err, &theveil.Error(nil))-
+// "did this come from the SDK?" with errors.As(err, &lucairn.Error(nil))-
 // style patterns. Direct errors.As to the concrete types for structured
 // inspection (status, reason, etc.).
 type Error interface {
 	error
-	theveilError()
+	lucairnError()
 }
 
 // ConfigError is returned when a constructor / per-call option is invalid.
@@ -28,10 +28,10 @@ type ConfigError struct {
 }
 
 func (e *ConfigError) Error() string {
-	return "theveil: " + e.Message
+	return "lucairn: " + e.Message
 }
 
-func (e *ConfigError) theveilError() {}
+func (e *ConfigError) lucairnError() {}
 
 // HTTPError is returned when the gateway returns a non-2xx response, or a
 // 202 pending wrapper on GetCertificate. Status is the real HTTP status
@@ -49,12 +49,12 @@ type HTTPError struct {
 }
 
 func (e *HTTPError) Error() string {
-	return fmt.Sprintf("theveil: %s (status=%d)", e.Message, e.Status)
+	return fmt.Sprintf("lucairn: %s (status=%d)", e.Message, e.Status)
 }
 
 func (e *HTTPError) Unwrap() error { return e.Err }
 
-func (e *HTTPError) theveilError() {}
+func (e *HTTPError) lucairnError() {}
 
 // TimeoutError is returned when a request exceeds its per-call or
 // client-default timeout, or the caller's context deadline fires first.
@@ -67,12 +67,12 @@ type TimeoutError struct {
 }
 
 func (e *TimeoutError) Error() string {
-	return "theveil: " + e.Message
+	return "lucairn: " + e.Message
 }
 
 func (e *TimeoutError) Unwrap() error { return e.Err }
 
-func (e *TimeoutError) theveilError() {}
+func (e *TimeoutError) lucairnError() {}
 
 // NetworkError wraps generic transport failures (connection refused,
 // TLS handshake, canceled context, etc.) that are not structured HTTP
@@ -83,12 +83,12 @@ type NetworkError struct {
 }
 
 func (e *NetworkError) Error() string {
-	return "theveil: " + e.Message
+	return "lucairn: " + e.Message
 }
 
 func (e *NetworkError) Unwrap() error { return e.Err }
 
-func (e *NetworkError) theveilError() {}
+func (e *NetworkError) lucairnError() {}
 
 // VerifyCertificateFailureReason names a concrete failure mode of
 // VerifyCertificate. The five values here mirror the TS SDK's
@@ -125,12 +125,12 @@ type ResponseValidationError struct {
 }
 
 func (e *ResponseValidationError) Error() string {
-	return "theveil: " + e.Message
+	return "lucairn: " + e.Message
 }
 
 func (e *ResponseValidationError) Unwrap() error { return e.Err }
 
-func (e *ResponseValidationError) theveilError() {}
+func (e *ResponseValidationError) lucairnError() {}
 
 // CertificateError is returned by VerifyCertificate when verification
 // fails. Reason names the specific failure mode. CertificateID is lifted
@@ -152,11 +152,11 @@ type CertificateError struct {
 
 func (e *CertificateError) Error() string {
 	if e.CertificateID != "" {
-		return fmt.Sprintf("theveil: %s (reason=%s, certificate_id=%q)", e.Message, e.Reason, e.CertificateID)
+		return fmt.Sprintf("lucairn: %s (reason=%s, certificate_id=%q)", e.Message, e.Reason, e.CertificateID)
 	}
-	return fmt.Sprintf("theveil: %s (reason=%s)", e.Message, e.Reason)
+	return fmt.Sprintf("lucairn: %s (reason=%s)", e.Message, e.Reason)
 }
 
 func (e *CertificateError) Unwrap() error { return e.Err }
 
-func (e *CertificateError) theveilError() {}
+func (e *CertificateError) lucairnError() {}

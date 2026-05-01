@@ -1,4 +1,4 @@
-package theveil
+package lucairn
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Client is the The Veil gateway client. Construct with New.
+// Client is the Lucairn gateway client. Construct with New.
 //
 // Client is safe for concurrent use by multiple goroutines; it reuses a
 // single *http.Client under the hood (stdlib-safe per the net/http docs).
@@ -470,7 +470,7 @@ func (c *Client) do(
 		return resp.StatusCode, parsed, &HTTPError{
 			Status:  resp.StatusCode,
 			Body:    parsed,
-			Message: fmt.Sprintf("TheVeil request failed: %d %s", resp.StatusCode, resp.Status),
+			Message: fmt.Sprintf("Lucairn request failed: %d %s", resp.StatusCode, resp.Status),
 		}
 	}
 

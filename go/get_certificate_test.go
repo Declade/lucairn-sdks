@@ -1,4 +1,4 @@
-package theveil
+package lucairn
 
 import (
 	"context"
@@ -464,10 +464,10 @@ func TestGetCertificate_Malformed200_NonJSON(t *testing.T) {
 		t.Errorf("should not also be *HTTPError: %v", httpErr)
 	}
 	// Still satisfies the base Error interface so callers doing blanket
-	// theveil.Error type switches still catch it.
+	// lucairn.Error type switches still catch it.
 	var base Error
 	if !errors.As(err, &base) {
-		t.Errorf("should satisfy theveil.Error interface")
+		t.Errorf("should satisfy lucairn.Error interface")
 	}
 	// Underlying json error preserved via Unwrap.
 	if vErr.Err == nil {

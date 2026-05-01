@@ -1,4 +1,4 @@
-package theveil
+package lucairn
 
 import (
 	"errors"
@@ -8,8 +8,8 @@ import (
 
 func TestConfigError_Error(t *testing.T) {
 	err := &ConfigError{Message: "bad"}
-	if !strings.HasPrefix(err.Error(), "theveil: ") {
-		t.Errorf("Error() must prefix with 'theveil: ', got %q", err.Error())
+	if !strings.HasPrefix(err.Error(), "lucairn: ") {
+		t.Errorf("Error() must prefix with 'lucairn: ', got %q", err.Error())
 	}
 }
 
