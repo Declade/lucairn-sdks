@@ -1,7 +1,7 @@
 # Custom PyPI OIDC + twine publish — design note
 
 **Status:** Phase 1 design locked. Awaits external Codex re-review before Phase 2 (implementation).
-**Scope:** Python SDK (`theveil` on PyPI) publish workflow only. Does not touch `publish-ts.yml` or `publish-go.yml`.
+**Scope:** Python SDK (`lucairn` on PyPI) publish workflow only. Does not touch `publish-ts.yml` or `publish-go.yml`.
 **Supersedes:** `.github/workflows/publish-python.yml`'s `- uses: pypa/gh-action-pypi-publish@<sha>` step only. Everything else in that workflow (trigger pattern, environment, permissions, build step) is retained.
 **Branch:** `arc/custom-pypi-oidc-publish` off `main` at `971066e`.
 

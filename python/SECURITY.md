@@ -4,11 +4,13 @@
 
 | Version      | Supported          |
 | ------------ | ------------------ |
-| 0.1.x        | :white_check_mark: |
-| < 0.1.0      | :x:                |
+| 1.0.x        | :white_check_mark: |
+| < 1.0.0      | :x:                |
 
-`theveil` is in pre-1.0 alpha. Security fixes ship against the current 0.1.x
-line. Pre-0.1.0 builds are not supported and should not be relied on.
+`lucairn` is the current 1.0.x line. Security fixes ship against the
+current 1.0.x line. Earlier releases (published under the previous
+package name `theveil`, pre-1.0) are not supported and should not be
+relied on.
 
 ## Reporting a vulnerability
 
@@ -30,7 +32,7 @@ Do **not** open a public GitHub issue for security reports.
 
 ### What to include
 
-- affected version (output of `python -c "import theveil; print(theveil.__version__)"`)
+- affected version (output of `python -c "import lucairn; print(lucairn.__version__)"`)
 - reproduction steps or a minimal PoC
 - observed vs. expected behaviour
 - impact assessment, if you have one
@@ -48,7 +50,7 @@ Do **not** open a public GitHub issue for security reports.
 
 **In scope**
 
-- The `theveil` PyPI package and its source in this repository.
+- The `lucairn` PyPI package and its source in this repository.
 - The publish pipeline (`.github/workflows/publish-python.yml`) and its
   trusted-publisher configuration.
 - Cryptographic verification paths inside the SDK (certificate signature
@@ -60,14 +62,16 @@ Do **not** open a public GitHub issue for security reports.
   maintainer, not here.
 - Upstream dependencies (`httpx`, `pydantic`, `cryptography`) — please
   report directly to those projects. If a vulnerability in an upstream
-  dependency affects `theveil` specifically, you may CC us.
+  dependency affects `lucairn` specifically, you may CC us.
 - The hosted gateway service (`gateway.dsaveil.io`) — report infrastructure
   issues via GitHub PVR on this repository or to `contact@dsaveil.io` with
   `[security][gateway]` in the subject line.
 
 ## Release integrity
 
-From `theveil` 0.1.1 onward, releases are published to PyPI via
+From `lucairn` 1.0.0 onward (and previously, from `theveil` 0.1.1
+through 0.1.x while the package was published under the old name),
+releases are published to PyPI via
 [PyPI trusted publishers](https://docs.pypi.org/trusted-publishers/) using
 OIDC tokens minted by GitHub Actions. The uploader identity is bound to
 this repository, the `publish-python.yml` workflow, and the `pypi`
