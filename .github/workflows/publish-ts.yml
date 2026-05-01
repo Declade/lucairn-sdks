@@ -1,10 +1,16 @@
 name: Publish TypeScript
 
-# Trigger: tag push ts/v* — publishes @dsaveil/theveil to npm via OIDC
+# Trigger: tag push ts-v* — publishes @lucairn/sdk to npm via OIDC
 # trusted publisher (configured on npmjs.com against this repo + this
 # workflow filename). No NPM_TOKEN secret — the publish step authenticates
 # via the GitHub Actions OIDC token, which npm matches against the
 # trusted-publisher registration.
+#
+# Stage 3 rebrand: package was @dsaveil/theveil@0.2.0; the new scope is
+# @lucairn/sdk and the first published version is 1.0.0 (tag ts-v1.0.0).
+# OIDC trusted-publisher registration on npmjs.com must reference the
+# @lucairn scope before the first publish — see the Path A handover
+# (specs/handover-path-a-stage-3-sdk-rebrand-2026-05-02.md, Gate 1).
 #
 # Provenance attestation is added automatically by npm when publishing
 # via trusted publisher; do NOT pass --provenance on the CLI (it's
@@ -14,7 +20,7 @@ name: Publish TypeScript
 on:
   push:
     tags:
-      - 'ts/v*'
+      - 'ts-v*'
   workflow_dispatch:
 
 jobs:
