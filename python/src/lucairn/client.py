@@ -280,6 +280,39 @@ class Lucairn:
                 cause=exc,
             ) from exc
 
+    def get_certificate_summary(
+        self,
+        request_id: str,
+        options: MessagesOptions | None = None,
+    ) -> str:
+        """Fetch the DPO-friendly HTML summary for a Veil Certificate.
+
+        Calls ``GET /api/v1/veil/certificate/{request_id}/summary``. The
+        gateway returns ``Content-Type: text/html``; this method returns
+        the raw HTML as a UTF-8 ``str``.
+
+        Per gateway source (``services/gateway/internal/api/veil.go:391-394``)
+        the pending case returns HTTP 200 with a "pending" HTML body
+        rather than a 202 wrapper — callers receive the rendered pending
+        HTML. If the gateway ever does respond with a non-2xx status, the
+        underlying transport raises :class:`LucairnHttpError`.
+        """
+
+        if not isinstance(request_id, str):
+            raise LucairnConfigError(
+                f"request_id must be str, got {type(request_id).__name__}"
+            )
+        encoded = quote(request_id, safe="")
+
+        _status, _body, raw_text = self._request(
+            path=f"/api/v1/veil/certificate/{encoded}/summary",
+            method="GET",
+            body=None,
+            options=options,
+            expect_json=False,
+        )
+        return raw_text
+
     # -- Transport primitive -------------------------------------------------
 
     def _request(
@@ -289,6 +322,7 @@ class Lucairn:
         method: str,
         body: str | None,
         options: MessagesOptions | None,
+        expect_json: bool = True,
     ) -> tuple[int, Any, str]:
         """Execute a single HTTP request and return ``(status, body, raw_text)``.
 
@@ -402,13 +436,19 @@ class Lucairn:
 
         text = raw_bytes.decode("utf-8", errors="replace")
         parsed_body: Any
-        if text:
-            try:
-                parsed_body = _json.loads(text)
-            except ValueError:
-                # Non-JSON body — surface the raw text, mirroring TS.
+        if expect_json:
+            if text:
+                try:
+                    parsed_body = _json.loads(text)
+                except ValueError:
+                    # Non-JSON body — surface the raw text, mirroring TS.
+                    parsed_body = text
+            else:
                 parsed_body = text
         else:
+            # Caller wants the response body as raw text (e.g. an HTML
+            # endpoint). Skip JSON parsing entirely; the caller will pull
+            # ``raw_text`` from the return tuple.
             parsed_body = text
 
         if not (200 <= status_code < 300):
