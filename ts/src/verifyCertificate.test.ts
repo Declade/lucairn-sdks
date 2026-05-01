@@ -460,3 +460,31 @@ describe('Lucairn#verifyCertificate client delegation', () => {
     expect(result.overallVerdict).toBe('VERDICT_VERIFIED');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Live-throw alias regression (bug-hunter M2). The static identity test in
+// errors.test.ts at the `TheVeil* === Lucairn*` constructor level only proves
+// the legacy aliases are correctly re-exported. It does NOT prove that an
+// error THROWN from inside verify-certificate/ at runtime is catchable as
+// either name. After Fix 1 swapped the verify-certificate/ throws to use the
+// canonical LucairnCertificateError name, this guard makes the dual-name
+// catchability invariant explicit so a future migration that drops one alias
+// fails this test loudly rather than silently breaking pre-Stage-3 callers.
+// ---------------------------------------------------------------------------
+describe('verifyCertificate alias regression — live throws are catchable as both names', () => {
+  it('a malformed-input rejection satisfies instanceof for both LucairnCertificateError and TheVeilCertificateError', async () => {
+    const { TheVeilCertificateError } = await import('./errors.js');
+    let caught: unknown;
+    try {
+      await verifyCertificate(null as unknown as VeilCertificate, keysAll());
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(LucairnCertificateError);
+    expect(caught).toBeInstanceOf(TheVeilCertificateError);
+    // Sanity: the constructor identity invariant the static test asserts —
+    // re-asserted here at the throw site so the regression boundary is
+    // colocated with the throw path.
+    expect(LucairnCertificateError).toBe(TheVeilCertificateError);
+  });
+});
