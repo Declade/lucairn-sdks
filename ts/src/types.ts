@@ -4,8 +4,10 @@ export interface LucairnConfig {
   timeoutMs?: number;
 }
 
-// Legacy alias — pre-Stage-3 callers used `TheVeilConfig`. Removed in next
-// minor bump.
+// Legacy alias — pre-Stage-3 callers used `TheVeilConfig`. Scheduled for
+// removal in @lucairn/sdk@1.1.0. The @deprecated JSDoc tag tells VS Code
+// and other JSDoc-aware editors to render strikethrough on legacy usages.
+/** @deprecated Use {@link LucairnConfig} instead. The TheVeilConfig alias will be removed in @lucairn/sdk@1.1.0. */
 export type TheVeilConfig = LucairnConfig;
 
 // Mirror of gateway proxyPIIAnnotation (ground-truth annotation for proving_ground mode).

@@ -424,5 +424,8 @@ export class Lucairn {
   }
 }
 
-// Legacy alias — pre-Stage-3 callers used `TheVeil`. Removed in next minor bump.
+// Legacy alias — pre-Stage-3 callers used `TheVeil`. Scheduled for removal in
+// @lucairn/sdk@1.1.0. The @deprecated JSDoc tag tells VS Code and other
+// JSDoc-aware editors to render strikethrough on legacy usages.
+/** @deprecated Use {@link Lucairn} instead. The TheVeil alias will be removed in @lucairn/sdk@1.1.0. */
 export { Lucairn as TheVeil };

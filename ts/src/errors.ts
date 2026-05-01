@@ -74,13 +74,25 @@ export class LucairnCertificateError extends LucairnError {
 // ---------------------------------------------------------------------------
 // Legacy aliases — one minor-version migration cycle.
 // Pre-Stage-3 callers imported `TheVeil*Error` names; these re-exports keep
-// existing code compiling. Removal is scheduled for the next minor bump.
+// existing code compiling. Removal is scheduled for @lucairn/sdk@1.1.0. Each
+// alias carries an @deprecated JSDoc tag so VS Code and other JSDoc-aware
+// editors render strikethrough on legacy usages.
 // ---------------------------------------------------------------------------
-export {
-  LucairnError as TheVeilError,
-  LucairnConfigError as TheVeilConfigError,
-  LucairnHttpError as TheVeilHttpError,
-  LucairnTimeoutError as TheVeilTimeoutError,
-  LucairnCertificateError as TheVeilCertificateError,
-};
+
+/** @deprecated Use {@link LucairnError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnError as TheVeilError };
+
+/** @deprecated Use {@link LucairnConfigError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnConfigError as TheVeilConfigError };
+
+/** @deprecated Use {@link LucairnHttpError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnHttpError as TheVeilHttpError };
+
+/** @deprecated Use {@link LucairnTimeoutError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnTimeoutError as TheVeilTimeoutError };
+
+/** @deprecated Use {@link LucairnCertificateError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnCertificateError as TheVeilCertificateError };
+
+/** @deprecated Use `LucairnCertificateErrorOptions` instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
 export type { LucairnCertificateErrorOptions as TheVeilCertificateErrorOptions };
