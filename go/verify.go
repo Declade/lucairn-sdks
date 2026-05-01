@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/declade/theveil-sdks/go/internal/verify"
+	"github.com/declade/lucairn-sdks/go/internal/verify"
 )
 
 // VerifyCertificate verifies a Veil Certificate's witness Ed25519 signature
