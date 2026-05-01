@@ -12,7 +12,7 @@ byte-equivalence locked via shared Go-assembler-generated fixtures.
 | Language   | Package                                   | Version  |
 |------------|-------------------------------------------|----------|
 | TypeScript | `@lucairn/sdk`                            | 1.0.0    |
-| Python     | `theveil`                                 | 0.1.0    |
+| Python     | `lucairn`                                 | 1.0.0    |
 | Go         | `github.com/declade/theveil-sdks/go`      | v0.1.0   |
 
 ## Per-language docs
