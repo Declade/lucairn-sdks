@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MCP server [1.0.0]** — new `@lucairn/mcp-server` package at
+  `mcp-server/`. Stdio-transport Model Context Protocol server that
+  wraps the Lucairn gateway's `POST /api/v1/mcp/messages` endpoint
+  (Anthropic Messages API-compatible) and exposes it to Claude Desktop
+  and any other MCP client as a single tool, `chat_via_lucairn`.
+  Pinned to `@modelcontextprotocol/sdk` `^1.29.0`. Supports both
+  `DSA_*` and `LUCAIRN_*` env-var prefixes for backward-compat during
+  the Stage 3 rebrand. No `@lucairn/sdk` dependency — HTTP-direct to
+  the gateway. `dist/` is the published surface; `npx -y
+  @lucairn/mcp-server` is the canonical Claude Desktop entry per
+  `theveil-website/src/app/[lang]/developer/mcp/page.tsx:9-21`.
 - **Python [0.1.0]** — first full implementation. `theveil` on PyPI.
   `TheVeil` client with `messages`, `get_certificate`,
   `verify_certificate`. Six typed exception classes (`TheVeilError`
