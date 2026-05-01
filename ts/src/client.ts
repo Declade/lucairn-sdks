@@ -234,20 +234,31 @@ export class Lucairn {
     return body as VeilCertificate;
   }
 
-  // Fetch a DPO-friendly HTML summary of a Veil Certificate from the
-  // gateway's GET /api/v1/veil/certificate/{request_id}/summary endpoint.
-  // The endpoint always returns text/html with no JSON wrapper.
-  //
-  // Pending state: when the certificate is not yet assembled, the gateway
-  // returns 202 Accepted with a pending-summary HTML body. We surface that
-  // as LucairnHttpError{ status: 202, body: "<html>...</html>" } so the
-  // happy-path return type stays the rendered ready-to-display HTML and
-  // callers get an explicit retry signal on the error branch.
-  //
-  // Auth: same x-api-key header as getCertificate(). The gateway's
-  // authenticateAndAuthorize gate decides whether the caller's tier may
-  // read summaries — 401/403/404 errors flow through as LucairnHttpError
-  // verbatim.
+  /**
+   * Fetch a DPO-friendly HTML summary of a Veil Certificate from the
+   * gateway's GET /api/v1/veil/certificate/{request_id}/summary endpoint.
+   * The endpoint always returns text/html with no JSON wrapper.
+   *
+   * Pending state: when the certificate is not yet assembled, the gateway
+   * returns 202 Accepted with a pending-summary HTML body. We surface that
+   * as `LucairnHttpError{ status: 202, body: "<html>...</html>" }` so the
+   * happy-path return type stays the rendered ready-to-display HTML and
+   * callers get an explicit retry signal on the error branch.
+   *
+   * Auth: same `x-api-key` header as `getCertificate()`. The gateway's
+   * `authenticateAndAuthorize` gate decides whether the caller's tier may
+   * read summaries — 401/403/404 errors flow through as `LucairnHttpError`
+   * verbatim.
+   *
+   * @security
+   * The returned HTML is server-rendered on the gateway and contains
+   * fields derived from the original request payload. Do **NOT** pass the
+   * return value directly to `dangerouslySetInnerHTML`, `innerHTML`, or
+   * any equivalent unsanitized HTML sink. Render only inside a sandboxed
+   * `<iframe srcdoc>` or after passing through a trusted sanitizer such
+   * as DOMPurify. The SDK is a thin transport — it does not sanitize on
+   * the client side.
+   */
   async getCertificateSummary(
     requestId: string,
     options?: MessagesOptions,
