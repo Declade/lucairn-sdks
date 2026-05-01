@@ -228,21 +228,24 @@ func (c *Client) GetCertificate(ctx context.Context, requestID string, opts ...C
 
 // GetCertificateSummary calls GET /api/v1/veil/certificate/{requestID}/summary
 // and returns the gateway's HTML DPO-friendly summary view as a raw
-// string (Content-Type: text/html; charset=utf-8). Both the assembled
-// and pending states return HTTP 200 with HTML bodies — pending shows a
-// `PENDING` banner instructing the caller to retry in ~30s — so callers
-// who want to distinguish pending from assembled should chain
-// GetCertificate first or pattern-match the HTML.
+// string (Content-Type: text/html; charset=utf-8).
 //
-// Source: dual-sandbox-architecture/services/gateway/internal/api/
-// veil.go:364-408 (HandleGetCertificateSummary). 503 from the gateway
-// when veil-witness is temporarily unavailable surfaces as an
-// *HTTPError with Status=503 (handler falls through to WriteError on
-// the upstream error path).
+// Per the gateway: the assembled state returns HTTP 200 via
+// renderSummaryHTML (dual-sandbox-architecture/services/gateway/
+// internal/api/veil.go:807); the pending state returns HTTP 202 via
+// renderPendingSummaryHTML (veil.go:848). The SDK propagates 202 as a
+// typed *HTTPError so callers can distinguish pending from assembled
+// without pattern-matching the HTML — the same shape as GetCertificate
+// at lucairn.go:194-201.
 //
-// No HTML escaping or sanitization is performed by the SDK — the
-// gateway's own template (renderSummaryHTML) is the source of truth
-// for the rendered output.
+// Returns:
+//   - assembled (HTTP 200): the rendered HTML body as a string, nil error.
+//   - pending (HTTP 202): ("", *HTTPError{Status:202, Body: pending HTML
+//     string, Message: "Veil certificate summary is not yet assembled;
+//     retry after the indicated delay."}). Callers branch on
+//     errors.As(err, &httpErr) && httpErr.Status == 202.
+//   - 503 from the gateway when veil-witness is temporarily unavailable
+//     surfaces as an *HTTPError with Status=503.
 func (c *Client) GetCertificateSummary(ctx context.Context, requestID string, opts ...CallOption) (string, error) {
 	if requestID == "" {
 		return "", &ConfigError{Message: "requestID must be non-empty"}
@@ -250,9 +253,16 @@ func (c *Client) GetCertificateSummary(ctx context.Context, requestID string, op
 	encoded := url.PathEscape(requestID)
 	path := "/api/v1/veil/certificate/" + encoded + "/summary"
 
-	_, html, err := c.doRaw(ctx, http.MethodGet, path, nil, opts)
+	status, html, err := c.doRaw(ctx, http.MethodGet, path, nil, opts)
 	if err != nil {
 		return "", err
+	}
+	if status == 202 {
+		return "", &HTTPError{
+			Status:  status,
+			Body:    html,
+			Message: "Veil certificate summary is not yet assembled; retry after the indicated delay.",
+		}
 	}
 	return html, nil
 }
