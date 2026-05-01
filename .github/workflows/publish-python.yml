@@ -1,14 +1,17 @@
 name: Publish Python
 
-# Trigger: tag push python/v* — publishes theveil to PyPI via OIDC
-# trusted publisher. Configure the trusted publisher on PyPI to point at
-# this repository + this workflow + the `pypi` environment before the
-# first tag, otherwise publish will fail-closed.
+# Trigger: tag push py-v* — publishes the `lucairn` package to PyPI via
+# OIDC trusted publisher. Configure the trusted publisher on PyPI under
+# the project name `lucairn` to point at this repository + this workflow
+# + the `pypi` environment before the first tag, otherwise publish will
+# fail-closed. The legacy `theveil` package is no longer published; the
+# `theveil` import shim ships inside the `lucairn` wheel for one
+# migration cycle.
 
 on:
   push:
     tags:
-      - 'python/v*'
+      - 'py-v*'
   workflow_dispatch:
 
 jobs:
