@@ -16,14 +16,14 @@ from urllib.parse import quote, urlparse
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
-from theveil.errors import (
+from lucairn.errors import (
     TheVeilConfigError,
     TheVeilError,
     TheVeilHttpError,
     TheVeilResponseValidationError,
     TheVeilTimeoutError,
 )
-from theveil.types import (
+from lucairn.types import (
     MessagesOptions,
     ProxyAcceptedResponse,
     ProxyMessagesRequest,
@@ -34,7 +34,7 @@ from theveil.types import (
     VerifyCertificateKeys,
     VerifyCertificateResult,
 )
-from theveil.verify_certificate.pipeline import (
+from lucairn.verify_certificate.pipeline import (
     verify_certificate as _verify_certificate_impl,
 )
 
@@ -106,7 +106,7 @@ class TheVeil:
     """Synchronous client for The Veil privacy-preserving AI gateway.
 
     Example:
-        from theveil import TheVeil, TheVeilConfig
+        from lucairn import TheVeil, TheVeilConfig
 
         client = TheVeil(TheVeilConfig(api_key="dsa_" + "0" * 32))
         cert = client.get_certificate("req_abc123")

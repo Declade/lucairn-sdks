@@ -29,9 +29,9 @@ witness signs the short-form. The SDK must convert.
 
 from __future__ import annotations
 
-from theveil.errors import TheVeilCertificateError
-from theveil.types import VeilCertificate, VeilVerdict
-from theveil.verify_certificate.canonical_json import canonical_json
+from lucairn.errors import TheVeilCertificateError
+from lucairn.types import VeilCertificate, VeilVerdict
+from lucairn.verify_certificate.canonical_json import canonical_json
 
 __all__ = ["derive_witness_signed_bytes", "SIGNABLE_PROTOCOL_VERSION"]
 

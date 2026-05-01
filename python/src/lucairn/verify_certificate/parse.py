@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from theveil.errors import TheVeilCertificateError
-from theveil.types import VeilCertificate
+from lucairn.errors import TheVeilCertificateError
+from lucairn.types import VeilCertificate
 
 __all__ = ["parse_certificate"]
 

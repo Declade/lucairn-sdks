@@ -6,7 +6,7 @@ from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from theveil.errors import VerifyCertificateFailureReason  # re-exported for convenience
+from lucairn.errors import VerifyCertificateFailureReason  # re-exported for convenience
 
 __all__ = [
     "MessagesOptions",

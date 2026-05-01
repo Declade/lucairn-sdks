@@ -1,5 +1,5 @@
-from theveil.client import TheVeil
-from theveil.errors import (
+from lucairn.client import TheVeil
+from lucairn.errors import (
     TheVeilCertificateError,
     TheVeilConfigError,
     TheVeilError,
@@ -7,7 +7,7 @@ from theveil.errors import (
     TheVeilResponseValidationError,
     TheVeilTimeoutError,
 )
-from theveil.types import (
+from lucairn.types import (
     MessagesOptions,
     ProxyAcceptedResponse,
     ProxyMessagesRequest,

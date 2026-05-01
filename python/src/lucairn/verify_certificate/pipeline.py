@@ -6,18 +6,18 @@ import base64
 from datetime import datetime
 from typing import Any
 
-from theveil.errors import TheVeilCertificateError
-from theveil.types import (
+from lucairn.errors import TheVeilCertificateError
+from lucairn.types import (
     VeilCertificate,
     VerifyCertificateKeys,
     VerifyCertificateResult,
 )
-from theveil.verify_certificate.parse import parse_certificate
-from theveil.verify_certificate.signable import (
+from lucairn.verify_certificate.parse import parse_certificate
+from lucairn.verify_certificate.signable import (
     SIGNABLE_PROTOCOL_VERSION,
     derive_witness_signed_bytes,
 )
-from theveil.verify_certificate.signature import verify_ed25519
+from lucairn.verify_certificate.signature import verify_ed25519
 
 __all__ = ["verify_certificate"]
 

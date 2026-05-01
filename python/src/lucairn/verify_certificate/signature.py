@@ -5,7 +5,7 @@ from __future__ import annotations
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from theveil.verify_certificate.keys import normalize_ed25519_public_key
+from lucairn.verify_certificate.keys import normalize_ed25519_public_key
 
 __all__ = ["verify_ed25519"]
 
