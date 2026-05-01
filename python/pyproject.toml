@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "theveil"
-version = "0.1.1"
-description = "The Veil — privacy-preserving AI infrastructure client for Python"
+name = "lucairn"
+version = "1.0.0"
+description = "Lucairn — privacy-preserving AI gateway client for Python"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -47,17 +47,17 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://dsaveil.io"
+Homepage = "https://lucairn.eu"
 Repository = "https://github.com/Declade/theveil-sdks"
 Issues = "https://github.com/Declade/theveil-sdks/issues"
 Changelog = "https://github.com/Declade/theveil-sdks/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/theveil"]
+packages = ["src/lucairn"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/src/theveil",
+  "/src/lucairn",
   "/README.md",
   "/pyproject.toml",
 ]

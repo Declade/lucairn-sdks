@@ -11,7 +11,7 @@ README](../README.md) for the full SDK index.
 ## Install
 
 ```bash
-pip install theveil
+pip install lucairn
 ```
 
 Requires Python 3.10+.
