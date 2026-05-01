@@ -53,11 +53,15 @@ Issues = "https://github.com/Declade/theveil-sdks/issues"
 Changelog = "https://github.com/Declade/theveil-sdks/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lucairn"]
+# Ship BOTH the new `lucairn` package AND the legacy `theveil` shim so
+# existing callers using `from theveil import TheVeil` keep working for
+# one minor-version migration cycle.
+packages = ["src/lucairn", "src/theveil"]
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/lucairn",
+  "/src/theveil",
   "/README.md",
   "/pyproject.toml",
 ]
