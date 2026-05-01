@@ -1,10 +1,10 @@
 {
-  "name": "@dsaveil/theveil",
-  "version": "0.2.0",
-  "description": "The Veil — privacy-preserving AI infrastructure client for TypeScript",
+  "name": "@lucairn/sdk",
+  "version": "1.0.0",
+  "description": "Lucairn — privacy-preserving AI gateway client for TypeScript",
   "license": "MIT",
   "author": "Declade",
-  "homepage": "https://dsaveil.io",
+  "homepage": "https://lucairn.eu",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Declade/theveil-sdks.git",

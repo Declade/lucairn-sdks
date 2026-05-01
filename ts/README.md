@@ -15,7 +15,7 @@ by this release).
 ## Install
 
 ```sh
-npm install @dsaveil/theveil
+npm install @lucairn/sdk
 ```
 
 (not yet published)
