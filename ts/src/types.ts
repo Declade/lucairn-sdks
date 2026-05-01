@@ -236,6 +236,26 @@ export interface VeilCertificate {
   // Opaque to v1; surfaced on the result with JSDoc caveats
   attestation?: VeilExternalAttestation | null;
   anchor_status?: VeilAnchorStatusInfo | null;
+
+  /**
+   * Client identifier (the issuing org_id) for client-side correlation.
+   * Optional metadata only — NOT part of the witness signable map. The
+   * tamper-evidence chain for org_id runs via the bridge claim's
+   * canonical_payload (which IS in the witness signable via `claims`),
+   * so a verifier that needs cryptographic certainty about the issuing
+   * org should check `claims[bridge].canonical_payload` rather than this
+   * top-level field.
+   *
+   * Source: proto/veil/v1/veil.proto:160 (`optional string client_id = 14`).
+   * Set by the witness assembler from the bridge claim payload at
+   * services/veil-witness/internal/assembler/assembler.go:131-155 and
+   * marshalled with EmitUnpopulated:true, so a missing value renders as
+   * `null` (NOT undefined) in the gateway response JSON.
+   *
+   * Shipped via PR #92 (W2A-B1), merge ce7894e8 on
+   * dual-sandbox-architecture main.
+   */
+  client_id?: string | null;
 }
 
 export interface VerifyCertificateKeys {

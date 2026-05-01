@@ -1,4 +1,5 @@
 export { Lucairn } from './client.js';
+export { getClientId } from './client-id.js';
 export {
   LucairnError,
   LucairnConfigError,
