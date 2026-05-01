@@ -128,8 +128,30 @@ export class GatewayClient {
         method: 'POST',
         headers,
         body: JSON.stringify(buildMessagesRequestBody(input)),
+        // 30s ceiling matches the gateway's 25-30s upstream-poll budget
+        // (mcp_handler.go:516-524). Beyond that the gateway returns 202
+        // ASYNC_PROCESSING; we abort instead of hanging forever.
+        signal: AbortSignal.timeout(30_000),
       })
     } catch (err) {
+      // AbortSignal.timeout fires a DOMException with name="TimeoutError"
+      // (or, in some Node versions, an AbortError). Surface as a clear
+      // GatewayError(_, "timeout") rather than a generic network_error.
+      const isTimeout =
+        (err instanceof Error && err.name === 'TimeoutError') ||
+        (err instanceof Error && err.name === 'AbortError') ||
+        (typeof err === 'object' &&
+          err !== null &&
+          'name' in err &&
+          ((err as { name: unknown }).name === 'TimeoutError' ||
+            (err as { name: unknown }).name === 'AbortError'))
+      if (isTimeout) {
+        throw new GatewayError(
+          `gateway request timed out after 30s reaching ${url}`,
+          0,
+          'timeout',
+        )
+      }
       // Network-level failure: TLS error, DNS, connection reset.
       const msg = err instanceof Error ? err.message : String(err)
       throw new GatewayError(

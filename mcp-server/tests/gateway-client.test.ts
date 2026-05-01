@@ -253,4 +253,49 @@ describe('GatewayClient.sendMessage', () => {
       errorType: 'malformed_response',
     })
   })
+
+  it('maps fetch timeout (TimeoutError) to GatewayError(_, "timeout") (TOB-002)', async () => {
+    // Simulate AbortSignal.timeout firing: fetch rejects with a DOMException
+    // whose name is "TimeoutError". We can't easily wait the real 30s in a
+    // test, so we mock the rejection synchronously.
+    const timeoutErr = new Error('The operation was aborted due to timeout')
+    timeoutErr.name = 'TimeoutError'
+    const fetchSpy = vi.fn().mockRejectedValue(timeoutErr)
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    await expect(client.sendMessage(baseInput)).rejects.toMatchObject({
+      name: 'GatewayError',
+      status: 0,
+      errorType: 'timeout',
+    })
+  })
+
+  it('passes an AbortSignal to fetch (TOB-002)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      fakeResponse(
+        200,
+        JSON.stringify({
+          id: 'msg_dsa_abc',
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'ok' }],
+          model: 'claude-sonnet-4-6',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      ),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    await client.sendMessage(baseInput)
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined
+    expect(init?.signal).toBeDefined()
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
+  })
 })
