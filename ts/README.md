@@ -1,13 +1,14 @@
-# @dsaveil/theveil
+# @lucairn/sdk
 
 ## Status
 
-Pre-1.0. The `TheVeil` client ships construction-time `apiKey` validation,
+The `Lucairn` client ships construction-time `apiKey` validation,
 `baseUrl` normalization with scheme guards, per-call timeout composition,
-the `client.messages()` proxy endpoint, `client.getCertificate()` fetch
-helper, `client.verifyCertificate()` for witness-signature verification,
-and five typed error classes. The public API surface is still in flux —
-see [CHANGELOG](../CHANGELOG.md).
+the `client.messages()` proxy endpoint, `client.getCertificate()` and
+`client.getCertificateSummary()` fetch helpers, `client.listAuditEvents()`
+audit-export helper, `client.verifyCertificate()` for witness-signature
+verification, and five typed error classes. See [CHANGELOG](../CHANGELOG.md)
+for the rebrand from `@dsaveil/theveil`.
 
 Node-first. Browser use requires gateway CORS configuration (not covered
 by this release).
@@ -18,7 +19,27 @@ by this release).
 npm install @lucairn/sdk
 ```
 
-(not yet published)
+## Construct a client
+
+```ts
+import { Lucairn } from '@lucairn/sdk';
+
+const client = new Lucairn({ apiKey: process.env.LUCAIRN_API_KEY! });
+```
+
+The default `baseUrl` is `https://gateway.lucairn.eu` (the hosted Lucairn
+gateway). Enterprise self-host deployments must pass `baseUrl` explicitly.
+
+## Send a request through the privacy-preserving proxy
+
+```ts
+const response = await client.messages({
+  prompt_template: 'Hello {name}',
+  context: { name: 'Example Person' },
+  model: 'claude-sonnet-4-5',
+  max_tokens: 1024,
+});
+```
 
 ## Fetch + verify a Veil Certificate
 
@@ -41,18 +62,18 @@ gateway documentation for current tier limits.
 
 ```ts
 import {
-  TheVeil,
-  TheVeilCertificateError,
-  TheVeilHttpError,
-} from '@dsaveil/theveil';
+  Lucairn,
+  LucairnCertificateError,
+  LucairnHttpError,
+} from '@lucairn/sdk';
 
-const client = new TheVeil({ apiKey: process.env.THEVEIL_API_KEY! });
+const client = new Lucairn({ apiKey: process.env.LUCAIRN_API_KEY! });
 
 let cert;
 try {
   cert = await client.getCertificate(requestId);
 } catch (err) {
-  if (err instanceof TheVeilHttpError && err.status === 202) {
+  if (err instanceof LucairnHttpError && err.status === 202) {
     // Certificate not yet assembled — retry after the indicated delay.
     const body = err.body as { retry_after_seconds?: number };
     const retryAfter = body.retry_after_seconds ?? 30;
@@ -71,7 +92,7 @@ try {
   // result.witnessAssertedIssuedAt is the millisecond-truncated Date form.
   console.log('verified', result.certificateId, result.witnessAssertedIssuedAtIso);
 } catch (err) {
-  if (err instanceof TheVeilCertificateError) {
+  if (err instanceof LucairnCertificateError) {
     switch (err.reason) {
       case 'malformed':
       case 'unsupported_protocol_version':
@@ -86,6 +107,75 @@ try {
   throw err;
 }
 ```
+
+## New helpers (1.0)
+
+### `getCertificateSummary(requestId, options?): Promise<string>`
+
+Returns a DPO-friendly HTML summary of a Veil Certificate. The endpoint
+returns text/html; the helper returns the raw HTML string. When the
+certificate is not yet assembled, the gateway responds 202 Accepted with
+a pending-summary HTML body, surfaced as
+`LucairnHttpError({ status: 202, body: '<html>...</html>' })`.
+
+```ts
+let summaryHtml: string;
+try {
+  summaryHtml = await client.getCertificateSummary(requestId);
+} catch (err) {
+  if (err instanceof LucairnHttpError && err.status === 202) {
+    // Pending; the body is the gateway's "pending" HTML view.
+    return;
+  }
+  throw err;
+}
+```
+
+### `getClientId(cert): string | null`
+
+Reads the optional `client_id` (org_id metadata) from a Veil Certificate.
+Returns the value, or `null` when missing or `null` on the wire.
+
+```ts
+import { getClientId } from '@lucairn/sdk';
+
+const orgId = getClientId(cert);
+```
+
+`client_id` is unsigned metadata for client-side correlation. For
+tamper-evident proof of the issuing org, walk the bridge claim's
+`canonical_payload` (which IS in the witness signable map).
+
+### `listAuditEvents(opts?): Promise<AuditExportResponse>`
+
+Lists the calling customer's recent audit events. Tier-gated server-side
+(403 `tier_insufficient` if the customer's tier doesn't include audit
+export). `days` defaults to 30 and is capped at 90 by the gateway.
+
+```ts
+const result = await client.listAuditEvents({ days: 7, eventType: 'request_recorded' });
+console.log(`${result.total_events} events from ${result.source}`);
+for (const ev of result.events) {
+  console.log(ev.timestamp, ev.event_type, ev.request_id);
+}
+```
+
+## Migrating from `@dsaveil/theveil`
+
+The pre-1.0 package name `@dsaveil/theveil` and class name `TheVeil` are
+re-exported as legacy aliases for one minor-version cycle so existing
+imports keep compiling:
+
+```ts
+// Both of these import the same constructor.
+import { TheVeil } from '@lucairn/sdk';   // legacy alias
+import { Lucairn } from '@lucairn/sdk';   // new name
+```
+
+The legacy aliases (`TheVeil`, `TheVeilError`, `TheVeilConfigError`,
+`TheVeilHttpError`, `TheVeilTimeoutError`, `TheVeilCertificateError`,
+`TheVeilConfig`) will be removed in the next minor bump. Migrate before
+upgrading past `1.x.0`.
 
 ## Back to root
 
