@@ -36,6 +36,48 @@ describe('buildMessagesRequestBody', () => {
   })
 })
 
+describe('GatewayClient constructor scheme guard (TOB-001)', () => {
+  it('rejects http:// for a non-loopback host', () => {
+    expect(
+      () =>
+        new GatewayClient({
+          apiKey: 'lcr_live_test',
+          baseUrl: 'http://gateway.lucairn.eu',
+        }),
+    ).toThrow(/https:\/\//)
+  })
+
+  it('allows http:// for localhost', () => {
+    expect(
+      () =>
+        new GatewayClient({
+          apiKey: 'lcr_live_test',
+          baseUrl: 'http://localhost:8080',
+        }),
+    ).not.toThrow()
+  })
+
+  it('allows http:// for 127.0.0.1', () => {
+    expect(
+      () =>
+        new GatewayClient({
+          apiKey: 'lcr_live_test',
+          baseUrl: 'http://127.0.0.1:8080',
+        }),
+    ).not.toThrow()
+  })
+
+  it('allows https:// for any host', () => {
+    expect(
+      () =>
+        new GatewayClient({
+          apiKey: 'lcr_live_test',
+          baseUrl: 'https://gateway.lucairn.eu',
+        }),
+    ).not.toThrow()
+  })
+})
+
 describe('GatewayClient.sendMessage', () => {
   it('forwards x-api-key and optional X-Upstream-Key headers', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(

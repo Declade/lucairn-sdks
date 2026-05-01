@@ -70,6 +70,29 @@ export class GatewayClient {
   constructor(opts: GatewayClientOptions) {
     if (!opts.apiKey) throw new Error('GatewayClient: apiKey is required')
     if (!opts.baseUrl) throw new Error('GatewayClient: baseUrl is required')
+
+    // Reject http:// for non-loopback hosts so a misconfigured
+    // DSA_GATEWAY_URL=http://gateway.lucairn.eu cannot ship the
+    // x-api-key header in plaintext over the wire (TOB-001).
+    let parsed: URL
+    try {
+      parsed = new URL(opts.baseUrl)
+    } catch {
+      throw new Error(
+        `GatewayClient: baseUrl is not a valid URL: ${opts.baseUrl}`,
+      )
+    }
+    if (parsed.protocol !== 'https:') {
+      const host = parsed.hostname.toLowerCase()
+      const isLoopback =
+        host === 'localhost' || host === '127.0.0.1' || host === '::1'
+      if (!isLoopback) {
+        throw new Error(
+          `lucairn-mcp-server: baseUrl must use https:// for non-loopback hosts; got ${opts.baseUrl}`,
+        )
+      }
+    }
+
     this.apiKey = opts.apiKey
     this.baseUrl = opts.baseUrl.replace(/\/+$/, '')
     this.upstreamKey = opts.upstreamKey
