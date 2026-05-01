@@ -362,10 +362,16 @@ class Lucairn:
         gateway returns ``Content-Type: text/html``; this method returns
         the raw HTML as a UTF-8 ``str``.
 
-        Per gateway source (``services/gateway/internal/api/veil.go:391-394``)
-        the pending case returns HTTP 200 with a "pending" HTML body
-        rather than a 202 wrapper — callers receive the rendered pending
-        HTML. If the gateway ever does respond with a non-2xx status, the
+        Per gateway source the assembled-cert path writes
+        ``WriteHeader(http.StatusOK)`` (``services/gateway/internal/api/veil.go:807``)
+        while the pending path writes ``WriteHeader(http.StatusAccepted)``
+        (``services/gateway/internal/api/veil.go:848``). Callers must be
+        able to distinguish the two states: 200 → return the rendered
+        HTML; 202 → raise :class:`LucairnHttpError` (mirrors the
+        precedent in :meth:`get_certificate`) so polling code can branch
+        on ``err.status == 202`` rather than parsing body content.
+
+        If the gateway responds with any other non-2xx status, the
         underlying transport raises :class:`LucairnHttpError`.
         """
 
@@ -375,13 +381,21 @@ class Lucairn:
             )
         encoded = quote(request_id, safe="")
 
-        _status, _body, raw_text = self._request(
+        status, _body, raw_text = self._request(
             path=f"/api/v1/veil/certificate/{encoded}/summary",
             method="GET",
             body=None,
             options=options,
             expect_json=False,
         )
+
+        if status == 202:
+            raise LucairnHttpError(
+                "Veil certificate summary is not yet assembled; retry after the indicated delay.",
+                status=status,
+                body=raw_text,
+            )
+
         return raw_text
 
     # -- Transport primitive -------------------------------------------------

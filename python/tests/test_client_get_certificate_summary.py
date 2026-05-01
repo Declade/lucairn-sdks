@@ -1,8 +1,19 @@
 """Lucairn.get_certificate_summary() — HTTP-level tests via respx.
 
 The gateway endpoint is GET /api/v1/veil/certificate/{request_id}/summary
-and returns text/html (see
-dual-sandbox-architecture/services/gateway/internal/api/veil.go:364-409).
+and returns text/html. Two response shapes:
+
+- assembled cert →
+  ``WriteHeader(http.StatusOK)``
+  (``services/gateway/internal/api/veil.go:807``)
+- pending cert →
+  ``WriteHeader(http.StatusAccepted)``
+  (``services/gateway/internal/api/veil.go:848``)
+
+The dispatcher at
+``services/gateway/internal/api/veil.go:391-394`` calls
+``renderPendingSummaryHTML`` on ``ErrVeilCertificatePending`` — that
+helper writes 202, NOT 200.
 """
 
 from __future__ import annotations
@@ -49,20 +60,29 @@ class TestGetCertificateSummaryHappyPath:
         assert sent["x-api-key"] == VALID_KEY
 
     @respx.mock
-    def test_pending_renders_html_at_200(self) -> None:
-        # Per gateway source, pending certs render an HTML body at 200,
-        # NOT a 202 wrapper. The SDK should pass that HTML straight back.
-        pending_html = "<html><body>Certificate pending</body></html>"
+    def test_pending_certificate_raises_202(self) -> None:
+        """Gateway returns 202 with HTML pending banner; SDK raises LucairnHttpError(202).
+
+        The gateway's ``veil.go:848`` writes ``WriteHeader(http.StatusAccepted)``
+        for the ``renderPendingSummaryHTML`` path. Callers must
+        distinguish pending from assembled by branching on the
+        ``LucairnHttpError(status=202)`` error path, not by returning-
+        value content. Mirrors the precedent in
+        :meth:`Lucairn.get_certificate` (which also raises on 202).
+        """
+        pending_html = "<!doctype html><html><body>Certificate pending</body></html>"
         respx.get(
             f"{BASE}/api/v1/veil/certificate/req_pending/summary"
         ).mock(
             return_value=httpx.Response(
-                200, text=pending_html, headers={"content-type": "text/html"}
+                202, text=pending_html, headers={"content-type": "text/html"}
             )
         )
 
-        out = _client().get_certificate_summary("req_pending")
-        assert out == pending_html
+        with pytest.raises(LucairnHttpError) as exc_info:
+            _client().get_certificate_summary("req_pending")
+        assert exc_info.value.status == 202
+        assert exc_info.value.body == pending_html
 
 
 class TestGetCertificateSummaryErrors:
