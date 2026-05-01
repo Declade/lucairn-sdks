@@ -6,7 +6,7 @@ import base64
 from datetime import datetime
 from typing import Any
 
-from lucairn.errors import TheVeilCertificateError
+from lucairn.errors import LucairnCertificateError
 from lucairn.types import (
     VeilCertificate,
     VerifyCertificateKeys,
@@ -47,7 +47,7 @@ def verify_certificate(
         :class:`VerifyCertificateResult` on success.
 
     Raises:
-        TheVeilCertificateError: with ``reason`` in one of:
+        LucairnCertificateError: with ``reason`` in one of:
 
           * ``malformed`` — cert shape invalid or gateway invariant broken
           * ``unsupported_protocol_version`` — ``protocol_version != 2``
@@ -69,7 +69,7 @@ def verify_certificate(
     )
 
     if cert.protocol_version != SUPPORTED_PROTOCOL_VERSION:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Unsupported Veil protocol version: {cert.protocol_version} "
             f"(SDK supports {SUPPORTED_PROTOCOL_VERSION})",
             reason="unsupported_protocol_version",
@@ -77,7 +77,7 @@ def verify_certificate(
         )
 
     if cert.witness_key_id != keys.witness_key_id:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f'Witness key ID mismatch: cert has "{cert.witness_key_id}", '
             f'expected "{keys.witness_key_id}"',
             reason="witness_mismatch",
@@ -88,7 +88,7 @@ def verify_certificate(
     # — "   " base64-decodes to empty bytes which would otherwise surface as
     # a confusing invalid_signature.
     if cert.witness_signature.strip() == "":
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Certificate has no witness signature",
             reason="witness_signature_missing",
             certificate_id=cert.certificate_id,
@@ -96,10 +96,10 @@ def verify_certificate(
 
     try:
         signed_bytes = derive_witness_signed_bytes(cert)
-    except TheVeilCertificateError:
+    except LucairnCertificateError:
         raise
     except TypeError as exc:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Failed to derive signed payload: {exc}",
             reason="malformed",
             certificate_id=cert.certificate_id,
@@ -109,7 +109,7 @@ def verify_certificate(
     try:
         signature_bytes = base64.b64decode(cert.witness_signature, validate=True)
     except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Witness signature base64 decode failed: {exc}",
             reason="invalid_signature",
             certificate_id=cert.certificate_id,
@@ -119,7 +119,7 @@ def verify_certificate(
     try:
         valid = verify_ed25519(signed_bytes, signature_bytes, keys.witness_public_key)
     except TypeError as exc:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Invalid witness_public_key: {exc}",
             reason="invalid_signature",
             certificate_id=cert.certificate_id,
@@ -127,7 +127,7 @@ def verify_certificate(
         ) from exc
 
     if not valid:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "Witness Ed25519 signature verification failed",
             reason="invalid_signature",
             certificate_id=cert.certificate_id,
@@ -142,12 +142,12 @@ def _build_result(cert: VeilCertificate) -> VerifyCertificateResult:
     except ValueError as exc:
         # Signature has already verified at this point, so the witness signed
         # over whatever bytes cert.issued_at contains — but the public contract
-        # of verify_certificate is that only TheVeilCertificateError / TypeError
+        # of verify_certificate is that only LucairnCertificateError / TypeError
         # escape. A malformed-but-signed timestamp surfaces as malformed
         # (gateway delivered a bad field under a valid signature). Callers who
         # only need the raw ISO string can read
         # ``witness_asserted_issued_at_iso`` on the result on the success path.
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"cert.issued_at is not a valid RFC 3339 timestamp: {cert.issued_at!r}",
             reason="malformed",
             certificate_id=cert.certificate_id,
@@ -193,6 +193,6 @@ def _parse_iso(iso: str) -> datetime:
         if len(frac) > 6:
             s = s[:dot] + "." + frac[:6] + s[end:]
     # Let ValueError propagate; the caller in _build_result wraps it as
-    # TheVeilCertificateError(reason="malformed") to preserve the public
+    # LucairnCertificateError(reason="malformed") to preserve the public
     # contract of verify_certificate.
     return datetime.fromisoformat(s)

@@ -17,7 +17,7 @@ def normalize_ed25519_public_key(input_: bytes | str) -> bytes:
     Raises:
         TypeError: on unsupported input type, wrong length, or invalid
             base64. The caller (:func:`verify_certificate`) wraps these
-            as ``TheVeilCertificateError(reason="invalid_signature")`` so
+            as ``LucairnCertificateError(reason="invalid_signature")`` so
             a malformed key still surfaces as a typed SDK error.
     """
 

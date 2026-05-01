@@ -16,9 +16,9 @@ from typing import Any
 
 import pytest
 
-from theveil.errors import TheVeilCertificateError
-from theveil.types import VerifyCertificateKeys
-from theveil.verify_certificate import (
+from lucairn.errors import LucairnCertificateError
+from lucairn.types import VerifyCertificateKeys
+from lucairn.verify_certificate import (
     normalize_ed25519_public_key,
     verify_certificate,
     verify_ed25519,
@@ -180,7 +180,7 @@ class TestVerifyCertificateFailureReasons:
     ) -> None:
         keys = _keys(witness_keypair)
         for bad in (None, "string", [], 42, 1.5):
-            with pytest.raises(TheVeilCertificateError) as exc_info:
+            with pytest.raises(LucairnCertificateError) as exc_info:
                 verify_certificate(bad, keys)
             assert exc_info.value.reason == "malformed"
 
@@ -190,7 +190,7 @@ class TestVerifyCertificateFailureReasons:
         raw = json.loads(
             (ts_fixtures_dir / "cert-malformed-truncated.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -199,7 +199,7 @@ class TestVerifyCertificateFailureReasons:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["request_id"] = "req_different_from_claims"
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -208,7 +208,7 @@ class TestVerifyCertificateFailureReasons:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["verification"]["overall_verdict"] = "VERDICT_FUTURE_VALUE"
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -218,7 +218,7 @@ class TestVerifyCertificateFailureReasons:
         raw = json.loads(
             (ts_fixtures_dir / "cert-protocol-version-mismatch.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "unsupported_protocol_version"
 
@@ -229,7 +229,7 @@ class TestVerifyCertificateFailureReasons:
             witness_key_id="different-label",
             witness_public_key=witness_keypair["publicKey"],
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert_valid_anchored, keys)
         assert exc_info.value.reason == "witness_mismatch"
 
@@ -237,7 +237,7 @@ class TestVerifyCertificateFailureReasons:
         self, ts_fixtures_dir: Path, witness_keypair: dict[str, str]
     ) -> None:
         raw = json.loads((ts_fixtures_dir / "cert-no-signature.json").read_text())
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "witness_signature_missing"
 
@@ -247,7 +247,7 @@ class TestVerifyCertificateFailureReasons:
         raw = json.loads(
             (ts_fixtures_dir / "cert-whitespace-signature.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "witness_signature_missing"
 
@@ -257,7 +257,7 @@ class TestVerifyCertificateFailureReasons:
         raw = json.loads(
             (ts_fixtures_dir / "cert-tampered-payload.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "invalid_signature"
 
@@ -268,7 +268,7 @@ class TestVerifyCertificateFailureReasons:
             witness_key_id="witness_v1",
             witness_public_key=bytes(16),  # wrong length
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert_valid_anchored, bad_keys)
         err = exc_info.value
         assert err.reason == "invalid_signature"
@@ -316,7 +316,7 @@ class TestVerifyCertificateOrdering:
         keys = VerifyCertificateKeys(
             witness_key_id="any", witness_public_key=bytes(32)
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, keys)
         assert exc_info.value.reason == "malformed"
 
@@ -327,7 +327,7 @@ class TestVerifyCertificateOrdering:
         raw = json.loads(
             (ts_fixtures_dir / "cert-malformed-plus-bad-version.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -341,7 +341,7 @@ class TestVerifyCertificateOrdering:
             witness_key_id="wrong-label",
             witness_public_key=witness_keypair["publicKey"],
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, keys)
         assert exc_info.value.reason == "unsupported_protocol_version"
 
@@ -351,7 +351,7 @@ class TestVerifyCertificateOrdering:
         raw = json.loads(
             (ts_fixtures_dir / "cert-tampered-payload.json").read_text()
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(raw, _keys(witness_keypair))
         err = exc_info.value
         assert err.reason == "invalid_signature"
@@ -360,7 +360,7 @@ class TestVerifyCertificateOrdering:
     def test_certificate_id_none_on_structural_parse_failure(
         self, witness_keypair: dict[str, str]
     ) -> None:
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate("garbage", _keys(witness_keypair))
         assert exc_info.value.certificate_id is None
 
@@ -399,9 +399,9 @@ class TestGoOracleCrossCheck:
 
 class TestVerifyCertificateBadTimestamp:
     """A cert with a non-RFC-3339 issued_at that still signs + verifies must
-    surface as TheVeilCertificateError(malformed), not a raw ValueError.
+    surface as LucairnCertificateError(malformed), not a raw ValueError.
 
-    The contract is: only TheVeilCertificateError / TypeError escape
+    The contract is: only LucairnCertificateError / TypeError escape
     verify_certificate. A gateway delivering a bad timestamp under a valid
     signature is the one path that could violate this before the fix.
     """
@@ -416,8 +416,8 @@ class TestVerifyCertificateBadTimestamp:
         # stubbing signable+verify via the ValidCert happy path first, then
         # mutate issued_at on the parsed VeilCertificate, call _build_result
         # directly — the unit under test.
-        from theveil.verify_certificate.pipeline import _build_result
-        from theveil.types import VeilCertificate
+        from lucairn.verify_certificate.pipeline import _build_result
+        from lucairn.types import VeilCertificate
 
         cert = VeilCertificate(
             certificate_id="veil_x",
@@ -437,7 +437,7 @@ class TestVerifyCertificateBadTimestamp:
             witness_signature="AAAA",
             witness_key_id="witness_v1",
         )
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             _build_result(cert)
         assert exc_info.value.reason == "malformed"
         assert exc_info.value.certificate_id == "veil_x"
@@ -451,7 +451,7 @@ class TestVerifyCertificateGapFills:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["claims"] = []
-        with pytest.raises(TheVeilCertificateError, match="claims is empty") as exc_info:
+        with pytest.raises(LucairnCertificateError, match="claims is empty") as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -460,7 +460,7 @@ class TestVerifyCertificateGapFills:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["verification"]["overall_verdict"] = ""
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -469,7 +469,7 @@ class TestVerifyCertificateGapFills:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["claims"][0]["claim_id"] = 42  # not a string
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -478,14 +478,14 @@ class TestVerifyCertificateGapFills:
     ) -> None:
         cert = copy.deepcopy(cert_valid_anchored)
         cert["claims"].append(None)
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
     def test_rejects_non_keys_argument_with_type_error(
         self, cert_valid_anchored: dict[str, Any]
     ) -> None:
-        # TypeError (programmer error), not TheVeilCertificateError.
+        # TypeError (programmer error), not LucairnCertificateError.
         with pytest.raises(TypeError):
             verify_certificate(cert_valid_anchored, None)  # type: ignore[arg-type]
         with pytest.raises(TypeError):
@@ -502,7 +502,7 @@ class TestVerifyCertificateGapFills:
         # less-carefully-implemented map.
         cert = copy.deepcopy(cert_valid_anchored)
         cert["verification"]["overall_verdict"] = "__class__"
-        with pytest.raises(TheVeilCertificateError) as exc_info:
+        with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(cert, _keys(witness_keypair))
         assert exc_info.value.reason == "malformed"
 
@@ -510,13 +510,13 @@ class TestVerifyCertificateGapFills:
 # -- Client delegation -----------------------------------------------------
 
 
-class TestTheVeilVerifyCertificateDelegation:
+class TestLucairnVerifyCertificateDelegation:
     def test_delegates_to_pipeline_and_returns_same_shape(
         self, cert_valid_anchored: dict[str, Any], witness_keypair: dict[str, str]
     ) -> None:
-        from theveil import TheVeil, TheVeilConfig
+        from lucairn import Lucairn, LucairnConfig
 
-        client = TheVeil(TheVeilConfig(api_key="dsa_" + "0" * 32))
+        client = Lucairn(LucairnConfig(api_key="dsa_" + "0" * 32))
         result = client.verify_certificate(cert_valid_anchored, _keys(witness_keypair))
         assert result.witness_key_id == "witness_v1"
         assert result.anchor_status == "ANCHOR_STATUS_ANCHORED"

@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from theveil.verify_certificate import canonical_json
+from lucairn.verify_certificate import canonical_json
 
 
 def test_sorts_keys_alphabetically_at_top_level() -> None:

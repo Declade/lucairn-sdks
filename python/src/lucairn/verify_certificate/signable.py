@@ -29,7 +29,7 @@ witness signs the short-form. The SDK must convert.
 
 from __future__ import annotations
 
-from lucairn.errors import TheVeilCertificateError
+from lucairn.errors import LucairnCertificateError
 from lucairn.types import VeilCertificate, VeilVerdict
 from lucairn.verify_certificate.canonical_json import canonical_json
 
@@ -55,13 +55,13 @@ def derive_witness_signed_bytes(cert: VeilCertificate) -> bytes:
     """Build the exact byte sequence the witness Ed25519-signs.
 
     Raises:
-        TheVeilCertificateError: with ``reason="malformed"`` on any
+        LucairnCertificateError: with ``reason="malformed"`` on any
             structural / invariant drift (empty claims, request-id
             mismatch, unknown verdict literal, non-string claim_id).
     """
 
     if len(cert.claims) == 0:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "cert.claims is empty — certificate must contain at least one claim",
             reason="malformed",
             certificate_id=cert.certificate_id,
@@ -69,7 +69,7 @@ def derive_witness_signed_bytes(cert: VeilCertificate) -> bytes:
 
     # Gateway invariant: cert.request_id must equal cert.claims[0].request_id.
     if cert.claims[0].request_id != cert.request_id:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             "cert.request_id does not match cert.claims[0].request_id (gateway invariant violated)",
             reason="malformed",
             certificate_id=cert.certificate_id,
@@ -77,7 +77,7 @@ def derive_witness_signed_bytes(cert: VeilCertificate) -> bytes:
 
     full_name = cert.verification.overall_verdict
     if full_name not in _VERDICT_FULL_TO_SHORT:
-        raise TheVeilCertificateError(
+        raise LucairnCertificateError(
             f"Unknown verification.overall_verdict literal: {full_name} — SDK may be out of date",
             reason="malformed",
             certificate_id=cert.certificate_id,
@@ -90,7 +90,7 @@ def derive_witness_signed_bytes(cert: VeilCertificate) -> bytes:
     claim_ids: list[str] = []
     for i, c in enumerate(cert.claims):
         if not isinstance(c.claim_id, str):
-            raise TheVeilCertificateError(
+            raise LucairnCertificateError(
                 f"cert.claims[{i}].claim_id must be a string",
                 reason="malformed",
                 certificate_id=cert.certificate_id,

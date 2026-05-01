@@ -1,4 +1,4 @@
-"""TheVeil.messages() — HTTP-level tests via respx.
+"""Lucairn.messages() — HTTP-level tests via respx.
 
 Port of client.messages.test.ts at the observable level. Python uses
 seconds for timeout (not ms) and has no caller-abort surface (locked
@@ -13,17 +13,17 @@ import httpx
 import pytest
 import respx
 
-from theveil import (
+from lucairn import (
     MessagesOptions,
     ProxyAcceptedResponse,
     ProxyMessagesRequest,
     ProxySyncResponse,
-    TheVeil,
-    TheVeilConfig,
-    TheVeilConfigError,
-    TheVeilHttpError,
-    TheVeilResponseValidationError,
-    TheVeilTimeoutError,
+    Lucairn,
+    LucairnConfig,
+    LucairnConfigError,
+    LucairnHttpError,
+    LucairnResponseValidationError,
+    LucairnTimeoutError,
 )
 
 VALID_KEY = "dsa_0123456789abcdef0123456789abcdef"
@@ -31,8 +31,8 @@ BASE = "https://gateway.dsaveil.io"
 MESSAGES_URL = f"{BASE}/api/v1/proxy/messages"
 
 
-def _client() -> TheVeil:
-    return TheVeil(TheVeilConfig(api_key=VALID_KEY))
+def _client() -> Lucairn:
+    return Lucairn(LucairnConfig(api_key=VALID_KEY))
 
 
 def _params() -> ProxyMessagesRequest:
@@ -124,7 +124,7 @@ class TestErrorMapping:
             "error": {"code": "invalid_api_key", "message": "no"}
         }
         respx.post(MESSAGES_URL).respond(401, json=body)
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             _client().messages(_params())
         assert exc_info.value.status == 401
         assert exc_info.value.body == body
@@ -158,7 +158,7 @@ class TestPerCallOptions:
         respx.post(MESSAGES_URL).mock(
             side_effect=httpx.TimeoutException("simulated")
         )
-        with pytest.raises(TheVeilTimeoutError, match=r"\d"):
+        with pytest.raises(LucairnTimeoutError, match=r"\d"):
             _client().messages(_params(), options=MessagesOptions(timeout=0.01))
 
 
@@ -167,7 +167,7 @@ class TestValidation:
         params = ProxyMessagesRequest(
             prompt_template="x", context={}, stream=True
         )
-        with pytest.raises(TheVeilConfigError, match="stream"):
+        with pytest.raises(LucairnConfigError, match="stream"):
             _client().messages(params)
 
     def test_rejects_nan_max_tokens(self) -> None:
@@ -175,11 +175,11 @@ class TestValidation:
         # ProxyMessagesRequest validates via Pydantic, which rejects NaN for
         # int fields with a validation error; the client wraps config errors.
         # Here we bypass by constructing a dict (simulating untyped input).
-        with pytest.raises(TheVeilConfigError):
+        with pytest.raises(LucairnConfigError):
             _client().messages({"prompt_template": "x", "context": {}, "max_tokens": math.nan})
 
     def test_rejects_non_request_params(self) -> None:
-        with pytest.raises(TheVeilConfigError):
+        with pytest.raises(LucairnConfigError):
             _client().messages("garbage")  # type: ignore[arg-type]
 
     @respx.mock
@@ -200,7 +200,7 @@ class TestLatencyMsLeniency:
     """DRIFT-001 alignment: Python now matches Go's lenient `latency_ms`
     treatment. A gateway that omits the field, emits 0 on sub-ms paths,
     or explicitly sends 0 must return a valid ProxySyncResponse — not
-    raise TheVeilResponseValidationError.
+    raise LucairnResponseValidationError.
     """
 
     @respx.mock
@@ -239,7 +239,7 @@ class TestLiteralNullBody:
         respx.post(MESSAGES_URL).respond(
             200, text="null", headers={"content-type": "application/json"}
         )
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             _client().messages(_params())
         err = exc_info.value
         assert err.body == "null", f"body = {err.body!r}"
@@ -253,16 +253,16 @@ class TestMalformed200:
     ) -> None:
         # A 200 with a body that's not processing, not a valid sync response
         # either (missing model_used, latency_ms) — wraps as
-        # TheVeilResponseValidationError (NOT TheVeilHttpError, which is
+        # LucairnResponseValidationError (NOT LucairnHttpError, which is
         # reserved for transport-level non-2xx).
         respx.post(MESSAGES_URL).respond(
             200, json={"status": "JOB_STATUS_COMPLETED"}
         )
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             _client().messages(_params())
         err = exc_info.value
         assert err.body == {"status": "JOB_STATUS_COMPLETED"}
-        assert not isinstance(err, TheVeilHttpError)
+        assert not isinstance(err, LucairnHttpError)
 
     @respx.mock
     def test_missing_required_async_fields_raises_response_validation_error(
@@ -271,24 +271,24 @@ class TestMalformed200:
         # body["status"] == "processing" triggers the async branch; if its
         # required fields (job_id, status_url, request_id) are missing,
         # Pydantic rejects and the client wraps as
-        # TheVeilResponseValidationError.
+        # LucairnResponseValidationError.
         respx.post(MESSAGES_URL).respond(
             202, json={"status": "processing"}
         )
-        with pytest.raises(TheVeilResponseValidationError) as exc_info:
+        with pytest.raises(LucairnResponseValidationError) as exc_info:
             _client().messages(_params())
         err = exc_info.value
         assert err.body == {"status": "processing"}
-        assert not isinstance(err, TheVeilHttpError)
+        assert not isinstance(err, LucairnHttpError)
 
     @respx.mock
     def test_non_2xx_still_raises_http_error(self) -> None:
-        # Invariant: non-2xx keeps TheVeilHttpError. ResponseValidationError
+        # Invariant: non-2xx keeps LucairnHttpError. ResponseValidationError
         # must NEVER fire for transport-level failure.
         respx.post(MESSAGES_URL).respond(
             500, json={"error": {"code": "upstream_error"}}
         )
-        with pytest.raises(TheVeilHttpError) as exc_info:
+        with pytest.raises(LucairnHttpError) as exc_info:
             _client().messages(_params())
         assert exc_info.value.status == 500
-        assert not isinstance(exc_info.value, TheVeilResponseValidationError)
+        assert not isinstance(exc_info.value, LucairnResponseValidationError)

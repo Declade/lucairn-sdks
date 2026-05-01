@@ -11,8 +11,8 @@ VerifyCertificateFailureReason = Literal[
 ]
 
 
-class TheVeilError(Exception):
-    """Base class for all TheVeil SDK errors.
+class LucairnError(Exception):
+    """Base class for all Lucairn SDK errors.
 
     Callers can catch this to handle every SDK-raised error uniformly. More
     specific subclasses carry additional context (status codes, failure
@@ -25,7 +25,7 @@ class TheVeilError(Exception):
             self.__cause__ = cause
 
 
-class TheVeilConfigError(TheVeilError):
+class LucairnConfigError(LucairnError):
     """Raised when a constructor / per-call option is invalid.
 
     Examples: malformed apiKey, non-https baseUrl in production, non-finite
@@ -33,7 +33,7 @@ class TheVeilConfigError(TheVeilError):
     """
 
 
-class TheVeilHttpError(TheVeilError):
+class LucairnHttpError(LucairnError):
     """Raised when the gateway returns a non-2xx response, or a 202 pending
     wrapper on get_certificate.
 
@@ -60,7 +60,7 @@ class TheVeilHttpError(TheVeilError):
         self.body = body
 
 
-class TheVeilTimeoutError(TheVeilError):
+class LucairnTimeoutError(LucairnError):
     """Raised when a request exceeds its per-call or client-default timeout.
 
     Distinct from a caller-initiated cancel — this SDK's v1 sync client has
@@ -69,12 +69,12 @@ class TheVeilTimeoutError(TheVeilError):
     """
 
 
-class TheVeilResponseValidationError(TheVeilError):
+class LucairnResponseValidationError(LucairnError):
     """Raised when a 2xx gateway response deserializes into a shape that
     doesn't fit the SDK's declared response type (either JSON that fails
     Pydantic validation, or a non-JSON body on a 2xx status).
 
-    Distinct from :class:`TheVeilHttpError`, which is reserved for gateway
+    Distinct from :class:`LucairnHttpError`, which is reserved for gateway
     non-2xx responses and the 202 pending wrapper on ``get_certificate``.
     A response-validation error means "the gateway replied with apparent
     success, but the body we got doesn't look like the declared type" —
@@ -106,7 +106,7 @@ class TheVeilResponseValidationError(TheVeilError):
         self.body = body
 
 
-class TheVeilCertificateError(TheVeilError):
+class LucairnCertificateError(LucairnError):
     """Raised by verify_certificate when verification fails.
 
     ``reason`` names the specific failure mode. ``certificate_id`` is lifted

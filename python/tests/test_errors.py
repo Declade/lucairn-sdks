@@ -4,68 +4,68 @@ from __future__ import annotations
 
 import pytest
 
-from theveil import (
-    TheVeilCertificateError,
-    TheVeilConfigError,
-    TheVeilError,
-    TheVeilHttpError,
-    TheVeilResponseValidationError,
-    TheVeilTimeoutError,
+from lucairn import (
+    LucairnCertificateError,
+    LucairnConfigError,
+    LucairnError,
+    LucairnHttpError,
+    LucairnResponseValidationError,
+    LucairnTimeoutError,
 )
 
 
 class TestErrorHierarchy:
     def test_base_is_exception(self) -> None:
-        err = TheVeilError("x")
+        err = LucairnError("x")
         assert isinstance(err, Exception)
 
     def test_config_inherits_base(self) -> None:
-        err = TheVeilConfigError("x")
-        assert isinstance(err, TheVeilError)
+        err = LucairnConfigError("x")
+        assert isinstance(err, LucairnError)
         assert isinstance(err, Exception)
 
     def test_http_inherits_base(self) -> None:
-        err = TheVeilHttpError("x", status=500, body=None)
-        assert isinstance(err, TheVeilError)
+        err = LucairnHttpError("x", status=500, body=None)
+        assert isinstance(err, LucairnError)
 
     def test_timeout_inherits_base(self) -> None:
-        err = TheVeilTimeoutError("x")
-        assert isinstance(err, TheVeilError)
+        err = LucairnTimeoutError("x")
+        assert isinstance(err, LucairnError)
 
     def test_certificate_inherits_base(self) -> None:
-        err = TheVeilCertificateError("x", reason="malformed")
-        assert isinstance(err, TheVeilError)
+        err = LucairnCertificateError("x", reason="malformed")
+        assert isinstance(err, LucairnError)
 
     def test_response_validation_inherits_base(self) -> None:
-        err = TheVeilResponseValidationError("x", body={})
-        assert isinstance(err, TheVeilError)
+        err = LucairnResponseValidationError("x", body={})
+        assert isinstance(err, LucairnError)
 
     def test_response_validation_is_not_an_http_error(self) -> None:
-        # Catching TheVeilHttpError must NOT catch a response-validation
+        # Catching LucairnHttpError must NOT catch a response-validation
         # failure — they are distinct surfaces (transport vs. body shape).
-        err = TheVeilResponseValidationError("x", body={})
-        assert not isinstance(err, TheVeilHttpError)
+        err = LucairnResponseValidationError("x", body={})
+        assert not isinstance(err, LucairnHttpError)
 
 
-class TestTheVeilHttpError:
+class TestLucairnHttpError:
     def test_status_and_body_accessible(self) -> None:
-        err = TheVeilHttpError("bad", status=401, body={"error": "nope"})
+        err = LucairnHttpError("bad", status=401, body={"error": "nope"})
         assert err.status == 401
         assert err.body == {"error": "nope"}
 
     def test_message_on_str(self) -> None:
-        err = TheVeilHttpError("bad", status=500, body=None)
+        err = LucairnHttpError("bad", status=500, body=None)
         assert str(err) == "bad"
 
     def test_cause_attached(self) -> None:
         inner = ValueError("inner")
-        err = TheVeilHttpError("bad", status=500, body=None, cause=inner)
+        err = LucairnHttpError("bad", status=500, body=None, cause=inner)
         assert err.__cause__ is inner
 
 
-class TestTheVeilCertificateError:
+class TestLucairnCertificateError:
     def test_reason_and_certificate_id(self) -> None:
-        err = TheVeilCertificateError(
+        err = LucairnCertificateError(
             "nope",
             reason="invalid_signature",
             certificate_id="veil_xyz",
@@ -74,60 +74,60 @@ class TestTheVeilCertificateError:
         assert err.certificate_id == "veil_xyz"
 
     def test_certificate_id_defaults_none(self) -> None:
-        err = TheVeilCertificateError("nope", reason="malformed")
+        err = LucairnCertificateError("nope", reason="malformed")
         assert err.certificate_id is None
 
     def test_cause_preserved(self) -> None:
         inner = TypeError("boom")
-        err = TheVeilCertificateError(
+        err = LucairnCertificateError(
             "wrap", reason="invalid_signature", cause=inner
         )
         assert err.__cause__ is inner
 
 
-class TestTheVeilConfigError:
+class TestLucairnConfigError:
     def test_accepts_single_argument(self) -> None:
-        err = TheVeilConfigError("config bad")
+        err = LucairnConfigError("config bad")
         assert str(err) == "config bad"
 
 
-class TestTheVeilTimeoutError:
+class TestLucairnTimeoutError:
     def test_accepts_single_argument(self) -> None:
-        err = TheVeilTimeoutError("slow")
+        err = LucairnTimeoutError("slow")
         assert str(err) == "slow"
 
 
-class TestTheVeilResponseValidationError:
+class TestLucairnResponseValidationError:
     def test_body_accessible(self) -> None:
-        err = TheVeilResponseValidationError(
+        err = LucairnResponseValidationError(
             "bad shape", body={"unexpected": True}
         )
         assert err.body == {"unexpected": True}
 
     def test_cause_preserved(self) -> None:
         inner = ValueError("not json")
-        err = TheVeilResponseValidationError("bad", body="raw text", cause=inner)
+        err = LucairnResponseValidationError("bad", body="raw text", cause=inner)
         assert err.__cause__ is inner
 
     def test_body_may_be_raw_text(self) -> None:
-        err = TheVeilResponseValidationError("bad", body="not json at all")
+        err = LucairnResponseValidationError("bad", body="not json at all")
         assert err.body == "not json at all"
 
 
 class TestCatchability:
-    """Callers can ``except TheVeilError`` to catch all SDK-raised errors."""
+    """Callers can ``except LucairnError`` to catch all SDK-raised errors."""
 
     def test_catches_all_subclasses(self) -> None:
         for exc in (
-            TheVeilConfigError("x"),
-            TheVeilHttpError("x", status=500, body=None),
-            TheVeilTimeoutError("x"),
-            TheVeilCertificateError("x", reason="malformed"),
-            TheVeilResponseValidationError("x", body={}),
+            LucairnConfigError("x"),
+            LucairnHttpError("x", status=500, body=None),
+            LucairnTimeoutError("x"),
+            LucairnCertificateError("x", reason="malformed"),
+            LucairnResponseValidationError("x", body={}),
         ):
             try:
                 raise exc
-            except TheVeilError as caught:
+            except LucairnError as caught:
                 assert caught is exc
             else:
                 pytest.fail(f"did not catch {type(exc).__name__}")
