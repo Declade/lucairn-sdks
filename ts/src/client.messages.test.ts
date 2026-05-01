@@ -17,7 +17,7 @@ import type {
 
 // Obviously-fake identifiers — no real keys, names, or PII.
 const VALID_KEY = 'dsa_0123456789abcdef0123456789abcdef';
-const MESSAGES_URL = 'https://gateway.dsaveil.io/api/v1/proxy/messages';
+const MESSAGES_URL = 'https://gateway.lucairn.eu/api/v1/proxy/messages';
 
 // Minimal valid request body reused across tests.
 const BASIC_REQUEST: ProxyMessagesRequest = {

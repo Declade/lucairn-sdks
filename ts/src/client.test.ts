@@ -50,7 +50,7 @@ describe('Lucairn constructor — apiKey validation', () => {
 describe('Lucairn constructor — defaults and baseUrl', () => {
   it('applies the default baseUrl when none is supplied', () => {
     const client = new Lucairn({ apiKey: VALID_KEY });
-    expect(client.baseUrl).toBe('https://gateway.dsaveil.io');
+    expect(client.baseUrl).toBe('https://gateway.lucairn.eu');
   });
 
   it('applies the default timeoutMs when none is supplied', () => {

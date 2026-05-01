@@ -17,9 +17,9 @@ import { verifyCertificate as verifyCertificateImpl } from './verify-certificate
 
 const API_KEY_PATTERN = /^dsa_[0-9a-f]{32}$/;
 
-// Default points at the hosted gateway for solo-dev tier.
+// Default points at the hosted Lucairn gateway for the Developer tier.
 // Enterprise self-hosters must pass baseUrl explicitly.
-const DEFAULT_BASE_URL = 'https://gateway.dsaveil.io';
+const DEFAULT_BASE_URL = 'https://gateway.lucairn.eu';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 

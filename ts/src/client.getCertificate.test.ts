@@ -13,7 +13,7 @@ import type { VeilCertificate } from './types.js';
 
 // Obviously-fake API key — same shape as the rest of the suite.
 const VALID_KEY = 'dsa_0123456789abcdef0123456789abcdef';
-const BASE = 'https://gateway.dsaveil.io';
+const BASE = 'https://gateway.lucairn.eu';
 const CERT_URL_PREFIX = `${BASE}/api/v1/veil/certificate/`;
 
 const fixturesDir = join(
