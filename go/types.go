@@ -134,6 +134,33 @@ type VeilCertificate struct {
 	// Opaque to v1
 	Attestation  *VeilExternalAttestation `json:"attestation,omitempty"`
 	AnchorStatus *VeilAnchorStatusInfo    `json:"anchor_status,omitempty"`
+
+	// ClientID is the org-scoping metadata field (proto field 14, optional
+	// string) added in W2A-B1. Bridge stamps `org_id` into its claim
+	// canonical_payload; the witness assembler extracts it into the
+	// certificate top-level as a *string mirror of the protojson shape:
+	// nil renders as `null`; populated renders as a quoted JSON string.
+	//
+	// IMPORTANT (locked decision): ClientID is NOT part of the witness
+	// signable subset — the witness signable map is still 7 keys. Tamper-
+	// evidence for ClientID flows INDIRECTLY through the bridge claim's
+	// canonical_payload, which IS bridge-signed and IS part of the witness
+	// signable via the claim_ids array. Promotion to the signable map is
+	// deferred to the SDK signable-versioning workstream. Source:
+	// dual-sandbox-architecture/services/veil-witness/internal/assembler/
+	// assembler.go:131-160.
+	ClientID *string `json:"client_id,omitempty"`
+}
+
+// GetClientID returns cert.ClientID dereferenced, or "" if the cert is
+// nil or ClientID was not populated. Convenience accessor — callers who
+// need to distinguish "field absent" from "field present but empty"
+// should inspect ClientID directly.
+func (c *VeilCertificate) GetClientID() string {
+	if c == nil || c.ClientID == nil {
+		return ""
+	}
+	return *c.ClientID
 }
 
 // VerifyCertificateKeys is the trust-root input to VerifyCertificate.
