@@ -43,7 +43,11 @@ from lucairn.verify_certificate.pipeline import (
 __all__ = ["Lucairn"]
 
 
-_API_KEY_PATTERN = re.compile(r"^dsa_[0-9a-f]{32}$")
+# Stage 3: gateway accepts both `dsa_<32hex>` (legacy customer keys) and
+# `lcr_live_<chars>` (post-Stage-3 website-minted keys). Keep both shapes
+# here so the SDK doesn't reject either flavor at construction time.
+# Gateway is the truth source for whether the key is actually valid.
+_API_KEY_PATTERN = re.compile(r"^(dsa_[0-9a-f]{32}|lcr_live_[A-Za-z0-9_\-]{20,})$")
 
 # Default points at the hosted gateway for solo-dev tier.
 # Enterprise self-hosters must pass base_url explicitly.
@@ -127,8 +131,9 @@ class Lucairn:
             config.api_key
         ):
             raise LucairnConfigError(
-                'Invalid api_key — expected format "dsa_" followed by 32 '
-                "lowercase hex characters"
+                'Invalid api_key — expected either "dsa_" followed by 32 '
+                'lowercase hex characters, or "lcr_live_" followed by at '
+                "least 20 alphanumeric/underscore/hyphen characters"
             )
 
         raw_base_url = config.base_url if config.base_url is not None else _DEFAULT_BASE_URL

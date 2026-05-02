@@ -46,6 +46,18 @@ class TestApiKeyValidation:
         with pytest.raises(LucairnConfigError):
             Lucairn({"api_key": VALID_KEY})  # type: ignore[arg-type]
 
+    # Stage 3 backward-compat: gateway mints both `dsa_<32hex>` (legacy/free)
+    # and `lcr_live_<chars>` (post-rebrand). SDK construction must accept both.
+    def test_accepts_lcr_live_key(self) -> None:
+        client = Lucairn(
+            LucairnConfig(api_key="lcr_live_aaabbbcccddd_test123456789")
+        )
+        assert client is not None
+
+    def test_rejects_lcr_live_key_too_short(self) -> None:
+        with pytest.raises(LucairnConfigError):
+            Lucairn(LucairnConfig(api_key="lcr_live_short"))
+
 
 class TestBaseUrl:
     def test_default_base_url(self) -> None:
