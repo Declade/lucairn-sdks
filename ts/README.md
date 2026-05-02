@@ -41,15 +41,68 @@ const response = await client.messages({
 });
 ```
 
-## Fetch + verify a Veil Certificate
+## Privacy receipts: free vs Pro tier paths
 
-`client.getCertificate(requestId)` returns the raw `VeilCertificate` from
-the gateway. Pair it with `client.verifyCertificate(cert, keys)` to prove
-the witness's Ed25519 signature over the certificate's canonical JSON core
-fields. The two calls are deliberately separate: the SDK never fetches or
-bakes in witness keys, and the caller supplies the witness identity
-(expected `witnessKeyId` label and raw 32-byte `witnessPublicKey`) out of
-band.
+Every `messages()` call generates a privacy receipt witnessed by the
+gateway. Two surfaces exist for that receipt, and which one your code
+should consume depends on your tier:
+
+- **`getCertificateSummary(requestId)`** — returns a human-readable HTML
+  summary (DPO-friendly). **Available on every tier including Developer
+  (free).**
+- **`getCertificate(requestId)` + `verifyCertificate(cert, keys)`** —
+  fetches the raw JSON certificate and verifies the witness's Ed25519
+  signature over its canonical signed subset. **Pro tier and above.**
+
+If a Developer-tier key calls `getCertificate()`, the gateway returns
+HTTP 403 with `{"error":"tier_insufficient","hint":"Contact sales to
+upgrade."}`, surfaced by the SDK as `LucairnHttpError` with `status === 403`.
+
+### Developer tier (free) — render the HTML summary
+
+```ts
+import { Lucairn, LucairnHttpError } from '@lucairn/sdk';
+
+const client = new Lucairn({ apiKey: process.env.LUCAIRN_API_KEY! });
+
+const response = await client.messages({
+  prompt_template: 'Hello {name}',
+  context: { name: 'Example Person' },
+  model: 'claude-sonnet-4-5',
+  max_tokens: 1024,
+});
+
+// Hold the requestId from your own correlation ID, request log, or
+// (on Pro/Enterprise responses) `response.veil.summary_url`.
+const requestId = response.request_id; // populated once gateway emits it top-level
+
+let summaryHtml: string;
+try {
+  summaryHtml = await client.getCertificateSummary(requestId);
+} catch (err) {
+  if (err instanceof LucairnHttpError && err.status === 202) {
+    // Pending; the body is the gateway's "pending" HTML view.
+    return;
+  }
+  throw err;
+}
+// Display summaryHtml in a sandboxed iframe or save for the DPO.
+```
+
+### Pro tier and above — fetch + verify the JSON certificate
+
+On Pro and Enterprise tier responses the gateway adds a `veil` block with
+`summary_url` and `certificate_url`. Pro and Enterprise keys can also fetch the raw
+certificate and verify the witness Ed25519 signature locally for a
+programmatic audit trail.
+
+`client.getCertificate(requestId)` returns the raw `VeilCertificate`.
+Pair it with `client.verifyCertificate(cert, keys)` to prove the
+witness's Ed25519 signature over the certificate's canonical JSON
+signed subset. The two calls are deliberately separate: the SDK never
+fetches or bakes in witness keys, and the caller supplies the witness
+identity (expected `witnessKeyId` label and raw 32-byte
+`witnessPublicKey`) out of band.
 
 External RFC 3161 timestamp verification and Sigstore Rekor transparency-
 log verification are **not** performed by this release. They land in a
@@ -71,13 +124,18 @@ const client = new Lucairn({ apiKey: process.env.LUCAIRN_API_KEY! });
 
 let cert;
 try {
-  cert = await client.getCertificate(requestId);
+  cert = await client.getCertificate(requestId); // 200 on Pro/Enterprise; 403 on Developer (free)
 } catch (err) {
   if (err instanceof LucairnHttpError && err.status === 202) {
     // Certificate not yet assembled — retry after the indicated delay.
     const body = err.body as { retry_after_seconds?: number };
     const retryAfter = body.retry_after_seconds ?? 30;
     console.log(`pending; retry in ${retryAfter}s`);
+    return;
+  }
+  if (err instanceof LucairnHttpError && err.status === 403) {
+    // Developer (free) tier — use getCertificateSummary() instead.
+    console.log('certificate JSON requires Pro tier or above');
     return;
   }
   throw err;
@@ -112,11 +170,11 @@ try {
 
 ### `getCertificateSummary(requestId, options?): Promise<string>`
 
-Returns a DPO-friendly HTML summary of a Veil Certificate. The endpoint
-returns text/html; the helper returns the raw HTML string. When the
-certificate is not yet assembled, the gateway responds 202 Accepted with
-a pending-summary HTML body, surfaced as
-`LucairnHttpError({ status: 202, body: '<html>...</html>' })`.
+Returns a DPO-friendly HTML summary of a Veil Certificate. **Available on
+every tier including Developer (free).** The endpoint returns text/html;
+the helper returns the raw HTML string. When the certificate is not yet
+assembled, the gateway responds 202 Accepted with a pending-summary HTML
+body, surfaced as `LucairnHttpError({ status: 202, body: '<html>...</html>' })`.
 
 ```ts
 let summaryHtml: string;
