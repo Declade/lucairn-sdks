@@ -34,7 +34,7 @@ Requires Python 3.10+.
 ## Quickstart
 
 ```python
-from lucairn import Lucairn, LucairnConfig, VerifyCertificateKeys
+from lucairn import Lucairn, LucairnConfig
 
 client = Lucairn(LucairnConfig(api_key="dsa_..."))
 
@@ -45,11 +45,78 @@ response = client.messages({
     "model": "claude-opus-4-7",
     "max_tokens": 256,
 })
+```
 
-# Fetch the Veil Certificate for a known request_id (Pro / Enterprise tier).
-cert = client.get_certificate("req_abc123")
+## Privacy receipts: free vs Pro tier paths
 
-# Verify the witness Ed25519 signature against pinned trust-root keys.
+Every `messages()` call generates a privacy receipt witnessed by the
+gateway. Two surfaces exist for that receipt, and which one your code
+should consume depends on your tier:
+
+- **`get_certificate_summary(request_id)`** — returns a human-readable
+  HTML summary (DPO-friendly). **Available on every tier including
+  Developer (free).**
+- **`get_certificate(request_id)` + `verify_certificate(cert, keys)`** —
+  fetches the raw JSON certificate and verifies the witness's Ed25519
+  signature over its canonical signed subset. **Pro tier and above.**
+
+If a Developer-tier key calls `get_certificate()`, the gateway returns
+HTTP 403 with `{"error":"tier_insufficient","hint":"Contact sales to
+upgrade."}`, surfaced by the SDK as `LucairnHttpError` with
+`err.status == 403`.
+
+### Developer tier (free) — render the HTML summary
+
+```python
+from lucairn import Lucairn, LucairnConfig, LucairnHttpError
+
+client = Lucairn(LucairnConfig(api_key="dsa_..."))
+
+response = client.messages({
+    "prompt_template": "Hello {name}",
+    "context": {"name": "Example Person"},
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 1024,
+})
+
+# Hold the request_id from your own correlation ID, request log, or
+# (on Pro/Enterprise responses) `response.veil.summary_url`.
+request_id = response.request_id  # populated once gateway emits it top-level
+
+try:
+    summary_html = client.get_certificate_summary(request_id)
+except LucairnHttpError as err:
+    if err.status == 503:
+        # Veil Witness temporarily unavailable; retry later.
+        return
+    raise
+# Display summary_html in a sandboxed iframe or save for the DPO.
+```
+
+### Pro tier and above — fetch + verify the JSON certificate
+
+On Pro and Enterprise tier responses the gateway adds a `veil` block
+(accessible as `response.veil.summary_url` and
+`response.veil.certificate_url`). Pro and Enterprise keys can also fetch
+the raw certificate and verify the witness Ed25519
+signature locally for a programmatic audit trail.
+
+```python
+from lucairn import Lucairn, LucairnConfig, VerifyCertificateKeys, LucairnHttpError
+
+client = Lucairn(LucairnConfig(api_key="dsa_..."))
+
+try:
+    cert = client.get_certificate(request_id)  # 200 on Pro/Enterprise; 403 on Developer (free)
+except LucairnHttpError as err:
+    if err.status == 202:
+        # Certificate not yet assembled; retry after err.body["retry_after_seconds"].
+        return
+    if err.status == 403:
+        # Developer (free) tier — use get_certificate_summary() instead.
+        return
+    raise
+
 keys = VerifyCertificateKeys(
     witness_key_id="witness_v1",
     witness_public_key="<base64 of raw 32-byte Ed25519 public key>",
@@ -81,22 +148,26 @@ POST to `/api/v1/proxy/messages`. Returns a discriminated union:
 
 ### `client.get_certificate(request_id, options=None)`
 
-GET `/api/v1/veil/certificate/{request_id}`. Happy-path returns a
-`VeilCertificate`. Gateway-side pending (certificate not yet assembled, or
-unknown request_id — the gateway does not distinguish) surfaces as
-`LucairnHttpError` with `status=202` and a body
-`{"status": "pending", "retry_after_seconds": 30, ...}` so the happy-path
-return stays narrow. Inspect `err.body["retry_after_seconds"]` for the
-retry signal.
+GET `/api/v1/veil/certificate/{request_id}`. **Pro tier or above** —
+Developer (free) tier returns HTTP 403 `tier_insufficient`, surfaced as
+`LucairnHttpError` with `err.status == 403`.
+
+Happy-path returns a `VeilCertificate`. Gateway-side pending
+(certificate not yet assembled, or unknown request_id — the gateway does
+not distinguish) surfaces as `LucairnHttpError` with `status=202` and a
+body `{"status": "pending", "retry_after_seconds": 30, ...}` so the
+happy-path return stays narrow. Inspect `err.body["retry_after_seconds"]`
+for the retry signal.
 
 No auto-verification — chain `client.verify_certificate()` explicitly.
 
 ### `client.get_certificate_summary(request_id, options=None)`
 
-GET `/api/v1/veil/certificate/{request_id}/summary`. Returns the
-DPO-friendly HTML summary as a UTF-8 `str`. Per the gateway source the
-pending case renders an HTML body at HTTP 200 (not a 202 wrapper), so
-the SDK passes the rendered HTML straight back to the caller.
+GET `/api/v1/veil/certificate/{request_id}/summary`. **Available on
+every tier including Developer (free).** Returns the DPO-friendly HTML
+summary as a UTF-8 `str`. Per the gateway source the pending case
+renders an HTML body at HTTP 200 (not a 202 wrapper), so the SDK passes
+the rendered HTML straight back to the caller.
 
 ### `client.list_audit_events(opts=None)`
 
