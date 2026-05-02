@@ -26,7 +26,7 @@ into GitHub Security Advisories, which simplifies coordinated disclosure.
 
 If you cannot use GitHub PVR (e.g. you don't have a GitHub account), email:
 
-**contact@dsaveil.io** with `[security]` in the subject line.
+**contact@lucairn.eu** with `[security]` in the subject line.
 
 Do **not** open a public GitHub issue for security reports.
 
@@ -63,8 +63,8 @@ Do **not** open a public GitHub issue for security reports.
 - Upstream dependencies (`httpx`, `pydantic`, `cryptography`) — please
   report directly to those projects. If a vulnerability in an upstream
   dependency affects `lucairn` specifically, you may CC us.
-- The hosted gateway service (`gateway.dsaveil.io`) — report infrastructure
-  issues via GitHub PVR on this repository or to `contact@dsaveil.io` with
+- The hosted gateway service (`gateway.lucairn.eu`) — report infrastructure
+  issues via GitHub PVR on this repository or to `contact@lucairn.eu` with
   `[security][gateway]` in the subject line.
 
 ## Release integrity
