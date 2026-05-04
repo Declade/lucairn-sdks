@@ -9,8 +9,12 @@
  *
  * The gateway runs sanitization (Presidio + QI) on the user content
  * and applies a per-key MCP system policy (sanitize | passthrough_audit)
- * to the system prompt before forwarding to the upstream LLM. Output is
- * re-linked (placeholders swapped back to original PII) before return.
+ * to the system prompt before forwarding to the upstream LLM. Output
+ * re-linkage (swapping placeholders back to the original PII before
+ * return) is gated by the customer profile's `relink_response` flag —
+ * Developer (free) tier defaults to `false` (placeholders visible to
+ * the caller); Pro and Enterprise tiers default to `true`. See
+ * `dual-sandbox-architecture/services/gateway/internal/auth/apikey.go:54`.
  *
  * The server intentionally exposes only one tool: the gateway exposes
  * one Anthropic-Messages-compatible HTTP endpoint, not a JSON-RPC MCP
@@ -60,8 +64,9 @@ export const CHAT_TOOL_DESCRIPTOR = {
   description:
     'Send an Anthropic Messages API request through the Lucairn ' +
     'privacy gateway. PII is detected and replaced with placeholders ' +
-    'before reaching the upstream LLM; the response is re-linked ' +
-    "to the originals before it's returned.",
+    'before reaching the upstream LLM. Developer-tier responses ' +
+    'contain those placeholders; Pro and Enterprise tiers can enable ' +
+    'automatic re-linking back to the original values.',
   inputSchema: {
     type: 'object',
     properties: {
