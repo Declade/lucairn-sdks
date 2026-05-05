@@ -78,6 +78,72 @@ describe('GatewayClient constructor scheme guard (TOB-001)', () => {
   })
 })
 
+describe('GatewayClient.pickUpstreamKey (v1.1.0 model-prefix routing)', () => {
+  function makeClient(opts: {
+    anthropicKey?: string
+    openaiKey?: string
+  }): GatewayClient {
+    return new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      anthropicKey: opts.anthropicKey,
+      openaiKey: opts.openaiKey,
+      // No fetchImpl needed — pickUpstreamKey is pure.
+      fetchImpl: (() => undefined) as unknown as typeof fetch,
+    })
+  }
+
+  it('returns the Anthropic key for claude-sonnet-4-6', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('claude-sonnet-4-6')).toBe('sk-ant')
+  })
+
+  it('returns the OpenAI key for gpt-4o-mini', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('gpt-4o-mini')).toBe('sk-oai')
+  })
+
+  it('returns the OpenAI key for o1-* / o3-* / o4-* (reasoning models)', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('o1-mini')).toBe('sk-oai')
+    expect(client.pickUpstreamKey('o3-mini')).toBe('sk-oai')
+    expect(client.pickUpstreamKey('o4-preview')).toBe('sk-oai')
+  })
+
+  it('is case-insensitive on the model prefix', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('CLAUDE-SONNET-4-6')).toBe('sk-ant')
+    expect(client.pickUpstreamKey('GPT-4O-MINI')).toBe('sk-oai')
+  })
+
+  it('falls back to Anthropic for an unknown model when both keys set', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('mistral-large')).toBe('sk-ant')
+  })
+
+  it('falls back to OpenAI for an unknown model when only OpenAI key set', () => {
+    const client = makeClient({ openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('mistral-large')).toBe('sk-oai')
+  })
+
+  it('returns undefined for claude-* when only OpenAI key is set', () => {
+    const client = makeClient({ openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('claude-sonnet-4-6')).toBeUndefined()
+  })
+
+  it('returns undefined for gpt-* when only Anthropic key is set', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant' })
+    expect(client.pickUpstreamKey('gpt-4o-mini')).toBeUndefined()
+  })
+
+  it('returns undefined for any model when neither key is set', () => {
+    const client = makeClient({})
+    expect(client.pickUpstreamKey('claude-sonnet-4-6')).toBeUndefined()
+    expect(client.pickUpstreamKey('gpt-4o-mini')).toBeUndefined()
+    expect(client.pickUpstreamKey('mistral-large')).toBeUndefined()
+  })
+})
+
 describe('GatewayClient.sendMessage', () => {
   it('forwards x-api-key and optional X-Upstream-Key headers', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
@@ -97,7 +163,7 @@ describe('GatewayClient.sendMessage', () => {
     const client = new GatewayClient({
       apiKey: 'lcr_live_test',
       baseUrl: 'https://gateway.lucairn.eu/',
-      upstreamKey: 'sk-ant-xyz',
+      anthropicKey: 'sk-ant-xyz',
       fetchImpl: fetchSpy,
     })
     await client.sendMessage(baseInput)
@@ -110,6 +176,63 @@ describe('GatewayClient.sendMessage', () => {
     expect(headers['x-api-key']).toBe('lcr_live_test')
     expect(headers['X-Upstream-Key']).toBe('sk-ant-xyz')
     expect(headers['content-type']).toBe('application/json')
+  })
+
+  it('forwards OPENAI_API_KEY as X-Upstream-Key for gpt-* models (v1.1.0)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      fakeResponse(
+        200,
+        JSON.stringify({
+          id: 'msg_dsa_abc',
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'ok' }],
+          model: 'gpt-4o-mini',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      ),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      anthropicKey: 'sk-ant-xyz',
+      openaiKey: 'sk-openai-abc',
+      fetchImpl: fetchSpy,
+    })
+    await client.sendMessage({ ...baseInput, model: 'gpt-4o-mini' })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit
+    const headers = init.headers as Record<string, string>
+    expect(headers['X-Upstream-Key']).toBe('sk-openai-abc')
+  })
+
+  it('omits X-Upstream-Key when neither BYOK key is set (managed-AI mode)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      fakeResponse(
+        200,
+        JSON.stringify({
+          id: 'msg_dsa_abc',
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'ok' }],
+          model: 'claude-sonnet-4-6',
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      ),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    await client.sendMessage(baseInput)
+
+    const init = fetchSpy.mock.calls[0]?.[1] as RequestInit
+    const headers = init.headers as Record<string, string>
+    expect(headers['X-Upstream-Key']).toBeUndefined()
   })
 
   it('parses and returns the gateway 200 body', async () => {

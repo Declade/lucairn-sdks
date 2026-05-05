@@ -31,12 +31,20 @@ Edit your `claude_desktop_config.json` (in Claude Desktop: Settings → Develope
       "env": {
         "DSA_GATEWAY_URL": "https://gateway.lucairn.eu",
         "DSA_API_KEY": "lcr_live_...",
-        "ANTHROPIC_API_KEY": "sk-ant-..."
+        "ANTHROPIC_API_KEY": "sk-ant-...",
+        "OPENAI_API_KEY": "sk-..."
       }
     }
   }
 }
 ```
+
+You can set either or both BYOK keys. The MCP server picks which one to forward to the gateway based on the requested `model`:
+
+- `claude-*` / `anthropic-*` → `ANTHROPIC_API_KEY` is forwarded as `X-Upstream-Key`
+- `gpt-*` / `openai-*` / `o1-*` / `o3-*` / `o4-*` → `OPENAI_API_KEY` is forwarded as `X-Upstream-Key`
+
+If neither key is set, the gateway falls back to its provisioned upstream credential (Pro/Enterprise managed-AI pool); Developer-tier callers must bring their own key for at least one provider.
 
 Restart Claude Desktop after saving. You should see `lucairn` in the MCP servers list, and a `chat_via_lucairn` tool will be available for Claude to call.
 
@@ -48,7 +56,8 @@ All variables accept either the legacy `DSA_*` prefix (matching gateway / websit
 |---|---|---|
 | `DSA_API_KEY` / `LUCAIRN_API_KEY` | Yes | Your Lucairn API key (`lcr_live_...` or legacy `veil_live_...`). Get one at https://lucairn.eu/account/signup. |
 | `DSA_GATEWAY_URL` / `LUCAIRN_BASE_URL` | No | Lucairn gateway base URL. Defaults to `https://gateway.lucairn.eu`. Set to a self-hosted gateway URL for Enterprise deployments. |
-| `ANTHROPIC_API_KEY` | No | Optional BYOK upstream key. If set, forwarded as `X-Upstream-Key` so your Anthropic account is billed directly (gateway does not store it). If unset, the gateway uses its own provisioned upstream credential (managed-AI mode). |
+| `ANTHROPIC_API_KEY` | No | Optional BYOK upstream key for Claude / Anthropic models. If set, forwarded as `X-Upstream-Key` so your Anthropic account is billed directly (gateway does not store it). |
+| `OPENAI_API_KEY` | No | Optional BYOK upstream key for GPT / `o1` / `o3` / `o4` models. If set, forwarded as `X-Upstream-Key` so your OpenAI account is billed directly (gateway does not store it). |
 
 ## What the tool does
 

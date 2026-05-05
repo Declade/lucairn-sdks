@@ -33,7 +33,10 @@ import { GatewayError } from './types.js'
 export interface ServerOptions {
   apiKey: string
   baseUrl: string
-  upstreamKey?: string
+  /** Optional Anthropic BYOK key — forwarded as X-Upstream-Key for Claude/Anthropic models. */
+  anthropicKey?: string
+  /** Optional OpenAI BYOK key — forwarded as X-Upstream-Key for GPT/o1/o3/o4 models. */
+  openaiKey?: string
   /** Optional fetch override — used by tests. */
   fetchImpl?: typeof fetch
 }
@@ -73,7 +76,11 @@ export const CHAT_TOOL_DESCRIPTOR = {
       model: {
         type: 'string',
         description:
-          'Anthropic model identifier (e.g. "claude-sonnet-4-6").',
+          'Model identifier — `claude-sonnet-4-6` (Anthropic), ' +
+          '`gpt-4o-mini` (OpenAI), or any model the Lucairn gateway ' +
+          'routes upstream. Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY ' +
+          'in your MCP client env to bring your own provider key (BYOK); ' +
+          'free/Pro tier supports BYOK on either provider.',
       },
       max_tokens: {
         type: 'number',
@@ -200,7 +207,7 @@ function gatewayErrorToToolResult(err: GatewayError): {
  */
 export function buildServer(client: GatewayClient): Server {
   const server = new Server(
-    { name: 'lucairn-mcp-server', version: '1.0.0' },
+    { name: 'lucairn-mcp-server', version: '1.1.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -268,7 +275,8 @@ export async function startStdioServer(opts: ServerOptions): Promise<void> {
   const client = new GatewayClient({
     apiKey: opts.apiKey,
     baseUrl: opts.baseUrl,
-    upstreamKey: opts.upstreamKey,
+    anthropicKey: opts.anthropicKey,
+    openaiKey: opts.openaiKey,
     fetchImpl: opts.fetchImpl,
   })
   const server = buildServer(client)

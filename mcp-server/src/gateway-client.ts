@@ -16,6 +16,12 @@
  * customer profile has ManagedAI=false with a stored ProviderKey, the
  * gateway uses the stored key. When set on a managed-AI profile, the
  * customer's BYOK is used for that request only.
+ *
+ * The gateway routes upstream based on the request's `model` field, so
+ * a single `/api/v1/mcp/messages` call can target Anthropic OR OpenAI
+ * (verified live 2026-05-05: claude-* models route to Anthropic, gpt-*
+ * route to OpenAI). The MCP server picks which BYOK key to forward by
+ * inspecting the model prefix — see pickUpstreamKey below.
  */
 import type {
   AnthropicErrorBody,
@@ -29,8 +35,10 @@ export interface GatewayClientOptions {
   apiKey: string
   /** Gateway base URL — no trailing slash. Required. */
   baseUrl: string
-  /** Optional Anthropic-compatible BYOK key forwarded as X-Upstream-Key. */
-  upstreamKey?: string
+  /** Optional Anthropic BYOK key — used for Claude/Anthropic models. */
+  anthropicKey?: string
+  /** Optional OpenAI BYOK key — used for GPT/o1/o3/o4 models. */
+  openaiKey?: string
   /**
    * Optional fetch implementation override — used by the test suite to
    * inject a stub. Defaults to the global fetch (Node 18.17+).
@@ -64,7 +72,8 @@ export function buildMessagesRequestBody(input: ChatToolInput): Record<string, u
 export class GatewayClient {
   private readonly apiKey: string
   private readonly baseUrl: string
-  private readonly upstreamKey: string | undefined
+  private readonly anthropicKey: string | undefined
+  private readonly openaiKey: string | undefined
   private readonly fetchImpl: typeof fetch
 
   constructor(opts: GatewayClientOptions) {
@@ -95,13 +104,43 @@ export class GatewayClient {
 
     this.apiKey = opts.apiKey
     this.baseUrl = opts.baseUrl.replace(/\/+$/, '')
-    this.upstreamKey = opts.upstreamKey
+    this.anthropicKey = opts.anthropicKey
+    this.openaiKey = opts.openaiKey
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch
     if (!this.fetchImpl) {
       throw new Error(
         'GatewayClient: global fetch is unavailable. Use Node 18.17+ or pass fetchImpl.',
       )
     }
+  }
+
+  /**
+   * Pick which BYOK key to forward based on the request's `model`
+   * field. The Lucairn gateway routes requests to the correct upstream
+   * provider based on the same field, so the MCP server forwards the
+   * matching provider key as X-Upstream-Key.
+   *
+   * - claude-* / anthropic-* → Anthropic BYOK
+   * - gpt-* / openai-* / o1-* / o3-* / o4-* → OpenAI BYOK
+   * - unknown / future-model → prefer Anthropic (matches the existing
+   *   /api/v1/mcp/messages Anthropic-shape default), then fall back to
+   *   OpenAI if no Anthropic key is configured.
+   */
+  pickUpstreamKey(model: string): string | undefined {
+    const m = model.toLowerCase()
+    if (m.startsWith('claude') || m.startsWith('anthropic')) return this.anthropicKey
+    if (
+      m.startsWith('gpt') ||
+      m.startsWith('openai') ||
+      m.startsWith('o1') ||
+      m.startsWith('o3') ||
+      m.startsWith('o4')
+    ) {
+      return this.openaiKey
+    }
+    // Unknown / future-model: prefer anthropic (matches the existing
+    // /api/v1/mcp/messages Anthropic-shape default).
+    return this.anthropicKey ?? this.openaiKey
   }
 
   /**
@@ -117,9 +156,10 @@ export class GatewayClient {
       'content-type': 'application/json',
       'x-api-key': this.apiKey,
     }
-    if (this.upstreamKey) {
+    const upstreamKey = this.pickUpstreamKey(input.model)
+    if (upstreamKey) {
       // Header name verified against mcp_handler.go:226-229.
-      headers['X-Upstream-Key'] = this.upstreamKey
+      headers['X-Upstream-Key'] = upstreamKey
     }
 
     let res: Response

@@ -31,7 +31,12 @@ export interface AnthropicMessage {
 
 /** Inputs accepted by the chat_via_lucairn MCP tool. */
 export interface ChatToolInput {
-  /** Required. Anthropic model identifier (e.g. "claude-sonnet-4-6"). */
+  /**
+   * Required. Model identifier — `claude-sonnet-4-6` (Anthropic),
+   * `gpt-4o-mini` (OpenAI), or any model the Lucairn gateway routes
+   * upstream. The MCP server picks the matching BYOK key
+   * (ANTHROPIC_API_KEY vs OPENAI_API_KEY) based on the model prefix.
+   */
   model: string
   /** Required. Maximum tokens to generate in the response. */
   max_tokens: number

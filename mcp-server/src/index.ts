@@ -24,7 +24,8 @@ const baseUrl =
   process.env.DSA_GATEWAY_URL ||
   process.env.LUCAIRN_BASE_URL ||
   'https://gateway.lucairn.eu'
-const upstreamKey = process.env.ANTHROPIC_API_KEY || undefined
+const anthropicKey = process.env.ANTHROPIC_API_KEY || undefined
+const openaiKey = process.env.OPENAI_API_KEY || undefined
 
 if (!apiKey) {
   // eslint-disable-next-line no-console
@@ -36,7 +37,17 @@ if (!apiKey) {
   process.exit(1)
 }
 
-startStdioServer({ apiKey, baseUrl, upstreamKey }).catch((err) => {
+if (!anthropicKey && !openaiKey) {
+  // eslint-disable-next-line no-console
+  console.error(
+    'Warning: neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set. ' +
+      'You can still call the gateway with a Lucairn-managed upstream pool ' +
+      '(Pro/Enterprise tiers), but Developer tier requires BYOK. ' +
+      'Set one or both of these vars in your client config to use BYOK.',
+  )
+}
+
+startStdioServer({ apiKey, baseUrl, anthropicKey, openaiKey }).catch((err) => {
   // eslint-disable-next-line no-console
   console.error('lucairn-mcp-server failed:', err)
   process.exit(1)
