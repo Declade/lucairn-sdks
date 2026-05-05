@@ -65,22 +65,28 @@ export function exceedsInputCap(args: unknown): boolean {
 export const CHAT_TOOL_DESCRIPTOR = {
   name: CHAT_TOOL_NAME,
   description:
-    'Send an Anthropic Messages API request through the Lucairn ' +
-    'privacy gateway. PII is detected and replaced with placeholders ' +
-    'before reaching the upstream LLM. Developer-tier responses ' +
-    'contain those placeholders; Pro and Enterprise tiers can enable ' +
-    'automatic re-linking back to the original values.',
+    'Send a chat request through the Lucairn privacy gateway with ' +
+    'cross-provider BYOK (Anthropic + OpenAI). PII is detected and ' +
+    'replaced with placeholders before reaching the upstream LLM. ' +
+    'The gateway picks the upstream provider based on the `model` ' +
+    'parameter: `claude-*` / `anthropic-*` use ANTHROPIC_API_KEY; ' +
+    '`gpt-*` / `openai-*` / `o1-*` / `o3-*` / `o4-*` use OPENAI_API_KEY. ' +
+    'Wire format follows the Anthropic Messages API. Developer-tier ' +
+    'responses contain raw placeholders; Pro and Enterprise tiers can ' +
+    'enable automatic re-linking back to the original values.',
   inputSchema: {
     type: 'object',
     properties: {
       model: {
         type: 'string',
         description:
-          'Model identifier — `claude-sonnet-4-6` (Anthropic), ' +
-          '`gpt-4o-mini` (OpenAI), or any model the Lucairn gateway ' +
-          'routes upstream. Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY ' +
-          'in your MCP client env to bring your own provider key (BYOK); ' +
-          'free/Pro tier supports BYOK on either provider.',
+          'Model identifier. Routing rules: `claude-*` and ' +
+          '`anthropic-*` route to Anthropic via ANTHROPIC_API_KEY; ' +
+          '`gpt-*`, `openai-*`, `o1-*`, `o3-*`, and `o4-*` route to ' +
+          'OpenAI via OPENAI_API_KEY. Examples: `claude-sonnet-4-6`, ' +
+          '`gpt-4o-mini`, `o3-mini`. Set one or both of ' +
+          'ANTHROPIC_API_KEY and OPENAI_API_KEY in your MCP client env ' +
+          'for BYOK; matching is case-insensitive.',
       },
       max_tokens: {
         type: 'number',

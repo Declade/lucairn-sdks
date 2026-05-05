@@ -110,6 +110,18 @@ describe('GatewayClient.pickUpstreamKey (v1.1.0 model-prefix routing)', () => {
     expect(client.pickUpstreamKey('o4-preview')).toBe('sk-oai')
   })
 
+  it('returns the Anthropic key for the anthropic-* prefix', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('anthropic-claude-3.7-sonnet')).toBe('sk-ant')
+    expect(client.pickUpstreamKey('anthropic.claude-haiku')).toBe('sk-ant')
+  })
+
+  it('returns the OpenAI key for the openai-* prefix', () => {
+    const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
+    expect(client.pickUpstreamKey('openai-gpt-5')).toBe('sk-oai')
+    expect(client.pickUpstreamKey('openai.o5-preview')).toBe('sk-oai')
+  })
+
   it('is case-insensitive on the model prefix', () => {
     const client = makeClient({ anthropicKey: 'sk-ant', openaiKey: 'sk-oai' })
     expect(client.pickUpstreamKey('CLAUDE-SONNET-4-6')).toBe('sk-ant')
