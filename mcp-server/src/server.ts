@@ -30,6 +30,47 @@ import { GatewayClient } from './gateway-client.js'
 import type { AnthropicResponseBody, ChatToolInput } from './types.js'
 import { GatewayError } from './types.js'
 
+/**
+ * Supported values of LUCAIRN_TRANSPORT.
+ *
+ * - `direct-http` (default, v1.1 behavior): the npm package owns the
+ *   MCP tool catalog locally and forwards each tool call to the
+ *   gateway's Anthropic-Messages-shape endpoint
+ *   (POST /api/v1/mcp/messages). Lowest latency, no extra round-trips.
+ * - `stdio-bridge` (opt-in, v1.2): the npm package degenerates into a
+ *   thin transport bridge — stdio frames in, HTTP frames to the
+ *   gateway's streamable-HTTP MCP endpoint (POST /mcp), HTTP responses
+ *   back out as stdio frames. Tool catalog comes from the gateway, so
+ *   future tools and tier-aware descriptors land without a re-publish.
+ *
+ * A value other than these two causes a non-zero exit at startup with
+ * a clear error — see index.ts.
+ */
+export const TRANSPORT_DIRECT_HTTP = 'direct-http'
+export const TRANSPORT_STDIO_BRIDGE = 'stdio-bridge'
+export type LucairnTransport =
+  | typeof TRANSPORT_DIRECT_HTTP
+  | typeof TRANSPORT_STDIO_BRIDGE
+export const SUPPORTED_TRANSPORTS: readonly LucairnTransport[] = [
+  TRANSPORT_DIRECT_HTTP,
+  TRANSPORT_STDIO_BRIDGE,
+] as const
+
+/**
+ * Validate a raw `LUCAIRN_TRANSPORT` value. Returns the narrowed mode on
+ * success. Returns null on an empty/undefined input — the caller treats
+ * that as "unset, use the default". Throws on any other invalid value.
+ */
+export function parseTransport(raw: string | undefined | null): LucairnTransport | null {
+  if (raw === undefined || raw === null || raw === '') return null
+  if ((SUPPORTED_TRANSPORTS as readonly string[]).includes(raw)) {
+    return raw as LucairnTransport
+  }
+  throw new Error(
+    `LUCAIRN_TRANSPORT must be one of ${SUPPORTED_TRANSPORTS.join(', ')}; got "${raw}"`,
+  )
+}
+
 export interface ServerOptions {
   apiKey: string
   baseUrl: string

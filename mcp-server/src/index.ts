@@ -5,15 +5,29 @@
  * Started by Claude Desktop (or any MCP client) via:
  *   "command": "npx", "args": ["-y", "@lucairn/mcp-server"]
  *
- * Reads the API key + base URL from the environment, then hands off
- * to startStdioServer which speaks the MCP wire protocol over
- * stdin/stdout and forwards tool calls to the Lucairn gateway.
+ * Reads the API key + base URL + optional transport mode from the
+ * environment, then hands off to one of two transport paths:
+ *
+ *   - LUCAIRN_TRANSPORT=direct-http (default, v1.1 behavior):
+ *     run a local MCP server that exposes the chat_via_lucairn tool and
+ *     forwards each call to POST {baseUrl}/api/v1/mcp/messages.
+ *
+ *   - LUCAIRN_TRANSPORT=stdio-bridge (opt-in, v1.2):
+ *     proxy stdio JSON-RPC frames straight to the gateway's
+ *     streamable-HTTP MCP endpoint at POST {baseUrl}/mcp.
  *
  * Both DSA_* (legacy) and LUCAIRN_* (new) env-var prefixes are
  * accepted, matching the migration path documented at
  * https://lucairn.eu/developer/mcp.
  */
-import { startStdioServer } from './server.js'
+import { runStdioBridge } from './bridge.js'
+import {
+  parseTransport,
+  startStdioServer,
+  SUPPORTED_TRANSPORTS,
+  TRANSPORT_DIRECT_HTTP,
+  TRANSPORT_STDIO_BRIDGE,
+} from './server.js'
 
 // `||` (not `??`) so that an explicitly-set empty string falls through
 // to the next candidate. With `??`, DSA_API_KEY="" would mask a
@@ -26,6 +40,20 @@ const baseUrl =
   'https://gateway.lucairn.eu'
 const anthropicKey = process.env.ANTHROPIC_API_KEY || undefined
 const openaiKey = process.env.OPENAI_API_KEY || undefined
+
+let transport
+try {
+  transport = parseTransport(process.env.LUCAIRN_TRANSPORT) ?? TRANSPORT_DIRECT_HTTP
+} catch (err) {
+  const detail = err instanceof Error ? err.message : String(err)
+  // eslint-disable-next-line no-console
+  console.error(
+    `Error: ${detail}.\n` +
+      `Supported values: ${SUPPORTED_TRANSPORTS.join(', ')}.\n` +
+      'See https://lucairn.eu/developer/mcp for details.',
+  )
+  process.exit(1)
+}
 
 if (!apiKey) {
   // eslint-disable-next-line no-console
@@ -47,8 +75,15 @@ if (!anthropicKey && !openaiKey) {
   )
 }
 
-startStdioServer({ apiKey, baseUrl, anthropicKey, openaiKey }).catch((err) => {
+const onFatal = (err: unknown): void => {
   // eslint-disable-next-line no-console
   console.error('lucairn-mcp-server failed:', err)
   process.exit(1)
-})
+}
+
+if (transport === TRANSPORT_STDIO_BRIDGE) {
+  runStdioBridge({ apiKey, baseUrl, anthropicKey, openaiKey }).catch(onFatal)
+} else {
+  // transport === TRANSPORT_DIRECT_HTTP — v1.1 behavior, bit-identical.
+  startStdioServer({ apiKey, baseUrl, anthropicKey, openaiKey }).catch(onFatal)
+}

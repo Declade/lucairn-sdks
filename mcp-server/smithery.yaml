@@ -1,0 +1,76 @@
+# Smithery configuration for the Lucairn privacy gateway.
+#
+# This file describes the *remote* MCP endpoint Lucairn already exposes
+# at https://gateway.lucairn.eu/mcp (Streamable HTTP transport, JSON-RPC
+# 2.0 over POST). The npm package @lucairn/mcp-server is a separate
+# stdio adapter; Smithery users typically connect to the URL below
+# directly without installing anything.
+#
+# Format reference: https://smithery.ai/docs/config#smitheryyaml
+#
+# Submit / publish: paste the public gateway URL into smithery.ai/new,
+# or run `smithery mcp publish "https://gateway.lucairn.eu/mcp" -n
+# @lucairn/lucairn-privacy-gateway` from the Smithery CLI. Marc owns
+# the @lucairn org on Smithery.
+
+# Smithery's `startCommand` block describes how a client connects to
+# the server. `type: http` plus a public `url` selects the URL-based /
+# remote-publishing path — no Docker container, no smithery-hosted
+# build artifact, no `runtime:` block. Smithery proxies the client's
+# requests to the URL below.
+startCommand:
+  type: http
+  url: https://gateway.lucairn.eu/mcp
+
+  # The Lucairn gateway authenticates via a Lucairn API key
+  # (Authorization: Bearer lcr_live_*). Smithery surfaces this as a
+  # required config field at install time and forwards it on each
+  # request via the configured auth scheme.
+  configSchema:
+    type: object
+    required:
+      - lucairnApiKey
+    properties:
+      lucairnApiKey:
+        type: string
+        title: Lucairn API key
+        description: >-
+          Your Lucairn API key (lcr_live_…). Get one at
+          https://lucairn.eu/account/signup. Forwarded as
+          `Authorization: Bearer <key>` on every request.
+      anthropicApiKey:
+        type: string
+        title: Anthropic upstream key (BYOK, optional)
+        description: >-
+          Optional Anthropic API key. When set, forwarded as the
+          per-request `X-Upstream-Key` header for `claude-*` /
+          `anthropic-*` models so your Anthropic account is billed
+          directly. The Lucairn gateway never stores this key.
+      openaiApiKey:
+        type: string
+        title: OpenAI upstream key (BYOK, optional)
+        description: >-
+          Optional OpenAI API key. When set, forwarded as the
+          per-request `X-Upstream-Key` header for `gpt-*`, `o1-*`,
+          `o3-*`, `o4-*`, and `openai-*` models.
+    additionalProperties: false
+  exampleConfig:
+    lucairnApiKey: lcr_live_REPLACE_ME
+    anthropicApiKey: sk-ant-REPLACE_ME
+    openaiApiKey: sk-REPLACE_ME
+
+# Public-facing metadata. The npm package is a separate, optional
+# stdio adapter; Smithery installs are URL-only by default.
+name: lucairn-privacy-gateway
+description: >-
+  Privacy-preserving AI gateway. Detects PII (Presidio + custom recognizers)
+  and replaces it with placeholders before the prompt reaches the upstream
+  LLM (Anthropic or OpenAI BYOK). Pro and Enterprise tiers re-link
+  responses back to the original values; every request gets a Lucairn
+  Certificate of what was sanitized. EU-hosted, GDPR-aligned.
+homepage: https://lucairn.eu
+repository: https://github.com/Declade/lucairn-sdks
+# TODO Marc: confirm the Smithery icon URL conventions for the @lucairn
+# scope — schema accepts `icon: <url>` per the cookbook examples but the
+# canonical asset path is owned by Marc's account. Replace this comment
+# with the verified URL when filling in.

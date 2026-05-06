@@ -6,7 +6,12 @@ This package lets [Claude Desktop](https://claude.ai/download) (or any MCP-compa
 
 ## Status
 
-Pre-1.0. The Lucairn gateway exposes a single Anthropic-Messages-API-compatible endpoint at `POST /api/v1/mcp/messages` — see the [gateway source](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_handler.go). This MCP server wraps that endpoint and exposes it as one MCP tool: `chat_via_lucairn`.
+`v1.2.0`. Two transport modes are now supported (see `LUCAIRN_TRANSPORT` below):
+
+- **`direct-http`** (default — recommended for stdio CLI users): the npm package owns the MCP tool catalog locally and forwards each `chat_via_lucairn` call to the gateway's Anthropic-Messages-shape endpoint at `POST /api/v1/mcp/messages` ([gateway source](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_handler.go)). Lowest latency.
+- **`stdio-bridge`** (opt-in, new in v1.2): the npm package is a thin stdio↔HTTP bridge. Stdio JSON-RPC frames are forwarded to the gateway's streamable-HTTP MCP endpoint at `POST /mcp` ([gateway source](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_streamable.go), live since 2026-05-06 via PR #135). Tool catalogs come from the gateway, so future tools and tier-aware descriptors land without re-publishing this package.
+
+Upgrading from `v1.1.x` is non-breaking: `LUCAIRN_TRANSPORT` defaults to `direct-http`, which is bit-identical to v1.1.
 
 ## Install
 
@@ -56,8 +61,47 @@ All variables accept either the legacy `DSA_*` prefix (matching gateway / websit
 |---|---|---|
 | `DSA_API_KEY` / `LUCAIRN_API_KEY` | Yes | Your Lucairn API key (`lcr_live_...` or legacy `veil_live_...`). Get one at https://lucairn.eu/account/signup. |
 | `DSA_GATEWAY_URL` / `LUCAIRN_BASE_URL` | No | Lucairn gateway base URL. Defaults to `https://gateway.lucairn.eu`. Set to a self-hosted gateway URL for Enterprise deployments. |
+| `LUCAIRN_TRANSPORT` | No | `direct-http` (default) or `stdio-bridge`. See "Transport modes" below. Any other value causes a non-zero exit at startup. |
 | `ANTHROPIC_API_KEY` | No | Optional BYOK upstream key for Claude / Anthropic models. If set, forwarded as `X-Upstream-Key` so your Anthropic account is billed directly (gateway does not store it). |
 | `OPENAI_API_KEY` | No | Optional BYOK upstream key for GPT / `o1` / `o3` / `o4` models. If set, forwarded as `X-Upstream-Key` so your OpenAI account is billed directly (gateway does not store it). |
+
+## Transport modes
+
+`LUCAIRN_TRANSPORT` selects how the npm package talks to the gateway:
+
+### `direct-http` (default)
+
+```jsonc
+"env": {
+  "LUCAIRN_TRANSPORT": "direct-http",        // optional — this is the default
+  "DSA_GATEWAY_URL": "https://gateway.lucairn.eu",
+  "DSA_API_KEY": "lcr_live_..."
+}
+```
+
+The package serves a local MCP server with the single `chat_via_lucairn` tool. Each tool call is converted into an Anthropic Messages API request and POSTed to `${baseUrl}/api/v1/mcp/messages`. Recommended for stdio CLI users — one fewer hop, lowest latency.
+
+### `stdio-bridge` (opt-in, v1.2+)
+
+```jsonc
+"env": {
+  "LUCAIRN_TRANSPORT": "stdio-bridge",
+  "DSA_GATEWAY_URL": "https://gateway.lucairn.eu",
+  "DSA_API_KEY": "lcr_live_..."
+}
+```
+
+The package degenerates into a thin stdio↔HTTP bridge: incoming JSON-RPC 2.0 frames from your local MCP client are forwarded as POSTs to `${baseUrl}/mcp` (the gateway's [streamable-HTTP MCP endpoint](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_streamable.go), live since 2026-05-06). The HTTP response is written back to stdout as the JSON-RPC reply. **Requires gateway support live since 2026-05-06.**
+
+Use this mode when you want:
+
+- The gateway's tool catalog (currently `chat_via_lucairn`; future tools land server-side without a package re-publish).
+- Tier-aware tool descriptors that reflect the auth'd account's current plan.
+- Centralised, server-emitted protocol-version negotiation.
+
+Trade-off: one extra round-trip vs `direct-http`, since each frame is serialized to HTTP rather than handled locally.
+
+**Out of scope in v1.2:** the gateway's `GET /mcp` SSE channel is not bridged — server-initiated messages (notifications, progress, sampling) are stubbed as a future workstream. Only `POST /mcp` request/response round-trips are bridged.
 
 ## What the tool does
 
@@ -78,11 +122,29 @@ The Anthropic-Messages request shape is documented in the gateway's [`MCPPayload
 
 See https://lucairn.eu/developer/mcp for the full setup guide.
 
+## Smithery (URL-based publishing)
+
+The Lucairn gateway is also published on [Smithery](https://smithery.ai) as a remote MCP server — no install needed for users on Smithery-aware MCP clients. The Smithery card lives in [`smithery.yaml`](./smithery.yaml) and points at the public gateway endpoint:
+
+```yaml
+startCommand:
+  type: http
+  url: https://gateway.lucairn.eu/mcp
+```
+
+To install via Smithery:
+
+```bash
+smithery install @lucairn/lucairn-privacy-gateway
+```
+
+Smithery prompts for the `lucairnApiKey` (and optional `anthropicApiKey` / `openaiApiKey`) at install time and forwards them on each request. Internally this is the same streamable-HTTP transport the `stdio-bridge` mode uses; either path lands on the gateway's `POST /mcp` endpoint.
+
 ## Limitations / known issues
 
-- **Tested with Claude Desktop:** not yet end-to-end verified by the package author. Surface issues at https://github.com/Declade/theveil-sdks/issues.
-- **Streaming:** the gateway supports SSE streaming on the underlying endpoint (`stream: true` in the request body), but Claude Desktop's MCP tool-call protocol doesn't yet stream tool output back to the user. The current implementation forces non-streaming.
-- **Single tool surface:** the gateway exposes one Anthropic-Messages-compatible endpoint, so this server exposes one tool. Resource and prompt MCP capabilities are not implemented.
+- **Tested with Claude Desktop:** not yet end-to-end verified by the package author. Surface issues at https://github.com/Declade/lucairn-sdks/issues.
+- **Streaming:** the gateway supports SSE streaming on the underlying endpoint (`stream: true` in the request body), but Claude Desktop's MCP tool-call protocol doesn't yet stream tool output back to the user. Both transport modes force non-streaming. Server-initiated SSE messages from `GET /mcp` (notifications, progress, sampling) are not bridged in v1.2 — future workstream.
+- **Single tool surface in `direct-http`:** in `direct-http` mode the npm package owns a static catalog with one tool (`chat_via_lucairn`). In `stdio-bridge` mode the catalog comes from the gateway and grows automatically as new tools ship server-side.
 
 ## License
 
