@@ -583,6 +583,48 @@ describe('runStdioBridge', () => {
     })
   })
 
+  it('emits a JSON-RPC -32600 InvalidRequest on a frame that is valid JSON but not a JSON-RPC envelope, AND keeps the bridge alive for subsequent valid frames (M1 regression: ZodError must not tear down the bridge)', async () => {
+    // The SDK's ReadBuffer.deserializeMessage runs JSON.parse THEN
+    // JSONRPCMessageSchema.parse (Zod). A frame like {"foo":"bar"}\n
+    // parses as JSON cleanly but fails Zod validation — surfacing as a
+    // ZodError on transport.onerror. The pre-fix behaviour treated any
+    // non-SyntaxError as fatal and tore down the bridge; the fix replies
+    // with -32600 Invalid Request and keeps the bridge alive.
+    const validReply = { jsonrpc: '2.0', id: 7, result: { ok: true } }
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(fakeResponse(200, JSON.stringify(validReply)))
+    // First line: invalid JSON-RPC envelope (Zod will reject).
+    // Second line: a perfectly valid frame — proves the bridge survived.
+    const lines =
+      '{"foo":"bar"}\n' +
+      JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/list' }) +
+      '\n'
+    const stdin = Readable.from([Buffer.from(lines, 'utf8')])
+    const stdout = new CaptureWritable()
+    await runStdioBridge({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy as unknown as typeof fetch,
+      stdin,
+      stdout,
+    })
+    // Drain fire-and-forget handlers.
+    for (let i = 0; i < 4; i++) await new Promise((r) => setImmediate(r))
+    // The valid frame must have reached the gateway → fetch was called.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(stdout.frames).toHaveLength(2)
+    // First reply: -32600 Invalid Request envelope from the malformed frame.
+    expect(stdout.frames[0]).toMatchObject({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32600, message: 'Invalid Request' },
+    })
+    // Second reply: the gateway's response to the valid frame — proves
+    // the bridge stayed alive after the bad frame.
+    expect(stdout.frames[1]).toEqual(validReply)
+  })
+
   it('rejects when neither baseUrl nor apiKey is supplied', async () => {
     await expect(
       // @ts-expect-error — exercising the runtime guard

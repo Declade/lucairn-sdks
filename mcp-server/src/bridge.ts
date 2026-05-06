@@ -71,6 +71,7 @@ export const BRIDGE_FETCH_TIMEOUT_MS = 30_000
 
 /** JSON-RPC 2.0 standard error codes (RFC §5.1). */
 const JSON_RPC_PARSE_ERROR = -32700
+const JSON_RPC_INVALID_REQUEST = -32600
 const JSON_RPC_INTERNAL_ERROR = -32603
 
 /**
@@ -350,21 +351,29 @@ export async function runStdioBridge(opts: BridgeOptions): Promise<void> {
       settle()
     }
     transport.onerror = (err): void => {
-      // Parse errors from a malformed stdin frame: respond with a -32700
-      // envelope so the local client can surface it. The transport-level
-      // ReadBuffer.readMessage wraps JSON.parse failures, which surface
-      // as SyntaxError instances on every Node version we support
-      // (>=18.17). We don't have an id to echo, so emit id:null per
-      // JSON-RPC §5.
-      if (err instanceof SyntaxError) {
-        void transport
-          .send(errorEnvelope(null, JSON_RPC_PARSE_ERROR, 'Parse error') as JSONRPCMessage)
-          .catch(() => {
-            /* swallow — best-effort */
-          })
-        return
-      }
-      settle(err instanceof Error ? err : new Error(String(err)))
+      // Frame-level errors from the SDK's stdio ReadBuffer come in two
+      // flavours (see @modelcontextprotocol/sdk shared/stdio.ts):
+      //
+      //   1. JSON.parse() failed on the line → SyntaxError → -32700 Parse error.
+      //   2. JSONRPCMessageSchema.parse() (Zod) rejected the parsed object
+      //      because the frame shape isn't a valid JSON-RPC envelope (e.g.
+      //      `{"foo":"bar"}\n`) → ZodError or similar non-SyntaxError →
+      //      -32600 Invalid Request.
+      //
+      // In either case the bridge MUST stay alive: a single bad frame
+      // from a buggy MCP client must not tear down the transport. We
+      // don't have an id to echo, so emit id:null per JSON-RPC §5.
+      const code =
+        err instanceof SyntaxError
+          ? JSON_RPC_PARSE_ERROR
+          : JSON_RPC_INVALID_REQUEST
+      const message =
+        err instanceof SyntaxError ? 'Parse error' : 'Invalid Request'
+      void transport
+        .send(errorEnvelope(null, code, message) as JSONRPCMessage)
+        .catch(() => {
+          /* swallow — best-effort, never tear down the bridge */
+        })
     }
 
     if (opts.signal) {
