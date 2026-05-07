@@ -1,0 +1,58 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Declade/lucairn-mcp-server",
+  "description": "MCP server that pseudonymizes PII before your LLM sees it and returns a cryptographically signed receipt for every response.",
+  "repository": {
+    "url": "https://github.com/Declade/lucairn-sdks",
+    "source": "github"
+  },
+  "version": "1.2.3",
+  "websiteUrl": "https://lucairn.eu/developer/mcp",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@lucairn/mcp-server",
+      "version": "1.2.3",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LUCAIRN_API_KEY",
+          "description": "Lucairn gateway API key (lcr_live_*). Issued at https://lucairn.eu/account/keys. Free tier requires BYOK upstream LLM keys (ANTHROPIC_API_KEY or OPENAI_API_KEY).",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "description": "Upstream Anthropic API key. Used when the requested model is claude-* / anthropic-*. Required if you call Claude models on the free tier (BYOK).",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "description": "Upstream OpenAI API key. Used when the requested model is gpt-* / openai-* / o1-* / o3-* / o4-*. Required if you call OpenAI models on the free tier (BYOK).",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "LUCAIRN_BASE_URL",
+          "description": "Override the gateway URL. Defaults to https://gateway.lucairn.eu (production). Set this to point at a self-hosted Lucairn deployment.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "LUCAIRN_TRANSPORT",
+          "description": "Transport mode for the MCP server. One of 'direct-http' (default; v1.1+ behavior) or 'stdio-bridge' (v1.2+ opt-in).",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
