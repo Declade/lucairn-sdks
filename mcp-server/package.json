@@ -7,11 +7,11 @@
   "homepage": "https://lucairn.eu",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Declade/theveil-sdks.git",
+    "url": "git+https://github.com/Declade/lucairn-sdks.git",
     "directory": "mcp-server"
   },
   "bugs": {
-    "url": "https://github.com/Declade/theveil-sdks/issues"
+    "url": "https://github.com/Declade/lucairn-sdks/issues"
   },
   "keywords": [
     "mcp",

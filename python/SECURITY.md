@@ -17,7 +17,7 @@ relied on.
 Please report suspected security issues through **GitHub Private
 Vulnerability Reporting** on this repository:
 
-`theveil-sdks` → **Security** tab → **Report a vulnerability**
+`lucairn-sdks` → **Security** tab → **Report a vulnerability**
 
 PVR is the preferred channel — it's private, auditable, and ties directly
 into GitHub Security Advisories, which simplifies coordinated disclosure.

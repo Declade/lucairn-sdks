@@ -48,9 +48,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://lucairn.eu"
-Repository = "https://github.com/Declade/theveil-sdks"
-Issues = "https://github.com/Declade/theveil-sdks/issues"
-Changelog = "https://github.com/Declade/theveil-sdks/blob/main/CHANGELOG.md"
+Repository = "https://github.com/Declade/lucairn-sdks"
+Issues = "https://github.com/Declade/lucairn-sdks/issues"
+Changelog = "https://github.com/Declade/lucairn-sdks/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 # Ship the new `lucairn` package and the in-tree compatibility shim so

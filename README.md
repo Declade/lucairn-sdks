@@ -69,7 +69,7 @@ Cross-provider BYOK shipped in `@lucairn/mcp-server@1.1.0` — set one or both k
 
 | Language       | Package                                   | Version | README                              |
 |----------------|-------------------------------------------|---------|-------------------------------------|
-| MCP server     | `@lucairn/mcp-server`                     | 1.1.0   | [mcp-server/README.md](mcp-server/README.md) |
+| MCP server     | `@lucairn/mcp-server`                     | 1.2.0   | [mcp-server/README.md](mcp-server/README.md) |
 | TypeScript     | `@lucairn/sdk`                            | 1.0.0   | [ts/README.md](ts/README.md)        |
 | Python         | `lucairn`                                 | 1.0.0   | [python/README.md](python/README.md) |
 | Go             | `github.com/declade/lucairn-sdks/go`      | v0.1.0  | [go/README.md](go/README.md)        |
