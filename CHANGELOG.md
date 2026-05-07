@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [mcp-server 1.2.1] — 2026-05-07
+
+### Fixed
+- Repository metadata in `mcp-server/package.json` now points at
+  `https://github.com/Declade/lucairn-sdks` (the actual public repo
+  the package is published from). The 1.2.0 manifest still carried
+  the pre-Stage-2 `Declade/theveil-sdks` slug, so the Repository
+  link on the npm package page rendered a 404 to visitors and
+  Smithery-style listing crawlers. Source code unchanged from 1.2.0.
+
 ### Added
 - **MCP server [1.0.0]** — new `@lucairn/mcp-server` package at
   `mcp-server/`. Stdio-transport Model Context Protocol server that
