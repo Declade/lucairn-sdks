@@ -78,7 +78,7 @@ All SDKs are at parity at the observable level. Cross-language byte-equivalence 
 
 ## Get an API key
 
-Sign up at [https://lucairn.eu/account/signup](https://lucairn.eu/account/signup). Free Developer tier: **1,000 requests/month, no credit card required.**
+Sign up at [https://lucairn.eu/account/signup](https://lucairn.eu/account/signup). Free Developer tier: **500 requests/month, no credit card required.**
 
 Pro adds response re-linking, programmatic certificate JSON access, audit-event export, and higher quota. Enterprise adds self-host, BYOK with provider-side billing isolation, and the optional custom-trained PII shield (priced per scope).
 
