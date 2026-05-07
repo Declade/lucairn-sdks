@@ -161,6 +161,64 @@ export const CHAT_TOOL_DESCRIPTOR = {
     },
     required: ['model', 'max_tokens', 'messages'],
   },
+  annotations: {
+    title: 'Chat via Lucairn',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      text: {
+        type: 'string',
+        description:
+          'Concatenated text from all assistant content blocks, plus an ' +
+          'optional trailing line referencing the Lucairn compliance ' +
+          'certificate URL when present in gateway metadata.',
+      },
+      model: {
+        type: 'string',
+        description: 'The upstream model that produced the response.',
+      },
+      stop_reason: {
+        type: 'string',
+        description:
+          'Anthropic-Messages-API stop reason (end_turn, max_tokens, ' +
+          'stop_sequence, tool_use).',
+      },
+      usage: {
+        type: 'object',
+        properties: {
+          input_tokens: { type: 'number' },
+          output_tokens: { type: 'number' },
+        },
+        required: ['input_tokens', 'output_tokens'],
+      },
+      compliance: {
+        type: 'object',
+        description:
+          'Lucairn privacy-compliance metadata. Present when the gateway ' +
+          'attached a dsa_compliance block (always for v1 of the proxy).',
+        properties: {
+          request_id: { type: 'string' },
+          veil_certificate_url: { type: 'string' },
+          veil_summary_url: { type: 'string' },
+          pii_in_ai: { type: 'boolean' },
+          identity_in_ai: { type: 'boolean' },
+          sanitizer_layers: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          redaction_count: { type: 'number' },
+          latency_ms: { type: 'number' },
+        },
+        required: ['request_id', 'redaction_count', 'latency_ms'],
+      },
+    },
+    required: ['text', 'model', 'stop_reason', 'usage'],
+  },
 } as const
 
 /**
@@ -198,6 +256,13 @@ export function parseChatToolArgs(raw: unknown): ChatToolInput {
  */
 export function formatToolResult(resp: AnthropicResponseBody): {
   content: Array<{ type: 'text'; text: string }>
+  structuredContent: {
+    text: string
+    model: string
+    stop_reason: string
+    usage: { input_tokens: number; output_tokens: number }
+    compliance?: NonNullable<NonNullable<AnthropicResponseBody['metadata']>['dsa_compliance']>
+  }
 } {
   const text = resp.content
     .filter((b) => b.type === 'text' && typeof b.text === 'string')
@@ -212,6 +277,13 @@ export function formatToolResult(resp: AnthropicResponseBody): {
 
   return {
     content: [{ type: 'text', text: text + trailer }],
+    structuredContent: {
+      text: text + trailer,
+      model: resp.model,
+      stop_reason: resp.stop_reason,
+      usage: resp.usage,
+      ...(compliance ? { compliance } : {}),
+    },
   }
 }
 

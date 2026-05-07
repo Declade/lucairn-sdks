@@ -25,6 +25,22 @@ describe('CHAT_TOOL_DESCRIPTOR', () => {
     expect(required).toContain('max_tokens')
     expect(required).toContain('messages')
   })
+
+  it('declares MCP tool annotations matching the gateway streamable-HTTP descriptor', () => {
+    expect(CHAT_TOOL_DESCRIPTOR.annotations.readOnlyHint).toBe(false)
+    expect(CHAT_TOOL_DESCRIPTOR.annotations.destructiveHint).toBe(false)
+    expect(CHAT_TOOL_DESCRIPTOR.annotations.idempotentHint).toBe(false)
+    expect(CHAT_TOOL_DESCRIPTOR.annotations.openWorldHint).toBe(true)
+  })
+
+  it('declares an outputSchema with text/model/stop_reason/usage required', () => {
+    expect(CHAT_TOOL_DESCRIPTOR.outputSchema.type).toBe('object')
+    const required = CHAT_TOOL_DESCRIPTOR.outputSchema.required
+    expect(required).toContain('text')
+    expect(required).toContain('model')
+    expect(required).toContain('stop_reason')
+    expect(required).toContain('usage')
+  })
 })
 
 describe('parseChatToolArgs', () => {
@@ -116,6 +132,38 @@ describe('formatToolResult', () => {
   it('omits the certificate trailer when metadata is missing', () => {
     const out = formatToolResult(baseResp)
     expect(out.content[0].text).not.toContain('Lucairn certificate:')
+  })
+
+  it('returns structuredContent matching the declared outputSchema', () => {
+    const out = formatToolResult(baseResp)
+    expect(out.structuredContent).toBeDefined()
+    expect(out.structuredContent.text).toBe(out.content[0].text)
+    expect(out.structuredContent.model).toBe(baseResp.model)
+    expect(out.structuredContent.stop_reason).toBe(baseResp.stop_reason)
+    expect(out.structuredContent.usage).toEqual(baseResp.usage)
+  })
+
+  it('omits structuredContent.compliance when metadata is absent', () => {
+    const out = formatToolResult(baseResp)
+    expect(out.structuredContent.compliance).toBeUndefined()
+  })
+
+  it('populates structuredContent.compliance when gateway metadata is present', () => {
+    const out = formatToolResult({
+      ...baseResp,
+      metadata: {
+        dsa_compliance: {
+          request_id: 'req_xyz',
+          veil_summary_url: 'https://gateway.lucairn.eu/api/v1/veil/certificate/req_xyz/summary',
+          redaction_count: 3,
+          latency_ms: 142,
+        },
+      },
+    })
+    expect(out.structuredContent.compliance).toBeDefined()
+    expect(out.structuredContent.compliance?.request_id).toBe('req_xyz')
+    expect(out.structuredContent.compliance?.redaction_count).toBe(3)
+    expect(out.structuredContent.compliance?.latency_ms).toBe(142)
   })
 })
 
