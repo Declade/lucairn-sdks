@@ -101,3 +101,13 @@ def cert_go_signed_reference(ts_fixtures_dir: Path) -> dict[str, Any]:
     — the end-to-end authoritative reference for signable + verify."""
 
     return json.loads((ts_fixtures_dir / "cert-go-signed-reference.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def cert_byok_exempt(ts_fixtures_dir: Path) -> dict[str, Any]:
+    """Cert with ``verification.byok_exempt = true`` and a dsa-ai claim
+    carrying the new ``ISOLATION_PROBE_BYOK_EXEMPT`` enum value. Witness
+    signable is the same 7-key set — signature verifies under the standard
+    test keypair."""
+
+    return json.loads((ts_fixtures_dir / "cert-byok-exempt.json").read_text())

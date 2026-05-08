@@ -303,6 +303,63 @@ class TestVerifyCertificateHappyPaths:
         assert result.anchor_status == "ANCHOR_STATUS_FAILED"
 
 
+# -- verify_certificate — BYOK_EXEMPT -------------------------------------
+
+
+class TestVerifyCertificateByokExempt:
+    """Sister of dual-sandbox-architecture's ``ISOLATION_PROBE_BYOK_EXEMPT``
+    + ``VerificationResult.byok_exempt`` (proto field 9). The cert reaches
+    the SDK with both new fields populated; the SDK must parse them, surface
+    them on the typed cert, and verify the witness signature unchanged —
+    because the witness signable map is still the same 7-key set
+    (``byok_exempt`` and the new probe enum are NOT in it).
+    """
+
+    def test_parses_and_verifies_byok_exempt_cert(
+        self, cert_byok_exempt: dict[str, Any], witness_keypair: dict[str, str]
+    ) -> None:
+        # Sanity-check raw fixture carries both new fields.
+        assert cert_byok_exempt["verification"]["byok_exempt"] is True
+        assert cert_byok_exempt["verification"]["overall_verdict"] == "VERDICT_VERIFIED"
+        assert (
+            cert_byok_exempt["claims"][2]["inference"]["isolation_probe"]
+            == "ISOLATION_PROBE_BYOK_EXEMPT"
+        )
+
+        result = verify_certificate(cert_byok_exempt, _keys(witness_keypair))
+        assert result.overall_verdict == "VERDICT_VERIFIED"
+        assert result.certificate_id == cert_byok_exempt["certificate_id"]
+        assert result.request_id == cert_byok_exempt["request_id"]
+        assert result.anchor_status == "ANCHOR_STATUS_ANCHORED"
+
+    def test_byok_exempt_surfaces_on_pydantic_model(
+        self, cert_byok_exempt: dict[str, Any]
+    ) -> None:
+        """``parse_certificate`` returns a :class:`VeilCertificate`; the new
+        ``byok_exempt`` Pydantic field on :class:`VeilVerificationResult`
+        must round-trip ``True`` from the raw JSON."""
+
+        from lucairn.verify_certificate.parse import parse_certificate
+
+        cert = parse_certificate(cert_byok_exempt)
+        assert cert.verification.byok_exempt is True
+        assert cert.verification.overall_verdict == "VERDICT_VERIFIED"
+
+    def test_byok_exempt_default_false_on_older_cert(
+        self, cert_valid_anchored: dict[str, Any]
+    ) -> None:
+        """Backward compat — older certs (pre-byok-exempt gateway) do not
+        carry the field. The Pydantic default is ``False``, so older certs
+        parse cleanly with ``byok_exempt=False``."""
+
+        from lucairn.verify_certificate.parse import parse_certificate
+
+        # Defensive: ensure the older fixture genuinely lacks the field.
+        assert "byok_exempt" not in cert_valid_anchored["verification"]
+        cert = parse_certificate(cert_valid_anchored)
+        assert cert.verification.byok_exempt is False
+
+
 # -- verify_certificate — ordering + error shape --------------------------
 
 

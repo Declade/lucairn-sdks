@@ -266,6 +266,36 @@ describe('verifyCertificate — happy paths', () => {
   });
 });
 
+// BYOK_EXEMPT — sister of dual-sandbox-architecture's
+// ISOLATION_PROBE_BYOK_EXEMPT proto enum + VerificationResult.byok_exempt
+// (proto field 9). The cert reaches the SDK with both new fields populated;
+// the SDK must parse them, surface them on the typed cert, and verify the
+// witness signature unchanged — because the witness signable map is still
+// the same 7-key set (byok_exempt and the new probe enum are NOT in it).
+describe('verifyCertificate — BYOK_EXEMPT', () => {
+  it('parses and verifies a BYOK_EXEMPT cert as VERDICT_VERIFIED', async () => {
+    const cert = loadFixture('cert-byok-exempt.json');
+    expect(cert.verification.byok_exempt).toBe(true);
+    expect(cert.verification.overall_verdict).toBe('VERDICT_VERIFIED');
+    expect(cert.claims[2]?.inference?.isolation_probe).toBe(
+      'ISOLATION_PROBE_BYOK_EXEMPT',
+    );
+    const result = await verifyCertificate(cert, keysAll());
+    expect(result.overallVerdict).toBe('VERDICT_VERIFIED');
+    expect(result.certificateId).toBe(cert.certificate_id);
+    expect(result.requestId).toBe(cert.request_id);
+    expect(result.anchorStatus).toBe('ANCHOR_STATUS_ANCHORED');
+  });
+
+  it('byok_exempt absent from older cert fixture defaults to undefined (backward compat)', () => {
+    // Older certs (pre-byok-exempt gateway) do not carry the field. The
+    // optional field on VeilVerificationResult means the parsed object
+    // simply has no `byok_exempt` key — not `false`, not a parse error.
+    const cert = loadFixture('cert-valid-anchored.json');
+    expect(cert.verification.byok_exempt).toBeUndefined();
+  });
+});
+
 describe('verifyCertificate — ordering + error shape', () => {
   it('stops at malformed before protocol-version / witness-id checks', async () => {
     await expect(

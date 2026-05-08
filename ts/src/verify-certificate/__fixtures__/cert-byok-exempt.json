@@ -1,0 +1,138 @@
+{
+  "certificate_id": "veil_test_byok_exempt_0001",
+  "request_id": "req_test_byok_exempt_0001",
+  "protocol_version": 2,
+  "claims": [
+    {
+      "claim_id": "clm_test_byok_token_generated_0001",
+      "request_id": "req_test_byok_exempt_0001",
+      "service_id": "dsa-bridge",
+      "claim_type": "CLAIM_TYPE_TOKEN_GENERATED",
+      "data_seen": [
+        "customer_id"
+      ],
+      "data_not_seen": [
+        "context",
+        "prompt_template",
+        "inference_result"
+      ],
+      "canonical_payload": "eyJ0ZXN0IjoiYnJpZGdlIn0=",
+      "timestamp": "2026-05-08T05:24:09.617230313Z",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "bridge": {
+        "token_hash": "AAA=",
+        "epoch": "0",
+        "encryption_enabled": true
+      }
+    },
+    {
+      "claim_id": "clm_test_byok_pii_sanitized_0002",
+      "request_id": "req_test_byok_exempt_0001",
+      "service_id": "dsa-sanitizer",
+      "claim_type": "CLAIM_TYPE_PII_SANITIZED",
+      "data_seen": [
+        "context_fields"
+      ],
+      "data_not_seen": [
+        "customer_id",
+        "token",
+        "inference_result"
+      ],
+      "canonical_payload": "eyJ0ZXN0Ijoic2FuaXRpemVyIn0=",
+      "timestamp": "2026-05-08T05:24:09.666135Z",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "sanitizer": {
+        "pii_entities_found": 1,
+        "redaction_manifest_hash": "AAA=",
+        "layers_active": [
+          "known_entity_matching",
+          "presidio_ner",
+          "llm_pii_scan"
+        ]
+      }
+    },
+    {
+      "claim_id": "clm_test_byok_inference_completed_0003",
+      "request_id": "req_test_byok_exempt_0001",
+      "service_id": "dsa-ai",
+      "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+      "data_seen": [
+        "opaque_token",
+        "sanitized_context"
+      ],
+      "data_not_seen": [
+        "customer_id",
+        "raw_context",
+        "pii"
+      ],
+      "canonical_payload": "eyJ0ZXN0IjoiaW5mZXJlbmNlIn0=",
+      "timestamp": "2026-05-08T05:24:11.066748Z",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "inference": {
+        "isolation_probe": "ISOLATION_PROBE_BYOK_EXEMPT",
+        "model_used": "gpt-4o-mini",
+        "response_hash": "AAA="
+      }
+    },
+    {
+      "claim_id": "clm_test_byok_events_recorded_0004",
+      "request_id": "req_test_byok_exempt_0001",
+      "service_id": "dsa-audit",
+      "claim_type": "CLAIM_TYPE_EVENTS_RECORDED",
+      "data_seen": [
+        "event_hashes"
+      ],
+      "data_not_seen": [
+        "pii",
+        "context",
+        "inference_result"
+      ],
+      "canonical_payload": "eyJ0ZXN0IjoiYXVkaXQifQ==",
+      "timestamp": "2026-05-08T05:24:12.704438306Z",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "audit": {
+        "event_ids": [
+          "test_event_byok_0001"
+        ],
+        "chain_head_hash": "AAA=",
+        "chain_length": "1"
+      }
+    }
+  ],
+  "verification": {
+    "signatures_valid": true,
+    "completeness": "COMPLETENESS_FULL",
+    "missing_services": [],
+    "temporal_consistent": true,
+    "data_visibility_consistent": true,
+    "isolation_verified": true,
+    "qi_score": null,
+    "overall_verdict": "VERDICT_VERIFIED",
+    "byok_exempt": true
+  },
+  "issued_at": "2026-05-08T05:24:12.710321721Z",
+  "formal_verification": null,
+  "audit_integrity": null,
+  "privacy_budget": null,
+  "witness_signature": "Dy0oZOnOHPEQ0T6dcT0PyMblqiHumrZlXFnAVhoqLC6c55bXE2gUZfgVOXk3bFb6+hUIgCSHJWifq2leEh7wCA==",
+  "witness_key_id": "witness_v1",
+  "attestation": {
+    "timestamp": null,
+    "transparency_log": null,
+    "notary": {
+      "provider": "dsa-veil-witness",
+      "notary_signature": "Dy0oZOnOHPEQ0T6dcT0PyMblqiHumrZlXFnAVhoqLC6c55bXE2gUZfgVOXk3bFb6+hUIgCSHJWifq2leEh7wCA==",
+      "notary_public_key_id": "witness_v1",
+      "checks_performed": [
+        "canonical_json_signing"
+      ],
+      "attested_at": null
+    }
+  },
+  "anchor_status": {
+    "status": "ANCHOR_STATUS_ANCHORED",
+    "attempts": 1,
+    "last_error": "",
+    "human_note": ""
+  }
+}
