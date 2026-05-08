@@ -1,6 +1,6 @@
 {
   "name": "@lucairn/sdk",
-  "version": "1.2.0",
+  "version": "1.1.0",
   "description": "Lucairn — privacy-preserving AI gateway client for TypeScript",
   "license": "MIT",
   "author": "Declade",
