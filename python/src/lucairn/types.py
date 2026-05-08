@@ -314,6 +314,17 @@ class VeilVerificationResult(BaseModel):
     # 7-key witness signable; tamper-evidence is INDIRECT via the bridge
     # claim's bridge-signed canonical_payload (which IS in the signable via
     # ``claims``). Proto field number 9 on VerificationResult.
+    #
+    # Cross-language semantic for older certs (no ``byok_exempt`` field on
+    # the wire):
+    #   - Python (this SDK): defaults to ``False`` after parse.
+    #   - TypeScript: leaves the field as ``undefined`` (optional).
+    #   - Go: zero-value ``false`` with ``json:"...,omitempty"`` (may be
+    #     absent on serialize).
+    # Customers writing cross-language code that round-trips this field
+    # should prefer truthy checks (``if cert.verification.byok_exempt``)
+    # over strict equality (``=== false``), since the absent/false
+    # distinction is not preserved across languages.
     byok_exempt: bool = False
 
 
