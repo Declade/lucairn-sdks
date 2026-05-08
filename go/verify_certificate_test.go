@@ -307,6 +307,81 @@ func TestClientVerifyCertificate_Delegates(t *testing.T) {
 	}
 }
 
+// -- verify_certificate — BYOK_EXEMPT -------------------------------------
+
+// Sister of dual-sandbox-architecture's ISOLATION_PROBE_BYOK_EXEMPT +
+// VerificationResult.byok_exempt (proto field 9). The cert reaches the
+// SDK with both new fields populated; the SDK must parse them, surface
+// them on the typed cert, and verify the witness signature unchanged —
+// because the witness signable map is still the same 7-key set
+// (byok_exempt and the new probe enum are NOT in it).
+
+func TestVerifyCertificate_ByokExempt_ParsesAndVerifies(t *testing.T) {
+	cert := loadFixture(t, "cert-byok-exempt.json")
+
+	// Sanity-check raw fixture carries both new fields.
+	if got := cert["verification"].(map[string]any)["byok_exempt"]; got != true {
+		t.Fatalf("fixture verification.byok_exempt = %v, want true", got)
+	}
+	if got := cert["verification"].(map[string]any)["overall_verdict"]; got != "VERDICT_VERIFIED" {
+		t.Fatalf("fixture verification.overall_verdict = %v, want VERDICT_VERIFIED", got)
+	}
+	claims := cert["claims"].([]any)
+	if got := claims[2].(map[string]any)["inference"].(map[string]any)["isolation_probe"]; got != "ISOLATION_PROBE_BYOK_EXEMPT" {
+		t.Fatalf("fixture claims[2].inference.isolation_probe = %v, want ISOLATION_PROBE_BYOK_EXEMPT", got)
+	}
+
+	result, err := VerifyCertificate(cert, witnessKeys(t))
+	if err != nil {
+		t.Fatalf("verify byok-exempt cert: %v", err)
+	}
+	if result.OverallVerdict != VerdictVerified {
+		t.Errorf("OverallVerdict = %q, want VERDICT_VERIFIED", result.OverallVerdict)
+	}
+	if result.AnchorStatus != AnchorStatusAnchored {
+		t.Errorf("AnchorStatus = %q, want ANCHOR_STATUS_ANCHORED", result.AnchorStatus)
+	}
+	if result.CertificateID != cert["certificate_id"].(string) {
+		t.Errorf("CertificateID = %q, want %q", result.CertificateID, cert["certificate_id"].(string))
+	}
+}
+
+func TestVerifyCertificate_ByokExempt_SurfacesOnTypedStruct(t *testing.T) {
+	// parse_certificate-equivalent: round-trip the raw map through
+	// *VeilCertificate and assert the new ByokExempt field is true.
+	raw := loadFixture(t, "cert-byok-exempt.json")
+	var cert VeilCertificate
+	if err := decodeInto(raw, &cert); err != nil {
+		t.Fatalf("decode into VeilCertificate: %v", err)
+	}
+	if !cert.Verification.ByokExempt {
+		t.Errorf("Verification.ByokExempt = false, want true")
+	}
+	if !cert.Verification.IsolationVerified {
+		t.Errorf("Verification.IsolationVerified = false, want true")
+	}
+	if cert.Verification.OverallVerdict != VerdictVerified {
+		t.Errorf("Verification.OverallVerdict = %q, want VERDICT_VERIFIED", cert.Verification.OverallVerdict)
+	}
+}
+
+func TestVerifyCertificate_ByokExempt_DefaultFalseOnOlderCert(t *testing.T) {
+	// Backward compat — older certs (pre-byok-exempt gateway) do not
+	// carry the field. The Go zero-value is false, so older certs parse
+	// cleanly with ByokExempt=false.
+	raw := loadFixture(t, "cert-valid-anchored.json")
+	if _, exists := raw["verification"].(map[string]any)["byok_exempt"]; exists {
+		t.Fatalf("older fixture should not carry byok_exempt; defensive guard")
+	}
+	var cert VeilCertificate
+	if err := decodeInto(raw, &cert); err != nil {
+		t.Fatalf("decode into VeilCertificate: %v", err)
+	}
+	if cert.Verification.ByokExempt {
+		t.Errorf("Verification.ByokExempt = true on older cert, want false")
+	}
+}
+
 // -- helpers --
 
 func witnessKeys(t *testing.T) VerifyCertificateKeys {

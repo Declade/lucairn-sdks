@@ -81,6 +81,15 @@ type VeilVerificationResult struct {
 	IsolationVerified        bool             `json:"isolation_verified"`
 	QIScore                  json.RawMessage  `json:"qi_score,omitempty"`
 	OverallVerdict           VeilVerdict      `json:"overall_verdict"`
+	// BYOK exempt: true when at least one dsa-ai claim in the chain
+	// carried IsolationProbe = ISOLATION_PROBE_BYOK_EXEMPT, indicating
+	// the gateway routed inference to a customer-supplied upstream
+	// provider. When true, IsolationVerified is also true and the cert
+	// is safe to render as VERIFIED. Default false keeps backward compat
+	// with older certs that omit the field. NOT in the 7-key witness
+	// signable; tamper-evidence is INDIRECT via the bridge claim's
+	// bridge-signed canonical_payload.
+	ByokExempt bool `json:"byok_exempt,omitempty"`
 }
 
 // VeilAnchorStatusInfo is the anchor status sub-object. v1 surfaces
