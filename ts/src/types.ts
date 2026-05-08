@@ -161,7 +161,12 @@ export type VeilIsolationProbeStatus =
   | 'ISOLATION_PROBE_UNKNOWN'
   | 'ISOLATION_PROBE_VERIFIED'
   | 'ISOLATION_PROBE_BREACHED'
-  | 'ISOLATION_PROBE_LOCKED';
+  | 'ISOLATION_PROBE_LOCKED'
+  // BYOK-exempt: customer-provided upstream key path skips the
+  // gateway-managed isolation probe. Surfaces alongside
+  // verification.byok_exempt = true. See dual-sandbox-architecture proto
+  // field 9 on VerificationResult.
+  | 'ISOLATION_PROBE_BYOK_EXEMPT';
 
 // Claim shape — carried so verifyCertificate can extract claim_ids in order.
 // Other fields are unused by v1 verify but declared for future arcs.
@@ -191,6 +196,17 @@ export interface VeilVerificationResult {
   isolation_verified: boolean;
   qi_score: unknown;
   overall_verdict: VeilVerdict;
+  /**
+   * BYOK-exempt verification flag. `true` indicates the customer brought
+   * their own upstream-provider key, so the gateway-managed isolation
+   * probe was intentionally skipped — `isolation_verified` is still `true`
+   * and the verdict is still `VERDICT_VERIFIED`. Optional for backward
+   * compat with older certs that omit the field. NOT part of the 7-key
+   * witness signable; tamper-evidence is INDIRECT via the bridge claim's
+   * bridge-signed canonical_payload (which IS in the signable via
+   * `claims`). Proto field number 9 on VerificationResult.
+   */
+  byok_exempt?: boolean;
 }
 
 export interface VeilAnchorStatusInfo {

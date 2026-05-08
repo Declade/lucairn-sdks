@@ -263,6 +263,11 @@ VeilIsolationProbeStatus = Literal[
     "ISOLATION_PROBE_VERIFIED",
     "ISOLATION_PROBE_BREACHED",
     "ISOLATION_PROBE_LOCKED",
+    # BYOK-exempt: customer-provided upstream key path skips the gateway-managed
+    # isolation probe. Surfaces as ``isolation_verified=true`` +
+    # ``byok_exempt=true`` on :class:`VeilVerificationResult`. See
+    # dual-sandbox-architecture proto field number 9 on VerificationResult.
+    "ISOLATION_PROBE_BYOK_EXEMPT",
 ]
 
 
@@ -301,6 +306,15 @@ class VeilVerificationResult(BaseModel):
     isolation_verified: bool
     qi_score: Any | None = None
     overall_verdict: VeilVerdict
+    # BYOK-exempt verification flag. ``True`` indicates the customer brought
+    # their own upstream-provider key, so the gateway-managed isolation probe
+    # was intentionally skipped — ``isolation_verified`` is still ``True`` and
+    # the verdict is still ``VERDICT_VERIFIED``. Default ``False`` keeps
+    # backward compat with older certs that omit the field. NOT part of the
+    # 7-key witness signable; tamper-evidence is INDIRECT via the bridge
+    # claim's bridge-signed canonical_payload (which IS in the signable via
+    # ``claims``). Proto field number 9 on VerificationResult.
+    byok_exempt: bool = False
 
 
 class VeilAnchorStatusInfo(BaseModel):
