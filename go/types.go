@@ -89,6 +89,17 @@ type VeilVerificationResult struct {
 	// with older certs that omit the field. NOT in the 7-key witness
 	// signable; tamper-evidence is INDIRECT via the bridge claim's
 	// bridge-signed canonical_payload.
+	//
+	// Cross-language semantic for older certs (no byok_exempt field on
+	// the wire):
+	//   - Go (this SDK): zero-value false with `json:"...,omitempty"` —
+	//     the field is absent on JSON re-serialize.
+	//   - Python: defaults to False after parse.
+	//   - TypeScript: leaves the field as undefined (optional).
+	// Customers writing cross-language code that round-trips this field
+	// should prefer truthy checks (`if cert.Verification.ByokExempt`)
+	// over strict equality, since the absent/false distinction is not
+	// preserved across languages.
 	ByokExempt bool `json:"byok_exempt,omitempty"`
 }
 
