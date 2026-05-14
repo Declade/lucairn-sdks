@@ -166,6 +166,34 @@ describe('formatToolResult', () => {
     expect(out.structuredContent.compliance?.redaction_count).toBe(3)
     expect(out.structuredContent.compliance?.latency_ms).toBe(142)
   })
+
+  it('normalizes structured compliance certificate links to public summaries', () => {
+    const out = formatToolResult({
+      ...baseResp,
+      metadata: {
+        dsa_compliance: {
+          request_id: 'req_public',
+          veil_certificate_url: 'https://gateway.lucairn.eu/api/v1/veil/certificate/req_public/summary',
+          veil_summary_url: 'https://gateway.lucairn.eu/api/v1/veil/certificate/req_public/summary',
+          redaction_count: 1,
+          latency_ms: 120,
+        },
+      },
+    })
+
+    expect(out.structuredContent.compliance?.veil_summary_url).toContain(
+      'certificate/req_public/public-summary',
+    )
+    expect(out.structuredContent.compliance?.veil_summary_url).not.toContain(
+      'certificate/req_public/summary',
+    )
+    expect(out.structuredContent.compliance?.veil_certificate_url).toContain(
+      'certificate/req_public/public-summary',
+    )
+    expect(out.structuredContent.compliance?.veil_certificate_url).not.toContain(
+      'certificate/req_public/summary',
+    )
+  })
 })
 
 describe('exceedsInputCap (TOB-005 soft input cap)', () => {

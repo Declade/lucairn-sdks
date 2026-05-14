@@ -2,11 +2,11 @@
 
 Model Context Protocol (MCP) server for [Lucairn](https://lucairn.eu) — privacy-preserving AI gateway.
 
-This package lets [Claude Desktop](https://claude.ai/download) (or any MCP-compatible client) route messages through Lucairn's privacy pipeline. PII is detected and replaced with placeholders before reaching the LLM. Developer-tier responses keep placeholders visible; Pro and Enterprise tiers can re-link placeholders before delivery.
+This package lets [Claude Desktop](https://claude.ai/download) (or any MCP-compatible client) send selected `chat_via_lucairn` tool calls through Lucairn's privacy pipeline. It does not proxy normal Claude Desktop chats automatically. PII is detected and replaced with placeholders before reaching the LLM. Developer-tier responses keep placeholders visible; Pro and Enterprise tiers can re-link placeholders before delivery.
 
 ## Status
 
-`v1.2.5`. Two transport modes are now supported (see `LUCAIRN_TRANSPORT` below):
+`v1.2.6`. Two transport modes are now supported (see `LUCAIRN_TRANSPORT` below):
 
 - **`direct-http`** (default — recommended for stdio CLI users): the npm package owns the MCP tool catalog locally and forwards each `chat_via_lucairn` call to the gateway's Anthropic-Messages-shape endpoint at `POST /api/v1/mcp/messages` ([gateway source](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_handler.go)). Lowest latency.
 - **`stdio-bridge`** (opt-in, new in v1.2): the npm package is a thin stdio↔HTTP bridge. Stdio JSON-RPC frames are forwarded to the gateway's streamable-HTTP MCP endpoint at `POST /mcp` ([gateway source](https://github.com/Declade/dual-sandbox-architecture/blob/main/services/gateway/internal/api/mcp_streamable.go), live since 2026-05-06 via PR #135). Tool catalogs come from the gateway, so future tools and tier-aware descriptors land without re-publishing this package.

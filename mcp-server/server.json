@@ -6,13 +6,13 @@
     "url": "https://github.com/Declade/lucairn-sdks",
     "source": "github"
   },
-  "version": "1.2.5",
+  "version": "1.2.6",
   "websiteUrl": "https://lucairn.eu/developer/mcp",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@lucairn/mcp-server",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "transport": {
         "type": "stdio"
       },

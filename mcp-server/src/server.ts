@@ -270,8 +270,10 @@ export function formatToolResult(resp: AnthropicResponseBody): {
     .join('')
 
   const compliance = resp.metadata?.dsa_compliance
+    ? publicComplianceMetadata(resp.metadata.dsa_compliance)
+    : undefined
   const certificateUrl = compliance?.veil_summary_url
-    ? publicCertificateUrl(compliance.veil_summary_url)
+    ? compliance.veil_summary_url
     : undefined
   const trailer =
     certificateUrl
@@ -287,6 +289,20 @@ export function formatToolResult(resp: AnthropicResponseBody): {
       usage: resp.usage,
       ...(compliance ? { compliance } : {}),
     },
+  }
+}
+
+function publicComplianceMetadata(
+  compliance: NonNullable<NonNullable<AnthropicResponseBody['metadata']>['dsa_compliance']>,
+): NonNullable<NonNullable<AnthropicResponseBody['metadata']>['dsa_compliance']> {
+  return {
+    ...compliance,
+    ...(compliance.veil_summary_url
+      ? { veil_summary_url: publicCertificateUrl(compliance.veil_summary_url) }
+      : {}),
+    ...(compliance.veil_certificate_url
+      ? { veil_certificate_url: publicCertificateUrl(compliance.veil_certificate_url) }
+      : {}),
   }
 }
 
@@ -342,7 +358,7 @@ function gatewayErrorToToolResult(err: GatewayError): {
  */
 export function buildServer(client: GatewayClient): Server {
   const server = new Server(
-    { name: 'lucairn-mcp-server', version: '1.2.5' },
+    { name: 'lucairn-mcp-server', version: '1.2.6' },
     { capabilities: { tools: {} } },
   )
 
