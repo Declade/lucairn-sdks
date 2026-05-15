@@ -20,6 +20,7 @@
  * one Anthropic-Messages-compatible HTTP endpoint, not a JSON-RPC MCP
  * tool/resource catalog. Tool catalogs (listTools) are static here.
  */
+import { createRequire } from 'node:module'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
@@ -29,6 +30,36 @@ import {
 import { GatewayClient } from './gateway-client.js'
 import type { AnthropicResponseBody, ChatToolInput } from './types.js'
 import { GatewayError } from './types.js'
+
+/**
+ * Resolve the package version at runtime from package.json so the MCP
+ * server advertisement stays in lockstep with the published manifest.
+ *
+ * We use `createRequire` rather than an ESM `import ... with { type:
+ * 'json' }` attribute because import attributes still need a flag on
+ * some Node 18.x runtimes the package supports (`engines.node >=18.17`).
+ * `createRequire` is stable on Node 18+ ESM and adds no tsconfig
+ * surface area.
+ *
+ * Falls back to the string `'unknown'` if package.json can't be loaded
+ * (e.g. an exotic bundler that strips the file). Failing soft avoids a
+ * regression where a malformed package layout takes down the MCP
+ * handshake; the worst case is a one-line cosmetic regression in the
+ * version surfaced over MCP, not a process crash.
+ */
+const require = createRequire(import.meta.url)
+let pkgVersion: string
+try {
+  const pkg = require('../package.json') as { version?: unknown }
+  pkgVersion =
+    typeof pkg.version === 'string' && pkg.version.length > 0
+      ? pkg.version
+      : 'unknown'
+} catch {
+  pkgVersion = 'unknown'
+}
+/** Version string advertised on the MCP server handshake. Sourced from package.json at import time. */
+export const SERVER_VERSION: string = pkgVersion
 
 /**
  * Supported values of LUCAIRN_TRANSPORT.
@@ -358,7 +389,7 @@ function gatewayErrorToToolResult(err: GatewayError): {
  */
 export function buildServer(client: GatewayClient): Server {
   const server = new Server(
-    { name: 'lucairn-mcp-server', version: '1.2.6' },
+    { name: 'lucairn-mcp-server', version: SERVER_VERSION },
     { capabilities: { tools: {} } },
   )
 

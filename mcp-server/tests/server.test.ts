@@ -127,7 +127,18 @@ describe('formatToolResult', () => {
     })
     expect(out.content[0].text).toContain('Lucairn certificate:')
     expect(out.content[0].text).toContain('certificate/abc/public-summary')
-    expect(out.content[0].text).not.toContain('certificate/abc/summary')
+    // Positive-anchor: the URL path MUST terminate at `public-summary`,
+    // not at `summary` (or any `*-summary` future variant). The earlier
+    // `not.toContain('/summary')` substring assertion passed only by
+    // accident — there's no `/` before `summary` inside `public-summary`,
+    // so a regression that emitted `…/abc/v2-summary` would have slipped
+    // through silently. The trailing-context character class matches
+    // either end-of-string, a query/fragment separator, or any of the
+    // delimiters this trailer wraps the URL with (`_`, whitespace, the
+    // typical `)`/`]`/`"` URL-boundary characters).
+    expect(out.content[0].text).toMatch(
+      /certificate\/abc\/public-summary(?=$|[?#_\s)\]"])/,
+    )
   })
 
   it('omits the certificate trailer when metadata is missing', () => {
@@ -181,17 +192,17 @@ describe('formatToolResult', () => {
       },
     })
 
-    expect(out.structuredContent.compliance?.veil_summary_url).toContain(
-      'certificate/req_public/public-summary',
+    // Positive-anchor: pin the URL path to terminate at `public-summary`
+    // exactly. The old `not.toContain('certificate/req_public/summary')`
+    // assertions worked only because `public-summary` happens not to
+    // include a `/` before `summary`; any future regression that emitted
+    // `…/req_public/v2-summary` (or another `*-summary` variant) would
+    // have passed the negative check while breaking auth-less access.
+    expect(out.structuredContent.compliance?.veil_summary_url).toMatch(
+      /certificate\/req_public\/public-summary(?:$|[?#])/,
     )
-    expect(out.structuredContent.compliance?.veil_summary_url).not.toContain(
-      'certificate/req_public/summary',
-    )
-    expect(out.structuredContent.compliance?.veil_certificate_url).toContain(
-      'certificate/req_public/public-summary',
-    )
-    expect(out.structuredContent.compliance?.veil_certificate_url).not.toContain(
-      'certificate/req_public/summary',
+    expect(out.structuredContent.compliance?.veil_certificate_url).toMatch(
+      /certificate\/req_public\/public-summary(?:$|[?#])/,
     )
   })
 })
