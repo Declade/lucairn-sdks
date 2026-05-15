@@ -147,6 +147,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v1.1.x. The bridge backend is opt-in only; no change in
   behaviour for callers who do not set `LUCAIRN_TRANSPORT`.
 
+## [Python 1.1.2] — 2026-05-15
+
+### Added
+- `redaction_count: int | None = None` field on `ProxySyncResponse`. Mirrors
+  the Anthropic-compatible `/v1/messages`
+  (`metadata.dsa_compliance.redaction_count`,
+  `dual-sandbox-architecture/services/gateway/internal/api/anthropic_types.go:331`)
+  and OpenAI-compatible `/v1/chat/completions`
+  (`metadata.dsa_compliance.redaction_count`,
+  `…/openai_handler.go:944`) emission. The `/api/v1/proxy/messages` path
+  does not currently emit the field at the top level — the SDK surface is
+  forward-compatible so that callers receive it automatically when the
+  gateway promotes it. Until that happens the field stays `None` and
+  consumers should treat that as "data not available on this tier/path"
+  rather than "zero redactions". Closes the workaround Hannah's example
+  app at https://github.com/Declade/lucairn-example-feedback-summarizer
+  carries (counting `[TYPE_N]` placeholders by regex).
+
+### Fixed
+- `__version__` in `lucairn/__init__.py` was pinned at `1.0.0` and had
+  drifted from `pyproject.toml` (last at `1.1.1`). Both now read `1.1.2`.
+  Surfaced as friction note #6 in Sim 1 M4
+  (`Opus Advisor/specs/sim1-m4-build-app.md`).
+
 ## [Python 1.1.0] — 2026-05-08
 
 ### Added

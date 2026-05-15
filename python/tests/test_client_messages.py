@@ -91,6 +91,46 @@ class TestHappyPathSync:
         assert sent.headers.get("content-type") == "application/json"
 
 
+class TestRedactionCount:
+    """Surface ``redaction_count`` on ``ProxySyncResponse`` when the gateway
+    emits it; preserve back-compat (``None``) when it's absent.
+
+    The gateway's Anthropic-compatible /v1/messages path emits the count
+    at ``metadata.dsa_compliance.redaction_count``
+    (``anthropic_types.go:331``). The proxy /api/v1/proxy/messages path
+    does not currently emit it at the top level — but the SDK surface is
+    forward-compatible so callers don't have to count ``[TYPE_N]``
+    placeholders by regex once the gateway promotes the field.
+    """
+
+    @respx.mock
+    def test_redaction_count_surfaces_when_gateway_emits_it(self) -> None:
+        body: dict[str, Any] = {
+            "status": "JOB_STATUS_COMPLETED",
+            "model_used": "claude-opus-4-7",
+            "latency_ms": 1234,
+            "result": {"content": [{"type": "text", "text": "Hello, Ada."}]},
+            "redaction_count": 3,
+        }
+        respx.post(MESSAGES_URL).respond(200, json=body)
+        result = _client().messages(_params())
+        assert isinstance(result, ProxySyncResponse)
+        assert result.redaction_count == 3
+
+    @respx.mock
+    def test_redaction_count_is_none_when_gateway_omits_it(self) -> None:
+        body: dict[str, Any] = {
+            "status": "JOB_STATUS_COMPLETED",
+            "model_used": "claude-opus-4-7",
+            "latency_ms": 1234,
+            "result": {"content": [{"type": "text", "text": "Hello, Ada."}]},
+        }
+        respx.post(MESSAGES_URL).respond(200, json=body)
+        result = _client().messages(_params())
+        assert isinstance(result, ProxySyncResponse)
+        assert result.redaction_count is None
+
+
 class TestAsync202Discriminator:
     @respx.mock
     def test_returns_proxy_accepted_response_when_body_status_is_processing(

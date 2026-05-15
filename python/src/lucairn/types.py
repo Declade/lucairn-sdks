@@ -192,6 +192,18 @@ class ProxySyncResponse(BaseModel):
     dlp_redacted: bool | None = None
     relinked: bool | None = None
     error_message: str | None = None
+    # Number of PII entities the sanitizer redacted on this request. Mirrors
+    # the Anthropic-compatible /v1/messages path's
+    # ``metadata.dsa_compliance.redaction_count``
+    # (``dual-sandbox-architecture/services/gateway/internal/api/anthropic_types.go:331``)
+    # and the OpenAI-compatible /v1/chat/completions
+    # ``metadata.dsa_compliance.redaction_count``
+    # (``…/openai_handler.go:944``). The proxy /api/v1/proxy/messages path
+    # does not currently emit this field at the top level — when the gateway
+    # promotes it, callers receive it automatically; until then this stays
+    # ``None`` and consumers should treat that as "data not available on
+    # this tier/path" rather than "zero redactions".
+    redaction_count: int | None = None
     # Present only for pro/enterprise tiers when Veil hints are enabled.
     request_id: str | None = None
     compliance_trace: dict[str, Any] | None = None
