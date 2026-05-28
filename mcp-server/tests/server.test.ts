@@ -260,3 +260,44 @@ describe('CallToolRequestSchema input cap (TOB-005 integration)', () => {
     await server.close()
   })
 })
+
+describe('gateway 401 error hint (CON-08 brand lock)', () => {
+  it('surfaces the LUCAIRN_API_KEY hint (not DSA_API_KEY) on a 401', async () => {
+    // Mock fetch returns a 401 so the tool routes through
+    // gatewayErrorToToolResult, which emits the auth hint. CON-08: the hint
+    // must reference the canonical LUCAIRN_API_KEY brand, never the retired
+    // DSA_API_KEY literal.
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('Unauthorized', {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_bad',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    const server = buildServer(client)
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const mcpClient = new Client({ name: 'test-client', version: '0.0.1' }, { capabilities: {} })
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)])
+
+    const result = (await mcpClient.callTool({
+      name: CHAT_TOOL_NAME,
+      arguments: {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 256,
+        messages: [{ role: 'user', content: 'hi' }],
+      },
+    })) as { isError?: boolean; content: Array<{ type: string; text: string }> }
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('LUCAIRN_API_KEY')
+    expect(result.content[0].text).not.toContain('DSA_API_KEY')
+
+    await mcpClient.close()
+    await server.close()
+  })
+})

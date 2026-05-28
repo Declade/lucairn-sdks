@@ -6,6 +6,7 @@ import { Lucairn } from './client.js';
 import {
   LucairnError,
   LucairnHttpError,
+  LucairnResponseValidationError,
   LucairnTimeoutError,
 } from './errors.js';
 import { server } from './test-server.js';
@@ -257,14 +258,14 @@ describe('Lucairn.getCertificate() — path encoding', () => {
   });
 });
 
-describe('Lucairn.getCertificate() — observed behaviour on malformed 200 body', () => {
-  // Per the locked thin-transport / no-semantic-guards rule: if the gateway
-  // ever returns a 200 with a non-JSON payload (or a JSON-but-not-cert
-  // payload), the SDK passes it through as-is. This test documents that
-  // observed behaviour rather than asserting a guard — callers are expected
-  // to run verifyCertificate() next, which will reject malformed bodies with
-  // LucairnCertificateError({ reason: 'malformed' }).
-  it('passes a non-JSON 200 body through as the raw text (no throw at transport layer)', async () => {
+describe('Lucairn.getCertificate() — 2xx response-shape validation (CON-02)', () => {
+  // Hardening audit CON-02: the SDK now validates the 2xx body carries the
+  // minimum VeilCertificate field set (parity with Python + Go). A non-JSON
+  // or JSON-but-not-cert 200 raises LucairnResponseValidationError so callers
+  // can branch on "transport failed (LucairnHttpError)" vs "2xx body doesn't
+  // look like a cert" — distinct from a malformed-cert failure caught later
+  // by verifyCertificate().
+  it('throws LucairnResponseValidationError on a non-JSON 200 body', async () => {
     server.use(
       http.get(`${CERT_URL_PREFIX}:id`, () =>
         new HttpResponse('not json at all', {
@@ -275,9 +276,54 @@ describe('Lucairn.getCertificate() — observed behaviour on malformed 200 body'
     );
 
     const client = new Lucairn({ apiKey: VALID_KEY });
-    // Typed as VeilCertificate at the call site but the runtime value is the
-    // raw string — the caller is responsible for validation downstream.
-    const result = (await client.getCertificate('req_malformed_0001')) as unknown;
-    expect(result).toBe('not json at all');
+    await expect(client.getCertificate('req_malformed_0001')).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('preserves the raw 2xx body on the error for diagnostics', async () => {
+    server.use(
+      http.get(`${CERT_URL_PREFIX}:id`, () =>
+        new HttpResponse('not json at all', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        }),
+      ),
+    );
+
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    try {
+      await client.getCertificate('req_malformed_0002');
+      expect.fail('expected LucairnResponseValidationError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(LucairnResponseValidationError);
+      expect((err as LucairnResponseValidationError).body).toBe('not json at all');
+    }
+  });
+
+  it('throws LucairnResponseValidationError on a JSON 200 body missing required cert fields', async () => {
+    server.use(
+      http.get(`${CERT_URL_PREFIX}:id`, () =>
+        // Valid JSON object but missing witness_signature / witness_key_id /
+        // issued_at — the 5-field minimum the verify pipeline needs.
+        HttpResponse.json({ certificate_id: 'cert_x', request_id: 'req_x' }),
+      ),
+    );
+
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.getCertificate('req_partial_0001')).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('throws LucairnResponseValidationError when the cert is a JSON array', async () => {
+    server.use(
+      http.get(`${CERT_URL_PREFIX}:id`, () => HttpResponse.json([])),
+    );
+
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.getCertificate('req_array_0001')).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
   });
 });

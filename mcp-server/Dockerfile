@@ -12,7 +12,12 @@
 # Listing-tool introspection (e.g. Glama) does NOT call any LLM tool — it only
 # enumerates capabilities — so the server starts cleanly without keys.
 
-FROM node:20-alpine AS build
+# Base image pinned by digest (SUP-06): a mutable `node:20-alpine` tag can be
+# silently repointed at a new image under the same name, so we pin the
+# immutable multi-arch (linux/amd64 + linux/arm64) OCI index digest. When
+# intentionally upgrading, bump BOTH the digest and the `node:20-alpine`
+# comment together so the human-readable version stays auditable.
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS build
 
 WORKDIR /build
 
@@ -24,8 +29,8 @@ RUN npm ci --omit=optional
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
-# --- Runtime image: minimal, non-root.
-FROM node:20-alpine AS runtime
+# --- Runtime image: minimal, non-root. Same digest-pinned base (SUP-06).
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runtime
 
 # Run as a non-root user; matches the project's defence-in-depth posture.
 RUN addgroup -S lucairn && adduser -S lucairn -G lucairn

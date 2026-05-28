@@ -1,7 +1,11 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { Lucairn } from './client.js';
-import { LucairnError, LucairnHttpError } from './errors.js';
+import {
+  LucairnError,
+  LucairnHttpError,
+  LucairnResponseValidationError,
+} from './errors.js';
 import { server } from './test-server.js';
 import type { AuditExportResponse } from './types.js';
 
@@ -185,5 +189,52 @@ describe('Lucairn.listAuditEvents() — HTTP error mapping', () => {
       expect(httpErr.status).toBe(400);
       expect(httpErr.body).toEqual(errBody);
     }
+  });
+});
+
+describe('Lucairn.listAuditEvents() — 2xx response-shape validation (CON-02)', () => {
+  // CON-02 parity: a 2xx body missing the minimum field set raises
+  // LucairnResponseValidationError rather than passing through a bogus typed
+  // value. Mirrors the Go SDK's decodeInto + ResponseValidationError path.
+  it('throws LucairnResponseValidationError on a non-JSON 200 body', async () => {
+    server.use(
+      http.get(EXPORT_URL, () =>
+        new HttpResponse('oops', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.listAuditEvents()).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('throws LucairnResponseValidationError when events is not an array', async () => {
+    server.use(
+      http.get(EXPORT_URL, () =>
+        HttpResponse.json({ customer_id: 'c', period: '2026-04-01 to 2026-05-01', events: 'nope' }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.listAuditEvents()).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('accepts a valid response with an empty events array', async () => {
+    server.use(
+      http.get(EXPORT_URL, () =>
+        HttpResponse.json({
+          customer_id: 'cust_x',
+          tier: 'pro',
+          period: '2026-04-01 to 2026-05-01',
+          events: [],
+          total_events: 0,
+          source: 'none',
+        }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    const out = await client.listAuditEvents();
+    expect(out.events).toEqual([]);
   });
 });

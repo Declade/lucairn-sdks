@@ -66,8 +66,17 @@ describe('Lucairn constructor — defaults and baseUrl', () => {
   });
 
   it('applies the default timeoutMs when none is supplied', () => {
+    // CON-07: default raised from 30s to 60s so the SDK does not abort at the
+    // gateway's exact 30s sync-wait / 202-receipt boundary. Still below the
+    // gateway's 120s proxyClientTimeout.
     const client = new Lucairn({ apiKey: VALID_KEY });
-    expect(client.timeoutMs).toBe(30_000);
+    expect(client.timeoutMs).toBe(60_000);
+  });
+
+  it('applies the default maxResponseBytes when none is supplied', () => {
+    // CON-02 parity: 10 MiB default mirroring Python + Go.
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    expect(client.maxResponseBytes).toBe(10 * 1024 * 1024);
   });
 
   it('accepts a valid baseUrl and strips trailing slashes', () => {

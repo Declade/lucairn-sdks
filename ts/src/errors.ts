@@ -35,6 +35,40 @@ export class LucairnTimeoutError extends LucairnError {
   }
 }
 
+export interface LucairnResponseValidationErrorOptions extends ErrorOptions {
+  // Raw deserialized 2xx body — a parsed object/array/primitive when the
+  // response was JSON, or the raw text otherwise. Surfaced for diagnostics.
+  body: unknown;
+}
+
+/**
+ * Raised when a 2xx gateway response deserializes into a shape that does not
+ * fit the SDK's declared response type — either a non-JSON body, a JSON body
+ * missing required fields, or a body that overflowed the configured
+ * `maxResponseBytes` cap.
+ *
+ * Distinct from {@link LucairnHttpError}, which is reserved for non-2xx
+ * responses and the 202 pending wrapper on `getCertificate`. A response-
+ * validation error means "the gateway replied with apparent success, but the
+ * body we got doesn't look like the declared type" — typically a gateway bug
+ * or version skew, not a transport failure.
+ *
+ * Parity: mirrors `LucairnResponseValidationError` (Python) and
+ * `ResponseValidationError` (Go), closing the CON-02 robustness gap.
+ */
+export class LucairnResponseValidationError extends LucairnError {
+  // Raw deserialized 2xx body for diagnostics. UNVERIFIED untrusted input —
+  // consumers logging this should escape / truncate / bound length.
+  public readonly body: unknown;
+
+  constructor(message: string, options: LucairnResponseValidationErrorOptions) {
+    super(message, options);
+    this.name = 'LucairnResponseValidationError';
+    this.body = options.body;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export type VerifyCertificateFailureReason =
   | 'malformed'
   | 'unsupported_protocol_version'
@@ -90,6 +124,12 @@ export { LucairnHttpError as TheVeilHttpError };
 
 /** @deprecated Use {@link LucairnTimeoutError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
 export { LucairnTimeoutError as TheVeilTimeoutError };
+
+/** @deprecated Use {@link LucairnResponseValidationError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnResponseValidationError as TheVeilResponseValidationError };
+
+/** @deprecated Use `LucairnResponseValidationErrorOptions` instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export type { LucairnResponseValidationErrorOptions as TheVeilResponseValidationErrorOptions };
 
 /** @deprecated Use {@link LucairnCertificateError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
 export { LucairnCertificateError as TheVeilCertificateError };
