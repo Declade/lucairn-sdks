@@ -2,6 +2,16 @@ export interface LucairnConfig {
   apiKey: string;
   baseUrl?: string;
   timeoutMs?: number;
+  /**
+   * Maximum response-body size (in bytes) the SDK will read before raising
+   * {@link LucairnResponseValidationError} on a 2xx status (the body was not
+   * consumable) or {@link LucairnHttpError} on a non-2xx status. Defends a
+   * client against a misbehaving / hostile gateway streaming an unbounded
+   * body that would otherwise OOM the process. Must be a positive finite
+   * integer; defaults to 10 MiB. Mirrors Python `max_response_bytes` and Go
+   * `WithMaxResponseBytes` (both default 10 MiB).
+   */
+  maxResponseBytes?: number;
 }
 
 // Legacy alias — pre-Stage-3 callers used `TheVeilConfig`. Scheduled for

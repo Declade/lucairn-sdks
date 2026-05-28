@@ -2,6 +2,7 @@ import {
   LucairnConfigError,
   LucairnError,
   LucairnHttpError,
+  LucairnResponseValidationError,
   LucairnTimeoutError,
 } from './errors.js';
 import type {
@@ -9,8 +10,10 @@ import type {
   ListAuditEventsOptions,
   LucairnConfig,
   MessagesOptions,
+  ProxyAcceptedResponse,
   ProxyMessagesRequest,
   ProxyResponse,
+  ProxySyncResponse,
   VeilCertificate,
   VerifyCertificateKeys,
   VerifyCertificateResult,
@@ -27,7 +30,19 @@ const API_KEY_PATTERN = /^(dsa_[0-9a-f]{32}|lcr_live_[A-Za-z0-9_-]{20,})$/;
 // Enterprise self-hosters must pass baseUrl explicitly.
 const DEFAULT_BASE_URL = 'https://gateway.lucairn.eu';
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+// 60s default. Deliberately ABOVE the gateway's 30s sync-wait boundary (after
+// which it returns a 202 processing receipt with a job_id) and BELOW the
+// gateway's 120s proxyClientTimeout. A 30s SDK default would abort exactly at
+// the 202-receipt boundary, throwing LucairnTimeoutError and losing the
+// job_id the caller needs to poll. See CON-07 in the 2026-05-28 hardening
+// audit.
+const DEFAULT_TIMEOUT_MS = 60_000;
+
+// Caps the response body the SDK will read before raising
+// LucairnResponseValidationError (2xx) / LucairnHttpError (non-2xx). Mirrors
+// Python `_DEFAULT_MAX_RESPONSE_BYTES` and Go `DefaultMaxResponseBytes`
+// (both 10 MiB). Callers can override via LucairnConfig.maxResponseBytes.
+const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 function normalizeBaseUrl(raw: string): string {
   let parsed: URL;
@@ -68,7 +83,31 @@ function validateFiniteNumber(value: number, fieldName: string): void {
   }
 }
 
+// Mirrors Python/Go: maxResponseBytes must be a positive finite integer.
+// Throws LucairnConfigError on 0, negative, non-integer, NaN, or Infinity.
+function validateMaxResponseBytes(value: number): number {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new LucairnConfigError(
+      `Invalid maxResponseBytes: ${value} — must be a positive integer`,
+    );
+  }
+  return value;
+}
+
 function validateProxyMessagesRequest(params: ProxyMessagesRequest): void {
+  // Runtime reject of stream=true. TypeScript's ProxyMessagesRequest type
+  // already forbids `stream: true` at compile time (`stream?: false`), but a
+  // JS-only caller or an `any`-typed body can still set it. The gateway does
+  // not support a streaming proxy response, so fail loudly with a locatable
+  // LucairnConfigError rather than silently sending an unsupported flag.
+  // Parity with Python's runtime guard (client.py: `if params.stream is True`).
+  // See CON-06 in the 2026-05-28 hardening audit — this HARDENS the locked
+  // no-streaming contract, it does not reopen it.
+  if ((params as { stream?: unknown }).stream === true) {
+    throw new LucairnConfigError(
+      'messages() does not support stream=true — use a future streaming API once available',
+    );
+  }
   if (params.max_tokens !== undefined) {
     validateFiniteNumber(params.max_tokens, 'max_tokens');
   }
@@ -93,6 +132,178 @@ function validateProxyMessagesRequest(params: ProxyMessagesRequest): void {
       });
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 2xx response-shape validation (CON-02 parity).
+//
+// The gateway is the truth source for content, but a 2xx body that doesn't
+// carry the minimum field set is a gateway bug or version skew, not a valid
+// response. These validators enforce the SAME minimal required-field set as
+// the Go SDK (go/lucairn.go validateVeilCertificate / validateProxySyncResponse
+// / validateProxyAcceptedResponse) — deliberately NOT the stricter set the TS
+// verify-certificate parser uses. Widening this set is gated on reopening the
+// locked "minimal required-field set" decision (audit CON-10). On failure
+// they throw LucairnResponseValidationError so callers can branch on
+// "transport failed (LucairnHttpError)" vs "2xx body wrong shape".
+// ---------------------------------------------------------------------------
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function nonEmptyString(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0;
+}
+
+// Throws LucairnResponseValidationError unless `body` carries the 5 fields the
+// SDK's signature-verification pipeline needs. Mirrors Go validateVeilCertificate.
+function validateVeilCertificateShape(body: unknown): VeilCertificate {
+  const missing = (field: string): never => {
+    throw new LucairnResponseValidationError(
+      `Response body failed to deserialize as VeilCertificate: missing or empty ${field}`,
+      { body },
+    );
+  };
+  if (!isRecord(body)) {
+    throw new LucairnResponseValidationError(
+      'Response body failed to deserialize as VeilCertificate: not a JSON object',
+      { body },
+    );
+  }
+  if (!nonEmptyString(body.certificate_id)) missing('certificate_id');
+  if (!nonEmptyString(body.request_id)) missing('request_id');
+  if (!nonEmptyString(body.witness_signature)) missing('witness_signature');
+  if (!nonEmptyString(body.witness_key_id)) missing('witness_key_id');
+  if (!nonEmptyString(body.issued_at)) missing('issued_at');
+  return body as unknown as VeilCertificate;
+}
+
+// Throws LucairnResponseValidationError unless `body` is a ProxyResponse with
+// the minimum field set. Discriminates sync vs async on `status==='processing'`,
+// mirroring Go's _parse_proxy_response branch + the two Go validators.
+function validateProxyResponseShape(body: unknown): ProxyResponse {
+  if (!isRecord(body)) {
+    throw new LucairnResponseValidationError(
+      'Response body failed to deserialize as ProxyResponse: not a JSON object',
+      { body },
+    );
+  }
+  if (body.status === 'processing') {
+    // Async (202) receipt: job_id + request_id + status_url all needed to poll.
+    const missing = (field: string): never => {
+      throw new LucairnResponseValidationError(
+        `Response body failed to deserialize as ProxyAcceptedResponse: missing or empty ${field}`,
+        { body },
+      );
+    };
+    if (!nonEmptyString(body.job_id)) missing('job_id');
+    if (!nonEmptyString(body.request_id)) missing('request_id');
+    if (!nonEmptyString(body.status_url)) missing('status_url');
+    return body as unknown as ProxyAcceptedResponse;
+  }
+  // Sync (200) terminal result: status + model_used. latency_ms is NOT
+  // required (the gateway may legitimately emit 0 on sub-ms paths) — matches
+  // Go validateProxySyncResponse.
+  if (!nonEmptyString(body.status)) {
+    throw new LucairnResponseValidationError(
+      'Response body failed to deserialize as ProxySyncResponse: missing or empty status',
+      { body },
+    );
+  }
+  if (!nonEmptyString(body.model_used)) {
+    throw new LucairnResponseValidationError(
+      'Response body failed to deserialize as ProxySyncResponse: missing or empty model_used',
+      { body },
+    );
+  }
+  return body as unknown as ProxySyncResponse;
+}
+
+// Throws LucairnResponseValidationError unless `body` is an AuditExportResponse
+// with the minimum field set. The events array must be present (it may be empty).
+function validateAuditExportResponseShape(body: unknown): AuditExportResponse {
+  const missing = (field: string): never => {
+    throw new LucairnResponseValidationError(
+      `Response body failed to deserialize as AuditExportResponse: missing or invalid ${field}`,
+      { body },
+    );
+  };
+  if (!isRecord(body)) {
+    throw new LucairnResponseValidationError(
+      'Response body failed to deserialize as AuditExportResponse: not a JSON object',
+      { body },
+    );
+  }
+  if (!nonEmptyString(body.customer_id)) missing('customer_id');
+  if (!nonEmptyString(body.period)) missing('period');
+  if (!Array.isArray(body.events)) missing('events');
+  return body as unknown as AuditExportResponse;
+}
+
+// Read a fetch Response body, accumulating at most `maxBytes` decoded as
+// UTF-8. Returns the (possibly truncated) text and an `overCap` flag set when
+// the body exceeded the cap. Streams via response.body so a multi-GB body is
+// never fully buffered. Falls back to response.text() when response.body is
+// absent (some test/runtime shims), applying the cap on the resulting string
+// length so the invariant still holds. Mirrors the Python/Go bounded reads.
+async function readBodyCapped(
+  response: Response,
+  maxBytes: number,
+): Promise<{ text: string; overCap: boolean }> {
+  const decoder = new TextDecoder('utf-8');
+
+  if (!response.body) {
+    // No stream available (e.g. a non-streaming test double). Read fully,
+    // then enforce the cap on the byte length of the encoded body.
+    const full = await response.text();
+    const bytes = new TextEncoder().encode(full);
+    if (bytes.byteLength > maxBytes) {
+      return { text: decoder.decode(bytes.subarray(0, maxBytes)), overCap: true };
+    }
+    return { text: full, overCap: false };
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let accumulated = 0;
+  let overCap = false;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value === undefined) {
+        continue;
+      }
+      const budget = maxBytes - accumulated;
+      if (budget <= 0) {
+        overCap = true;
+        break;
+      }
+      if (value.byteLength > budget) {
+        chunks.push(value.subarray(0, budget));
+        accumulated += budget;
+        overCap = true;
+        break;
+      }
+      chunks.push(value);
+      accumulated += value.byteLength;
+    }
+  } finally {
+    // Release the underlying connection; ignore cancel errors on a drained
+    // or already-closed stream.
+    reader.cancel().catch(() => {});
+  }
+
+  const merged = new Uint8Array(accumulated);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { text: decoder.decode(merged), overCap };
 }
 
 /**
@@ -124,6 +335,7 @@ export class Lucairn {
   readonly #apiKey: string;
   public readonly baseUrl: string;
   public readonly timeoutMs: number;
+  public readonly maxResponseBytes: number;
 
   constructor(config: LucairnConfig) {
     // Runtime capability check: AbortSignal.any landed in Node 18.17.
@@ -151,9 +363,15 @@ export class Lucairn {
         ? DEFAULT_TIMEOUT_MS
         : validateTimeoutMs(config.timeoutMs, 'timeoutMs');
 
+    const maxResponseBytes =
+      config.maxResponseBytes === undefined
+        ? DEFAULT_MAX_RESPONSE_BYTES
+        : validateMaxResponseBytes(config.maxResponseBytes);
+
     this.#apiKey = config.apiKey;
     this.baseUrl = baseUrl;
     this.timeoutMs = timeoutMs;
+    this.maxResponseBytes = maxResponseBytes;
   }
 
   // Public entry point for /api/v1/proxy/messages. The gateway can return
@@ -164,7 +382,7 @@ export class Lucairn {
     // would otherwise silently coerce NaN/Infinity to null on the wire.
     validateProxyMessagesRequest(params);
 
-    const { body } = await this.request<ProxyResponse>(
+    const { body } = await this.request<unknown>(
       '/api/v1/proxy/messages',
       {
         method: 'POST',
@@ -176,7 +394,11 @@ export class Lucairn {
         signal: options?.signal,
       },
     );
-    return body;
+    // Validate the 2xx body carries the minimum ProxyResponse field set
+    // (CON-02 parity). A wrong-shaped 200/202 raises
+    // LucairnResponseValidationError rather than passing through a bogus
+    // typed value the caller would dereference and crash on.
+    return validateProxyResponseShape(body);
   }
 
   // Verify a Veil Certificate's witness Ed25519 signature against the
@@ -231,11 +453,14 @@ export class Lucairn {
       );
     }
 
-    // Thin-transport rule: do NOT validate the body shape on the 2xx
-    // happy path. A non-JSON or wrong-shaped 200 passes through typed
-    // as VeilCertificate; downstream verifyCertificate() will reject
-    // it with LucairnCertificateError{ reason:"malformed" }.
-    return body as VeilCertificate;
+    // Validate the 2xx body carries the minimum VeilCertificate field set
+    // (CON-02 parity). A non-JSON or wrong-shaped 200 raises
+    // LucairnResponseValidationError so callers can branch on "transport
+    // failed (LucairnHttpError)" vs "2xx body doesn't look like a cert". The
+    // required-field set matches the Go SDK's validateVeilCertificate (the 5
+    // fields verifyCertificate() needs), NOT the stricter TS verify-parser —
+    // widening is gated on the locked minimal-required-field decision.
+    return validateVeilCertificateShape(body);
   }
 
   /**
@@ -320,15 +545,16 @@ export class Lucairn {
     const query = params.toString();
     const path = query.length > 0 ? `/api/v1/audit/export?${query}` : '/api/v1/audit/export';
 
-    const { body } = await this.request<AuditExportResponse>(
+    const { body } = await this.request<unknown>(
       path,
       { method: 'GET', headers: opts?.headers },
       { timeoutMs: opts?.timeoutMs, signal: opts?.signal },
     );
-    // Thin-transport rule: do NOT validate the body shape on the 2xx happy
-    // path. A wrong-shaped 200 passes through typed as AuditExportResponse;
-    // callers needing stricter guards can layer their own validation.
-    return body;
+    // Validate the 2xx body carries the minimum AuditExportResponse field set
+    // (CON-02 parity). A wrong-shaped 200 raises LucairnResponseValidationError
+    // rather than passing through a bogus typed value. Mirrors the Go SDK's
+    // decodeInto + ResponseValidationError path on this endpoint.
+    return validateAuditExportResponseShape(body);
   }
 
   private async request<T>(
@@ -383,7 +609,14 @@ export class Lucairn {
         signal: composedSignal,
       });
 
-      const text = await response.text();
+      // Bounded read: stream + accumulate up to maxResponseBytes so a
+      // hostile / misbehaving gateway streaming an unbounded body can't OOM
+      // the process. Mirrors the Python (httpx iter_bytes budget loop) and Go
+      // (io.LimitReader) caps. On overflow we surface the cap-sized prefix on
+      // the error's body for diagnostics — LucairnResponseValidationError for
+      // 2xx (body not consumable) and LucairnHttpError for non-2xx, matching
+      // Python's branch.
+      const { text, overCap } = await readBodyCapped(response, this.maxResponseBytes);
       let body: unknown = text;
       if (text.length > 0) {
         try {
@@ -391,6 +624,14 @@ export class Lucairn {
         } catch {
           // non-JSON body — keep raw text
         }
+      }
+
+      if (overCap) {
+        const capMessage = `response body exceeded maxResponseBytes cap of ${this.maxResponseBytes}`;
+        if (response.ok) {
+          throw new LucairnResponseValidationError(capMessage, { body });
+        }
+        throw new LucairnHttpError(capMessage, response.status, body);
       }
 
       if (!response.ok) {

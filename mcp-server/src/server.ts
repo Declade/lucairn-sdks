@@ -368,7 +368,7 @@ function gatewayErrorToToolResult(err: GatewayError): {
     lines.push(err.message)
   }
   if (err.status === 401) {
-    lines.push('Check your DSA_API_KEY value.')
+    lines.push('Check your LUCAIRN_API_KEY value.')
   } else if (err.status === 403) {
     lines.push('License or permission denied. See https://lucairn.eu/account.')
   } else if (err.status === 429) {

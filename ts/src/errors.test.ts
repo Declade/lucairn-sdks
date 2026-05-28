@@ -4,6 +4,7 @@ import {
   LucairnConfigError,
   LucairnError,
   LucairnHttpError,
+  LucairnResponseValidationError,
   LucairnTimeoutError,
 } from './errors.js';
 import type { VerifyCertificateFailureReason } from './errors.js';
@@ -50,6 +51,33 @@ describe('LucairnError hierarchy', () => {
     expect(err).toBeInstanceOf(LucairnTimeoutError);
     expect(err.name).toBe('LucairnTimeoutError');
     expect(err.cause).toBe(underlying);
+  });
+
+  it('LucairnResponseValidationError extends LucairnError and carries .body', () => {
+    const err = new LucairnResponseValidationError('wrong shape', {
+      body: { unexpected: true },
+    });
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(LucairnError);
+    expect(err).toBeInstanceOf(LucairnResponseValidationError);
+    expect(err.name).toBe('LucairnResponseValidationError');
+    expect(err.body).toEqual({ unexpected: true });
+    expect(err.message).toBe('wrong shape');
+  });
+
+  it('LucairnResponseValidationError keeps a non-object body verbatim and preserves cause', () => {
+    const underlying = new Error('decode failed');
+    const err = new LucairnResponseValidationError('not json', {
+      body: 'raw text',
+      cause: underlying,
+    });
+    expect(err.body).toBe('raw text');
+    expect(err.cause).toBe(underlying);
+  });
+
+  it('LucairnResponseValidationError is NOT a LucairnHttpError (distinct branch)', () => {
+    const err = new LucairnResponseValidationError('x', { body: null });
+    expect(err).not.toBeInstanceOf(LucairnHttpError);
   });
 });
 
@@ -115,5 +143,6 @@ describe('legacy TheVeil* alias re-exports', () => {
     expect(idx.TheVeilHttpError).toBe(LucairnHttpError);
     expect(idx.TheVeilTimeoutError).toBe(LucairnTimeoutError);
     expect(idx.TheVeilCertificateError).toBe(LucairnCertificateError);
+    expect(idx.TheVeilResponseValidationError).toBe(LucairnResponseValidationError);
   });
 });

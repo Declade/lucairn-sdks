@@ -5,6 +5,7 @@ import {
   LucairnConfigError,
   LucairnError,
   LucairnHttpError,
+  LucairnResponseValidationError,
   LucairnTimeoutError,
 } from './errors.js';
 import { server } from './test-server.js';
@@ -544,5 +545,150 @@ describe('Lucairn.messages() — per-call header merge', () => {
     expect(captured['content-type']).toBe('application/json');
     // Caller-only: preserved on its lowercased key.
     expect(captured['x-request-id']).toBe('trace-abc-123');
+  });
+});
+
+describe('Lucairn.messages() — runtime stream reject (CON-06)', () => {
+  // TypeScript forbids `stream: true` at compile time, but a JS-only caller or
+  // an `any`-typed body can still set it. CON-06 adds a RUNTIME reject mirroring
+  // the Python guard, hardening the locked no-streaming contract. No request is
+  // sent — the guard fires before fetch.
+  it('rejects stream=true with LucairnConfigError before any request', async () => {
+    let hit = false;
+    server.use(
+      http.post(MESSAGES_URL, () => {
+        hit = true;
+        return HttpResponse.json({ status: 'completed', model_used: 'x', latency_ms: 1 });
+      }),
+    );
+
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    // Cast through unknown to bypass the compile-time `stream?: false` guard,
+    // simulating a JS-only caller.
+    const bad = { ...BASIC_REQUEST, stream: true } as unknown as ProxyMessagesRequest;
+    await expect(client.messages(bad)).rejects.toBeInstanceOf(LucairnConfigError);
+    expect(hit).toBe(false);
+  });
+
+  it('allows stream=false (and omitted) to pass through', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        HttpResponse.json({ status: 'JOB_STATUS_COMPLETED', model_used: 'm', latency_ms: 1 }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    const withFalse = { ...BASIC_REQUEST, stream: false } as ProxyMessagesRequest;
+    await expect(client.messages(withFalse)).resolves.toBeDefined();
+    await expect(client.messages(BASIC_REQUEST)).resolves.toBeDefined();
+  });
+});
+
+describe('Lucairn.messages() — 2xx response-shape validation (CON-02)', () => {
+  // CON-02 parity: a 2xx body missing the minimum field set raises
+  // LucairnResponseValidationError. The required-field set matches the Go SDK
+  // (status + model_used for sync; job_id + request_id + status_url for async).
+  it('throws LucairnResponseValidationError on a non-JSON 200 body', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        new HttpResponse('not json', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.messages(BASIC_REQUEST)).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('throws LucairnResponseValidationError on a sync 200 missing model_used', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        HttpResponse.json({ status: 'JOB_STATUS_COMPLETED', latency_ms: 1 }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.messages(BASIC_REQUEST)).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('throws LucairnResponseValidationError on an async 202 missing job_id', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        HttpResponse.json(
+          { status: 'processing', request_id: 'req_1', status_url: '/jobs/1' },
+          { status: 202 },
+        ),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    await expect(client.messages(BASIC_REQUEST)).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('accepts a well-formed async 202 receipt', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        HttpResponse.json(
+          {
+            status: 'processing',
+            job_id: 'job_1',
+            request_id: 'req_1',
+            status_url: 'https://gateway.lucairn.eu/jobs/1',
+          },
+          { status: 202 },
+        ),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY });
+    const res = await client.messages(BASIC_REQUEST);
+    expect(res.status).toBe('processing');
+  });
+});
+
+describe('Lucairn — maxResponseBytes config + bounded read (CON-02)', () => {
+  it('rejects a zero / negative / non-integer maxResponseBytes at construction', () => {
+    expect(() => new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 0 })).toThrow(
+      LucairnConfigError,
+    );
+    expect(() => new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: -1 })).toThrow(
+      LucairnConfigError,
+    );
+    expect(() => new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 1.5 })).toThrow(
+      LucairnConfigError,
+    );
+  });
+
+  it('accepts a positive integer maxResponseBytes', () => {
+    const client = new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 1024 });
+    expect(client.maxResponseBytes).toBe(1024);
+  });
+
+  it('raises LucairnResponseValidationError when a 2xx body exceeds the cap', async () => {
+    // 200 bytes of body against a 16-byte cap. The over-cap path fires before
+    // shape validation, so the error is the cap-overflow validation error.
+    const bigBody = 'x'.repeat(200);
+    server.use(http.post(MESSAGES_URL, () => new HttpResponse(bigBody, { status: 200 })));
+    const client = new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 16 });
+    await expect(client.messages(BASIC_REQUEST)).rejects.toBeInstanceOf(
+      LucairnResponseValidationError,
+    );
+  });
+
+  it('raises LucairnHttpError when a NON-2xx body exceeds the cap', async () => {
+    const bigBody = 'y'.repeat(200);
+    server.use(http.post(MESSAGES_URL, () => new HttpResponse(bigBody, { status: 500 })));
+    const client = new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 16 });
+    await expect(client.messages(BASIC_REQUEST)).rejects.toBeInstanceOf(LucairnHttpError);
+  });
+
+  it('does not trip the cap on a within-cap valid body', async () => {
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        HttpResponse.json({ status: 'JOB_STATUS_COMPLETED', model_used: 'm', latency_ms: 1 }),
+      ),
+    );
+    const client = new Lucairn({ apiKey: VALID_KEY, maxResponseBytes: 10 * 1024 * 1024 });
+    await expect(client.messages(BASIC_REQUEST)).resolves.toBeDefined();
   });
 });

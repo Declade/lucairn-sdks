@@ -6,8 +6,12 @@ export {
   LucairnHttpError,
   LucairnTimeoutError,
   LucairnCertificateError,
+  LucairnResponseValidationError,
 } from './errors.js';
-export type { VerifyCertificateFailureReason } from './errors.js';
+export type {
+  VerifyCertificateFailureReason,
+  LucairnResponseValidationErrorOptions,
+} from './errors.js';
 export type {
   AuditEntry,
   AuditExportResponse,
@@ -61,6 +65,9 @@ export { LucairnTimeoutError as TheVeilTimeoutError } from './errors.js';
 
 /** @deprecated Use {@link LucairnCertificateError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
 export { LucairnCertificateError as TheVeilCertificateError } from './errors.js';
+
+/** @deprecated Use {@link LucairnResponseValidationError} instead. The TheVeil* aliases will be removed in @lucairn/sdk@1.1.0. */
+export { LucairnResponseValidationError as TheVeilResponseValidationError } from './errors.js';
 
 /** @deprecated Use `LucairnConfig` instead. The TheVeilConfig alias will be removed in @lucairn/sdk@1.1.0. */
 export type { LucairnConfig as TheVeilConfig } from './types.js';

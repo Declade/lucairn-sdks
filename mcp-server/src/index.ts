@@ -16,9 +16,9 @@
  *     proxy stdio JSON-RPC frames straight to the gateway's
  *     streamable-HTTP MCP endpoint at POST {baseUrl}/mcp.
  *
- * Both DSA_* (legacy) and LUCAIRN_* (new) env-var prefixes are
- * accepted, matching the migration path documented at
- * https://lucairn.eu/developer/mcp.
+ * LUCAIRN_* env-var prefixes are the canonical names; the retired DSA_*
+ * prefixes remain accepted as a SILENT fallback for the migration path
+ * documented at https://lucairn.eu/developer/mcp.
  */
 import { runStdioBridge } from './bridge.js'
 import {
@@ -29,14 +29,15 @@ import {
   TRANSPORT_STDIO_BRIDGE,
 } from './server.js'
 
-// `||` (not `??`) so that an explicitly-set empty string falls through
-// to the next candidate. With `??`, DSA_API_KEY="" would mask a
-// LUCAIRN_API_KEY="lcr_live_..." and the server would die with a
-// confusing "missing key" error.
-const apiKey = process.env.DSA_API_KEY || process.env.LUCAIRN_API_KEY
+// LUCAIRN_* first (canonical brand), DSA_* as a SILENT legacy fallback.
+// `||` (not `??`) so that an explicitly-set empty string falls through to
+// the next candidate. With `??`, LUCAIRN_API_KEY="" would mask a
+// DSA_API_KEY="lcr_live_..." and the server would die with a confusing
+// "missing key" error.
+const apiKey = process.env.LUCAIRN_API_KEY || process.env.DSA_API_KEY
 const baseUrl =
-  process.env.DSA_GATEWAY_URL ||
   process.env.LUCAIRN_BASE_URL ||
+  process.env.DSA_GATEWAY_URL ||
   'https://gateway.lucairn.eu'
 const anthropicKey = process.env.ANTHROPIC_API_KEY || undefined
 const openaiKey = process.env.OPENAI_API_KEY || undefined
@@ -58,7 +59,7 @@ try {
 if (!apiKey) {
   // eslint-disable-next-line no-console
   console.error(
-    'Error: DSA_API_KEY (or LUCAIRN_API_KEY) environment variable is required.\n' +
+    'Error: LUCAIRN_API_KEY environment variable is required.\n' +
       'Get a key at https://lucairn.eu/account/signup and add it to your\n' +
       'claude_desktop_config.json under mcpServers.lucairn.env.',
   )
