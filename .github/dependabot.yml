@@ -3,11 +3,15 @@
 # DORMANT (B1 Slice 5): raise open-pull-requests-limit to activate.
 #
 # Every ecosystem below is authored INERT via `open-pull-requests-limit: 0`,
-# which tells Dependabot to open ZERO update PRs (security PRs are also
-# suppressed at limit 0). Flip a block's limit to a positive number (e.g. 5)
-# to activate updates for that ecosystem once the team is ready to triage
-# the resulting PRs. Schedule + grouping are pre-set so activation is a
-# one-line change.
+# which tells Dependabot to open ZERO VERSION-update PRs. Flip a block's
+# limit to a positive number (e.g. 5) to activate version updates for that
+# ecosystem once the team is ready to triage the resulting PRs. Schedule +
+# grouping are pre-set so activation is a one-line change.
+#
+# NOTE: open-pull-requests-limit: 0 disables VERSION-update PRs only.
+# Dependabot SECURITY-update PRs are governed by the repo/org "Dependabot
+# security updates" setting and IGNORE this limit — verify that setting is
+# OFF if zero PRs is required.
 #
 # Covers all four SDK ecosystems plus the workflow Actions themselves:
 #   - npm  -> /ts          (@lucairn/sdk)
