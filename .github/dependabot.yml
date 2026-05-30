@@ -1,0 +1,107 @@
+# Dependabot configuration for lucairn-sdks (B1 Slice 5 — supply-chain provenance).
+#
+# DORMANT (B1 Slice 5): raise open-pull-requests-limit to activate.
+#
+# Every ecosystem below is authored INERT via `open-pull-requests-limit: 0`,
+# which tells Dependabot to open ZERO update PRs (security PRs are also
+# suppressed at limit 0). Flip a block's limit to a positive number (e.g. 5)
+# to activate updates for that ecosystem once the team is ready to triage
+# the resulting PRs. Schedule + grouping are pre-set so activation is a
+# one-line change.
+#
+# Covers all four SDK ecosystems plus the workflow Actions themselves:
+#   - npm  -> /ts          (@lucairn/sdk)
+#   - npm  -> /mcp-server  (@lucairn/mcp-server)
+#   - pip  -> /python      (lucairn)
+#   - gomod -> /go         (github.com/declade/lucairn-sdks/go)
+#   - github-actions -> /  (.github/workflows/*)
+version: 2
+updates:
+  # --- TypeScript SDK (npm) ---
+  - package-ecosystem: "npm"
+    directory: "/ts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 0 # DORMANT — raise to activate
+    labels:
+      - "dependencies"
+      - "sdk-ts"
+    groups:
+      ts-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --- MCP server (npm) ---
+  - package-ecosystem: "npm"
+    directory: "/mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 0 # DORMANT — raise to activate
+    labels:
+      - "dependencies"
+      - "sdk-mcp"
+    groups:
+      mcp-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --- Python SDK (pip / pyproject) ---
+  - package-ecosystem: "pip"
+    directory: "/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 0 # DORMANT — raise to activate
+    labels:
+      - "dependencies"
+      - "sdk-python"
+    groups:
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --- Go SDK (gomod) ---
+  - package-ecosystem: "gomod"
+    directory: "/go"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 0 # DORMANT — raise to activate
+    labels:
+      - "dependencies"
+      - "sdk-go"
+    groups:
+      go-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --- GitHub Actions used by the publish/CI workflows ---
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 0 # DORMANT — raise to activate
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions-all:
+        patterns:
+          - "*"
