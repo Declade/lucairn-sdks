@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # id-token: write enables npm provenance OIDC. Harmless when
+      # --provenance is NOT passed (default). See ENABLE_NPM_PROVENANCE below.
+      id-token: write
     defaults:
       run:
         working-directory: mcp-server
@@ -35,6 +38,11 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Publish to npm
+        # npm provenance (Sigstore Fulcio + Rekor) is INERT by default:
+        # --provenance is added ONLY when the repo variable
+        # ENABLE_NPM_PROVENANCE == 'true'. Unset (default) => publishes
+        # exactly as before, no provenance. DO NOT enable until the
+        # 8-sub-processor list is revisited to add Fulcio (see PR body).
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public ${{ vars.ENABLE_NPM_PROVENANCE == 'true' && '--provenance' || '' }}
