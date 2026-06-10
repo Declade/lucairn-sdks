@@ -35,6 +35,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ~10% of certs that would otherwise fail verify. Applied to both v2 and v3
   signable reconstruction paths.
 
+## [Go v1.2.0] — 2026-06-10
+
+### Added
+- **v3 dual-protocol certificate verification** — `VerifyCertificate` now
+  dispatches on `signable_protocol_version_emitted`: certs with value `>= 3`
+  are verified against `signable_v3_signature` (13-key signable map); legacy
+  certs without that field use the unchanged v2 path (7-key map, byte-identical).
+  PRD criterion #7. Source: `go/internal/verify/pipeline.go`,
+  `go/internal/verify/v3_signable.go`.
+- `VerifyCertificateResult.SignableVersion` — `"v2"` or `"v3"` identifying
+  which signable map was verified. PRD criterion #7.
+- `DeriveV3SignedBytes` — internal v3 13-key signable reconstruction. Mirrors
+  `dual-sandbox-architecture/services/veil-witness/internal/assembler/assembler.go:380-413`
+  field-for-field. `go/internal/verify/v3_signable.go`.
+- `ExtractSanitizerPayloadHash` — reads `redaction_manifest_hash`,
+  `sanitized_fields_hash`, `tms_manifest_hash` from the dsa-sanitizer claim's
+  `canonical_payload["payload"]`, surviving the gateway's server-side strip
+  pipeline. Strip-surviving discipline from BLOCKER-1 (PR #247).
+- `VeilCertificate.APIKeyID` (`*string`, proto field 15) — surfaces the
+  gateway API-key metadata field added in Phase B.
+- `VeilCertificate.SignableV2Signature`, `SignableV3Signature`,
+  `SignableProtocolVersionEmitted` — surfaces the dual-protocol fields from
+  v3 certs.
+- **`issued_at` RFC3339Nano normalization** (H6 fix, ~10% verify-failure root
+  cause) — `normalizeIssuedAt` strips trailing fractional-second zeros before
+  placing `issued_at` in signable bytes. Applies to BOTH v2 and v3 paths.
+  Protojson zero-padded form (`...878143387000000000Z`) now normalizes to the
+  witness-signed form (`...878143387Z`). `go/internal/verify/signable.go`.
+- **Real production cert round-trip test** —
+  `TestDeriveV3SignedBytes_RealProductionCert_RoundTrip` verifies the full
+  real production v3 cert against the production witness public key. Passes
+  only if v3 signable reconstruction is byte-exact (Ed25519 verify). Located
+  at `go/internal/verify/v3_signable_test.go`; fixture at
+  `go/internal/verify/testdata/real-v3-cert.fixture.json`.
+- v2 backward-compat test (`TestDeriveV3SignedBytes_V2BackwardCompat_SameRealCert`),
+  H6 round-trip test (`TestDeriveV3SignedBytes_TrailingZeroIssuedAt_RoundTrip`),
+  13-key freeze test (`TestDeriveV3SignedBytes_SignableContainsExactlyThirteenKeys`),
+  and `TestNormalizeIssuedAt_TrailingZerosStripped`.
+
+### Changed (internal, no API break)
+- `RawCert` (internal `parse.go`) gains `SignableProtocolVersionEmitted`,
+  `SignableV3Signature`, `RawClaims`, `ClientID`, `APIKeyID`, `ByokExempt`
+  for v3 dispatch.
+
+## [python 1.2.0] — 2026-06-10
+
+### Added
+- **v3 dual-protocol certificate verification** (SDK signable-versioning v3
+  chain, criterion #7/#8). `verify_certificate` now dispatches on
+  `signable_protocol_version_emitted`: certs with value `>= 3` are verified
+  against `signable_v3_signature` using the new 13-key signable map (v2's 7
+  keys + `client_id`, `api_key_id`, `byok_exempt`, `redaction_manifest_hash`,
+  `sanitized_fields_body_hash`, `tms_manifest_hash`). Certs without the field
+  fall back to the legacy 7-key v2 path (backward compat, criterion #8).
+- `VerifyCertificateResult.signable_version` field: `'v3'` for new dual-protocol
+  certs, `'v2'` for legacy certs (criterion #7).
+- New `derive_v3_signed_bytes()` function in `verify_certificate/v3_signable.py`
+  implementing the 13-key v3 reconstruction. Hash fields sourced from
+  `dsa-sanitizer` claim's `canonical_payload` (strip-surviving; body bytes are
+  gateway-stripped but the hashes survive in the sanitizer-signed inner JSON).
+  `tms_manifest_hash` is `None`/`null` until TMS rewrite Slice 5 — accepted
+  without error.
+- `normalize_issued_at()` utility exported from `verify_certificate/signable.py`.
+
+### Fixed
+- **issued_at RFC3339Nano trailing-zero mismatch (H6, ~10% verify-failure class)**.
+  The witness signs `issued_at` using Go `time.RFC3339Nano` which strips trailing
+  zeros (e.g. `.1Z`). The gateway serves via protojson which zero-pads to 9 digits
+  (e.g. `.100000000Z`). The SDK now normalizes the served timestamp before placing
+  it into the signable bytes. Applied to both v2 and v3 reconstruction paths.
+  Round-trip validated against a real production v3 cert (Ed25519 signature verifies
+  against the live production witness key).
+
+### Changed
+- `VeilCertificate` Pydantic model gains optional fields: `api_key_id` (str|None),
+  `signable_v2_signature` (str|None), `signable_v3_signature` (str|None),
+  `signable_protocol_version_emitted` (int, default 0). All default-safe; older
+  certs without these fields parse cleanly.
+
 ## [mcp-server 1.2.6] — 2026-05-14
 
 ### Fixed

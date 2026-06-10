@@ -1,0 +1,5 @@
+{
+  "_note": "Production Lucairn witness public key (Ed25519, 32 bytes). Used for round-trip verification tests.",
+  "witnessKeyID": "witness_v1",
+  "publicKey": "ALoYnR2xElnmroA+71c55gC+AfI9tc3I9PSv99+qvMU="
+}

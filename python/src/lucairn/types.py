@@ -402,12 +402,27 @@ class VeilCertificate(BaseModel):
     # witness assembler extracts org_id from the bridge claim's
     # canonical_payload at
     # ``services/veil-witness/internal/assembler/assembler.go:131-155`` and
-    # stamps it here. Field is NOT part of the witness signable map —
-    # tamper evidence is INDIRECT via the bridge claim's bridge-signed
-    # canonical_payload (which is itself in the witness signable via
-    # ``claims``). Promotion of client_id into the signable is a follow-up
-    # deferred until the SDK signable-versioning workstream lands.
+    # stamps it here. Field is NOT part of the v2 witness signable map but IS
+    # promoted into the v3 signable (SDK signable-versioning v3 chain, PR #247).
+    # Tamper evidence for v2: INDIRECT via bridge claim's bridge-signed
+    # canonical_payload (in witness signable via ``claims``).
     client_id: str | None = None
+
+    # API-key correlation field, Phase B (PR #242). Proto field 15.
+    # Extracted from bridge claim's canonical_payload.payload["api_key_id"].
+    # NOT in v2 signable; IS in v3 signable. Same tamper-evidence pattern as
+    # client_id.
+    api_key_id: str | None = None
+
+    # Dual-protocol signature fields (SDK signable-versioning v3 chain, PR #247).
+    # signable_v2_signature: mirrors witness_signature byte-for-byte for
+    #   v0.5.x backward compat (same 7-key signed bytes).
+    # signable_v3_signature: new 13-key signed bytes (v2 keys + 6 carry-forwards).
+    # signable_protocol_version_emitted: int, value 3 on v3 certs. When absent
+    #   (older certs) the SDK defaults to 0 and falls back to v2 path.
+    signable_v2_signature: str | None = None
+    signable_v3_signature: str | None = None
+    signable_protocol_version_emitted: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +465,32 @@ class VerifyCertificateResult:
         anchor_status: Gateway-reported anchor status. The SDK does NOT
             currently verify anchor status independently.
         overall_verdict: Witness-asserted overall verdict.
+        signable_version: The signable protocol version used for
+            verification: ``'v2'`` for legacy 7-key path (verifies against
+            ``witness_signature`` / ``signable_v2_signature``), ``'v3'``
+            for new 13-key path (verifies against ``signable_v3_signature``).
+            SDK signable-versioning v3 chain (PR #247 + this SDK release).
+
+            SECURITY NOTE: when ``signable_version == 'v2'``, the fields
+            ``api_key_id``, ``client_id``, ``byok_exempt``, and the sanitizer
+            hash fields (``redaction_manifest_hash``, ``sanitized_fields_body_hash``,
+            ``tms_manifest_hash``) are NOT covered by the witness signature.
+            Callers that rely on those fields for security decisions MUST
+            require ``signable_version == 'v3'`` — e.g. pass
+            ``minimum_signable_version='v3'`` to :func:`verify_certificate`.
+        v3_signature_stripped: ``True`` when the certificate carried a
+            ``signable_v3_signature`` but verification fell back to the v2
+            path (e.g. because ``signable_protocol_version_emitted`` was
+            absent or < 3). ``False`` in all other cases.
+
+            This flag is set only when strict-mode
+            (``minimum_signable_version='v3'``) is NOT in use — strict mode
+            raises :class:`~lucairn.errors.LucairnCertificateError` with
+            ``reason='version_downgrade_detected'`` before the v2 path is
+            taken, so the result object is never constructed.
+
+            Non-strict callers can inspect this field to detect a potential
+            downgrade without failing hard.
     """
 
     certificate_id: str
@@ -459,6 +500,8 @@ class VerifyCertificateResult:
     witness_asserted_issued_at_iso: str
     anchor_status: VeilCertAnchorStatus
     overall_verdict: VeilVerdict
+    signable_version: str = "v2"
+    v3_signature_stripped: bool = False
 
 
 # ---------------------------------------------------------------------------
