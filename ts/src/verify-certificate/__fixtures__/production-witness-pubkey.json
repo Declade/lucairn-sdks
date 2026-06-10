@@ -1,0 +1,6 @@
+{
+  "_note": "Production Lucairn witness public key (Ed25519, 32 bytes). Used for round-trip verification tests.",
+  "publicKeyHex": "00ba189d1db11259e6ae803eef5739e600be01f23db5cdc8f4f4aff7dfaabcc5",
+  "publicKeyBase64": "ALoYnR2xElnmroA+71c55gC+AfI9tc3I9PSv99+qvMU=",
+  "witnessKeyId": "witness_v1"
+}

@@ -1,6 +1,6 @@
 {
   "name": "@lucairn/sdk",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Lucairn — privacy-preserving AI gateway client for TypeScript",
   "license": "MIT",
   "author": "Declade",
@@ -36,6 +36,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.test.json"
