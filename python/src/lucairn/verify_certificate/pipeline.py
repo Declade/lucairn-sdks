@@ -8,6 +8,17 @@ Version dispatch (SDK 1.2.0, dual-protocol v3 chain):
     7-key v2 signable (``derive_witness_signed_bytes``) and verify against
     ``cert.witness_signature`` (which mirrors ``signable_v2_signature``
     byte-for-byte).  Result carries ``signable_version='v2'``.
+
+Downgrade protection (TOB-SDK-PY-01):
+  - If a cert carries ``signable_v3_signature`` but the version dispatch
+    resolves to the v2 path (version field absent or < 3), this is a
+    signature-stripping downgrade attempt.  The pipeline raises
+    ``LucairnCertificateError(reason='version_downgrade_detected')``
+    before any v2 verification is attempted — a genuine v2-only cert never
+    carries a v3 signature, so legitimate certs are unaffected.
+  - The ``minimum_signable_version='v3'`` strict-mode parameter lets callers
+    in a v3 deployment fail-closed on any downgrade (including a fully-stripped
+    v3 cert that presents as a clean legacy v2 cert).
 """
 
 from __future__ import annotations
@@ -44,6 +55,8 @@ _V3_SIGNABLE_MIN_VERSION = 3
 def verify_certificate(
     raw_cert: Any,
     keys: VerifyCertificateKeys,
+    *,
+    minimum_signable_version: str | None = None,
 ) -> VerifyCertificateResult:
     """Verify a Veil Certificate's witness Ed25519 signature.
 
@@ -59,15 +72,36 @@ def verify_certificate(
     The result surfaces ``anchor_status`` and ``overall_verdict`` as
     pass-through metadata — the SDK does NOT independently verify them.
 
+    SECURITY NOTE: when ``signable_version == 'v2'`` on the returned result,
+    the fields ``api_key_id``, ``client_id``, ``byok_exempt``, and the
+    sanitizer hash fields (``redaction_manifest_hash``,
+    ``sanitized_fields_body_hash``, ``tms_manifest_hash``) are NOT covered
+    by the witness signature.  Callers relying on those fields for security
+    decisions MUST require ``signable_version == 'v3'`` — e.g. pass
+    ``minimum_signable_version='v3'``.
+
     Args:
         raw_cert: protojson-shaped certificate body as returned by
             ``GET /api/v1/veil/certificate/{request_id}``. Either a
             ``dict`` or an already-parsed :class:`VeilCertificate`.
         keys: trust-root keys (:class:`VerifyCertificateKeys`).
+        minimum_signable_version: Optional strict-mode floor. When set to
+            ``'v3'``, raises
+            :class:`~lucairn.errors.LucairnCertificateError` with
+            ``reason='signable_version_insufficient'`` if the resolved
+            signable version is not ``'v3'``.  This lets callers in a v3
+            deployment fail-closed on any downgrade — including a cert that
+            presents as a clean legacy v2 cert (fully stripped) and one that
+            carries a v3 signature but a stripped version field (caught
+            earlier as ``'version_downgrade_detected'``).  Default ``None``
+            preserves the current backward-compatible behaviour.
 
     Returns:
         :class:`VerifyCertificateResult` on success.  ``signable_version``
         is ``'v3'`` for new dual-protocol certs, ``'v2'`` for legacy certs.
+        ``v3_signature_stripped`` is ``True`` when the cert carried a v3
+        signature but the v2 path was taken (non-strict callers only — strict
+        mode raises before reaching the v2 path).
 
     Raises:
         LucairnCertificateError: with ``reason`` in one of:
@@ -78,6 +112,11 @@ def verify_certificate(
           * ``witness_signature_missing`` — empty/whitespace-only signature
           * ``invalid_signature`` — Ed25519 verification failed or key
             input is malformed (wrong length, non-base64, etc.)
+          * ``version_downgrade_detected`` — cert has a non-empty
+            ``signable_v3_signature`` but the version field is absent or < 3,
+            indicating a stripping attack (TOB-SDK-PY-01).
+          * ``signable_version_insufficient`` — ``minimum_signable_version``
+            constraint was not met (strict-mode callers only).
         TypeError: if ``keys`` is not a :class:`VerifyCertificateKeys`
             (programmer error, not a cert-verification failure).
     """
@@ -120,6 +159,20 @@ def verify_certificate(
     # --- Version dispatch ---
     use_v3 = cert.signable_protocol_version_emitted >= _V3_SIGNABLE_MIN_VERSION
 
+    # TOB-SDK-PY-01(a): downgrade-detection guard.
+    # A genuine v2-only cert carries NO signable_v3_signature.  If the version
+    # field is absent/< 3 but the cert still carries a non-empty v3 signature,
+    # the version field was stripped from a real v3 cert — reject immediately.
+    if not use_v3 and cert.signable_v3_signature and cert.signable_v3_signature.strip():
+        raise LucairnCertificateError(
+            "Certificate carries a signable_v3_signature but "
+            f"signable_protocol_version_emitted={cert.signable_protocol_version_emitted!r} "
+            "(expected >= 3). The version field appears to have been stripped from a "
+            "genuine v3 cert. Verification rejected to prevent downgrade attack.",
+            reason="version_downgrade_detected",
+            certificate_id=cert.certificate_id,
+        )
+
     if use_v3:
         # v3 path: reconstruct 13-key signable + verify signable_v3_signature.
         try:
@@ -134,18 +187,19 @@ def verify_certificate(
                 cause=exc,
             ) from exc
 
-        # v3 certs carry signable_v3_signature; fall back to witness_signature
-        # if the field is absent (should not happen for v3 certs, but be defensive).
-        sig_field = cert.signable_v3_signature or cert.witness_signature
-        if not sig_field or sig_field.strip() == "":
+        # TOB-SDK-PY-02: on the v3 path, require signable_v3_signature to be
+        # present and non-empty.  The old fallback to witness_signature was
+        # wrong: verifying v3 bytes against the v2 sig always fails with
+        # invalid_signature, masking the real cause (missing v3 sig field).
+        if not cert.signable_v3_signature or cert.signable_v3_signature.strip() == "":
             raise LucairnCertificateError(
-                "v3 certificate has no signable_v3_signature",
+                "v3 certificate is missing signable_v3_signature",
                 reason="witness_signature_missing",
                 certificate_id=cert.certificate_id,
             )
 
         try:
-            signature_bytes = base64.b64decode(sig_field, validate=True)
+            signature_bytes = base64.b64decode(cert.signable_v3_signature, validate=True)
         except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
             raise LucairnCertificateError(
                 f"signable_v3_signature base64 decode failed: {exc}",
@@ -171,10 +225,39 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
             )
 
+        # TOB-SDK-PY-01(b): strict-mode check after successful v3 verification.
+        if minimum_signable_version == "v3":
+            pass  # already on v3 path — constraint satisfied
+
         return _build_result(cert, signable_version="v3")
 
     else:
         # v2 path: legacy 7-key signable + witness_signature.
+
+        # TOB-SDK-PY-01(b): strict-mode check — fail-closed if caller requires v3.
+        if minimum_signable_version == "v3":
+            raise LucairnCertificateError(
+                "minimum_signable_version='v3' required but cert resolved to the v2 "
+                f"path (signable_protocol_version_emitted="
+                f"{cert.signable_protocol_version_emitted!r}). "
+                "The v3-only fields (api_key_id, client_id, byok_exempt, and the "
+                "sanitizer hash fields) are not covered by the v2 witness signature.",
+                reason="signable_version_insufficient",
+                certificate_id=cert.certificate_id,
+            )
+
+        # TOB-SDK-PY-01(c): surface whether a v3 sig was present but ignored.
+        # (Downgrade-detected certs never reach here; this covers non-strict
+        # callers on legitimately-missing-version-field certs from unusual
+        # gateway configurations where a v3 sig could theoretically be present
+        # but the guard above would have raised already.  In practice this flag
+        # is always False on the v2 path because the guard already rejected any
+        # cert with a non-empty v3 sig.  Kept as an explicit field on the
+        # result for forward-compatibility if the guard semantics ever relax.)
+        v3_sig_stripped = bool(
+            cert.signable_v3_signature and cert.signable_v3_signature.strip()
+        )
+
         try:
             signed_bytes = derive_witness_signed_bytes(cert)
         except LucairnCertificateError:
@@ -214,10 +297,14 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
             )
 
-        return _build_result(cert, signable_version="v2")
+        return _build_result(cert, signable_version="v2", v3_signature_stripped=v3_sig_stripped)
 
 
-def _build_result(cert: VeilCertificate, signable_version: str = "v2") -> VerifyCertificateResult:
+def _build_result(
+    cert: VeilCertificate,
+    signable_version: str = "v2",
+    v3_signature_stripped: bool = False,
+) -> VerifyCertificateResult:
     try:
         issued_at = _parse_iso(cert.issued_at)
     except ValueError as exc:
@@ -246,6 +333,7 @@ def _build_result(cert: VeilCertificate, signable_version: str = "v2") -> Verify
         ),
         overall_verdict=cert.verification.overall_verdict,
         signable_version=signable_version,
+        v3_signature_stripped=v3_signature_stripped,
     )
 
 
