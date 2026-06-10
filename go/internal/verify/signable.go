@@ -1,5 +1,7 @@
 package verify
 
+import "time"
+
 // Derive the exact byte sequence the witness signs.
 //
 // Port of
@@ -17,6 +19,27 @@ package verify
 // Protojson → Go short-form mapping: the gateway emits full-name
 // VERDICT_* literals on the wire (UseProtoNames + default enum
 // serialization); the witness signs the short-form. The SDK must convert.
+//
+// ISSUED_AT NORMALIZATION (H6 — ~10% verify-failure root cause):
+//
+// The witness assembler signs issued_at with time.RFC3339Nano which strips
+// trailing zeros from fractional seconds:
+//   "2026-06-10T00:01:59.878143387Z"     ← what witness signs
+// The gateway protojson marshaller emits zero-padded nanoseconds:
+//   "2026-06-10T00:01:59.878143387000000000Z" ← what protojson may produce
+//
+// The SDK feeds the served string directly into the signable bytes, causing
+// a mismatch on any cert where the nanoseconds aren't already in RFC3339Nano
+// canonical form. Fix: normalize via parse-then-reformat before placing
+// issued_at in signable bytes, in BOTH v2 and v3 paths.
+//
+// normalizeIssuedAt parses the served string with RFC3339Nano (which handles
+// any number of fractional-second digits) and re-emits with RFC3339Nano
+// (which strips trailing zeros). If parsing fails the original string is
+// returned unchanged (fail-open: verification will fail downstream if the
+// byte mismatch was real, but we don't swallow a legit parse on a
+// well-formed timestamp just because nanoseconds happen to round-trip
+// cleanly).
 
 // SignableProtocolVersion is the wire protocol the signable subset is
 // built against. Mirrors pipeline.SupportedProtocolVersion; these two
@@ -32,6 +55,18 @@ var verdictFullToShort = map[string]string{
 	"VERDICT_VERIFIED":    "VERIFIED",
 	"VERDICT_PARTIAL":     "PARTIAL",
 	"VERDICT_FAILED":      "FAILED",
+}
+
+// normalizeIssuedAt normalizes an RFC3339 / RFC3339Nano issued_at string to
+// the exact form the witness assembler signs: trailing fractional-second
+// zeros are stripped via time.RFC3339Nano formatting. Returns the original
+// string on parse failure (fail-open).
+func normalizeIssuedAt(s string) string {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return s
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 // DeriveSignedBytes returns the exact byte sequence the witness signs
@@ -60,7 +95,9 @@ type MalformedError struct {
 
 func (e *MalformedError) Error() string { return e.Reason }
 
-// DeriveSignedBytes builds the exact byte sequence the witness signs.
+// DeriveSignedBytes builds the exact byte sequence the witness signs for
+// a v2 (7-key) signable map. v2 byte-layout is LOCKED — any change here
+// breaks every v0.5.x SDK install. See TestDeriveSignedBytes_MatchesSignableFreezeHex.
 func DeriveSignedBytes(in DeriveSignedBytesInput) ([]byte, error) {
 	if len(in.ClaimRequestIDs) == 0 || len(in.ClaimIDs) == 0 {
 		return nil, &MalformedError{
@@ -89,6 +126,7 @@ func DeriveSignedBytes(in DeriveSignedBytesInput) ([]byte, error) {
 	// protocol_version: Go int 2 → JSON integer 2.
 	// overall_verdict: Go short string → JSON quoted string (default path).
 	// All other fields are strings or string arrays, pass-through.
+	// issued_at: normalized via RFC3339Nano parse+reformat (H6 fix).
 	claimIDsAny := make([]any, len(in.ClaimIDs))
 	for i, id := range in.ClaimIDs {
 		claimIDsAny[i] = id
@@ -98,7 +136,7 @@ func DeriveSignedBytes(in DeriveSignedBytesInput) ([]byte, error) {
 		"request_id":       in.RequestID,
 		"protocol_version": SignableProtocolVersion,
 		"claim_ids":        claimIDsAny,
-		"issued_at":        in.IssuedAt,
+		"issued_at":        normalizeIssuedAt(in.IssuedAt),
 		"overall_verdict":  goShortForm,
 		"witness_key_id":   in.WitnessKeyID,
 	}

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [Go v1.2.0] — 2026-06-10
+
+### Added
+- **v3 dual-protocol certificate verification** — `VerifyCertificate` now
+  dispatches on `signable_protocol_version_emitted`: certs with value `>= 3`
+  are verified against `signable_v3_signature` (13-key signable map); legacy
+  certs without that field use the unchanged v2 path (7-key map, byte-identical).
+  PRD criterion #7. Source: `go/internal/verify/pipeline.go`,
+  `go/internal/verify/v3_signable.go`.
+- `VerifyCertificateResult.SignableVersion` — `"v2"` or `"v3"` identifying
+  which signable map was verified. PRD criterion #7.
+- `DeriveV3SignedBytes` — internal v3 13-key signable reconstruction. Mirrors
+  `dual-sandbox-architecture/services/veil-witness/internal/assembler/assembler.go:380-413`
+  field-for-field. `go/internal/verify/v3_signable.go`.
+- `ExtractSanitizerPayloadHash` — reads `redaction_manifest_hash`,
+  `sanitized_fields_hash`, `tms_manifest_hash` from the dsa-sanitizer claim's
+  `canonical_payload["payload"]`, surviving the gateway's server-side strip
+  pipeline. Strip-surviving discipline from BLOCKER-1 (PR #247).
+- `VeilCertificate.APIKeyID` (`*string`, proto field 15) — surfaces the
+  gateway API-key metadata field added in Phase B.
+- `VeilCertificate.SignableV2Signature`, `SignableV3Signature`,
+  `SignableProtocolVersionEmitted` — surfaces the dual-protocol fields from
+  v3 certs.
+- **`issued_at` RFC3339Nano normalization** (H6 fix, ~10% verify-failure root
+  cause) — `normalizeIssuedAt` strips trailing fractional-second zeros before
+  placing `issued_at` in signable bytes. Applies to BOTH v2 and v3 paths.
+  Protojson zero-padded form (`...878143387000000000Z`) now normalizes to the
+  witness-signed form (`...878143387Z`). `go/internal/verify/signable.go`.
+- **Real production cert round-trip test** —
+  `TestDeriveV3SignedBytes_RealProductionCert_RoundTrip` verifies the full
+  real production v3 cert against the production witness public key. Passes
+  only if v3 signable reconstruction is byte-exact (Ed25519 verify). Located
+  at `go/internal/verify/v3_signable_test.go`; fixture at
+  `go/internal/verify/testdata/real-v3-cert.fixture.json`.
+- v2 backward-compat test (`TestDeriveV3SignedBytes_V2BackwardCompat_SameRealCert`),
+  H6 round-trip test (`TestDeriveV3SignedBytes_TrailingZeroIssuedAt_RoundTrip`),
+  13-key freeze test (`TestDeriveV3SignedBytes_SignableContainsExactlyThirteenKeys`),
+  and `TestNormalizeIssuedAt_TrailingZerosStripped`.
+
+### Changed (internal, no API break)
+- `RawCert` (internal `parse.go`) gains `SignableProtocolVersionEmitted`,
+  `SignableV3Signature`, `RawClaims`, `ClientID`, `APIKeyID`, `ByokExempt`
+  for v3 dispatch.
+
 ## [python 1.2.0] — 2026-06-10
 
 ### Added
