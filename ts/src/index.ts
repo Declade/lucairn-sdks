@@ -37,6 +37,7 @@ export type {
   VeilClaimType,
   VeilIsolationProbeStatus,
   VerifyCertificateKeys,
+  VerifyCertificateOptions,
   VerifyCertificateResult,
 } from './types.js';
 

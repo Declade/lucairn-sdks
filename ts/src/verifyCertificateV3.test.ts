@@ -19,11 +19,17 @@
  *
  * Test (e): tms_manifest_hash absent → null in v3 signable (pre-Slice-5 contract).
  *
- * Test (f): v3 dispatch skipped when signable_protocol_version_emitted < 3 or absent.
+ * Test (f): v3 dispatch when signable_protocol_version_emitted absent (both v3 sig + version stripped).
+ *
+ * Test (f2): throws version_downgrade_detected when v3 sig present but version < 3.
+ *   (behavior CHANGED by TOB-SDK-TS-01 fix — previously returned signableVersion='v2',
+ *   now throws because a v3 sig present with version < 3 is structurally anomalous.)
  *
  * Test (g): v3 dispatch skipped when signable_v3_signature absent or empty.
  *
  * Test (h): signableVersion propagated on verifyCertificate result for both paths.
+ *
+ * Tests (i)-(l): downgrade / minimumSignableVersion coverage (TOB-SDK-TS-01).
  */
 
 import { describe, expect, it } from 'vitest';
@@ -300,15 +306,22 @@ describe('verifyCertificate v3 — version dispatch', () => {
     expect(result.signableVersion).toBe('v2');
   });
 
-  it('(f2) falls back to v2 when signable_protocol_version_emitted is 2', async () => {
+  it('(f2) throws version_downgrade_detected when v3 sig present but signable_protocol_version_emitted is 2', async () => {
+    // TOB-SDK-TS-01: previously this silently fell back to v2 (leaving v3-only
+    // fields unverified). After the fix, this is a hard reject — a v3 sig
+    // present alongside version < 3 is structurally anomalous (attacker
+    // stripped the version field to force the v2 path).
     const rawCert = loadFixture<Record<string, unknown>>('cert-real-v3-production.json');
     const cert: Record<string, unknown> = {
       ...rawCert,
-      signable_protocol_version_emitted: 2, // not >= 3
+      signable_protocol_version_emitted: 2, // not >= 3, but v3 sig still present
+      // NOTE: signable_v3_signature is intentionally NOT stripped here —
+      // that's what makes this a downgrade attempt.
     };
     const keys = productionKeys();
-    const result = await verifyCertificate(cert, keys);
-    expect(result.signableVersion).toBe('v2');
+    await expect(verifyCertificate(cert, keys)).rejects.toMatchObject({
+      reason: 'version_downgrade_detected',
+    });
   });
 
   it('(g) falls back to v2 when signable_v3_signature is empty string', async () => {
@@ -379,6 +392,84 @@ describe('verifyCertificate v3 — tampered signature rejection', () => {
     await expect(verifyCertificate(cert, productionKeys())).rejects.toMatchObject({
       reason: 'invalid_signature',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TOB-SDK-TS-01: downgrade detection + minimumSignableVersion strict mode
+// ---------------------------------------------------------------------------
+describe('verifyCertificate v3 — TOB-SDK-TS-01 downgrade detection', () => {
+  /**
+   * Test (i): v3 cert with version field stripped but v3 sig present → throws
+   * version_downgrade_detected. This is the primary TOB-SDK-TS-01 attack vector.
+   */
+  it('(i) throws version_downgrade_detected when v3 sig present but version field absent', async () => {
+    const rawCert = loadFixture<Record<string, unknown>>('cert-real-v3-production.json');
+    const cert: Record<string, unknown> = {
+      ...rawCert,
+      signable_protocol_version_emitted: null, // version stripped
+      // signable_v3_signature intentionally kept — this is the downgrade attempt
+    };
+    const keys = productionKeys();
+    await expect(verifyCertificate(cert, keys)).rejects.toMatchObject({
+      reason: 'version_downgrade_detected',
+    });
+  });
+
+  /**
+   * Test (j): minimumSignableVersion:'v3' on a fully-stripped legacy v2 cert
+   * (both version and v3 sig absent) → throws signable_version_insufficient.
+   */
+  it('(j) throws signable_version_insufficient when minimumSignableVersion=v3 and cert is legacy v2', async () => {
+    const kp = loadFixture<{ publicKey: string }>('witness-keypair.json');
+    const keys: VerifyCertificateKeys = {
+      witnessKeyId: 'witness_v1',
+      witnessPublicKey: kp.publicKey,
+    };
+    // cert-valid-anchored.json has no v3 fields — pure v2
+    const cert = loadFixture('cert-valid-anchored.json');
+    await expect(
+      verifyCertificate(cert, keys, { minimumSignableVersion: 'v3' }),
+    ).rejects.toMatchObject({ reason: 'signable_version_insufficient' });
+  });
+
+  /**
+   * Test (k): genuine v3 cert + minimumSignableVersion:'v3' → succeeds with
+   * signableVersion='v3'. The production cert is the ground truth here.
+   */
+  it('(k) genuine v3 cert with minimumSignableVersion:v3 → passes, signableVersion=v3', async () => {
+    const cert = loadFixture('cert-real-v3-production.json');
+    const keys = productionKeys();
+    const result = await verifyCertificate(cert, keys, { minimumSignableVersion: 'v3' });
+    expect(result.signableVersion).toBe('v3');
+    expect(result.v3SignatureStripped).toBe(false);
+  });
+
+  /**
+   * Test (l): genuine legacy v2 cert, default options (no minimumSignableVersion) →
+   * still succeeds with signableVersion='v2'. No regression on legacy certs.
+   */
+  it('(l) genuine legacy v2 cert, default opts → succeeds signableVersion=v2 (no regression)', async () => {
+    const kp = loadFixture<{ publicKey: string }>('witness-keypair.json');
+    const keys: VerifyCertificateKeys = {
+      witnessKeyId: 'witness_v1',
+      witnessPublicKey: kp.publicKey,
+    };
+    const cert = loadFixture('cert-valid-anchored.json');
+    const result = await verifyCertificate(cert, keys);
+    expect(result.signableVersion).toBe('v2');
+    expect(result.v3SignatureStripped).toBe(false);
+  });
+
+  /**
+   * Test (m): v3SignatureStripped field is false on a normal v3 result.
+   */
+  it('(m) v3SignatureStripped=false on normal v3 result', async () => {
+    const result = await verifyCertificate(
+      loadFixture('cert-real-v3-production.json'),
+      productionKeys(),
+    );
+    expect(result.v3SignatureStripped).toBe(false);
   });
 });
 

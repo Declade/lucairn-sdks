@@ -74,7 +74,33 @@ export type VerifyCertificateFailureReason =
   | 'unsupported_protocol_version'
   | 'witness_mismatch'
   | 'witness_signature_missing'
-  | 'invalid_signature';
+  | 'invalid_signature'
+  /**
+   * A v3 signature (`signable_v3_signature`) was present on the certificate
+   * but the version field (`signable_protocol_version_emitted`) was absent or
+   * below 3, which would silently downgrade verification to the v2 path and
+   * leave v3-only fields (api_key_id, client_id, byok_exempt, and the
+   * sanitizer hash fields) unverified while returning `valid=true`.
+   *
+   * Legitimate v3 certs always carry `signable_protocol_version_emitted >= 3`.
+   * Legitimate v2-only certs never carry `signable_v3_signature`. The only
+   * path that triggers this reason is a tampered cert where an attacker has
+   * stripped the version field to force the v2 path.
+   *
+   * @see TOB-SDK-TS-01 (ToB review, 2026-06)
+   */
+  | 'version_downgrade_detected'
+  /**
+   * Thrown when `options.minimumSignableVersion` is `'v3'` but the resolved
+   * signable version is `'v2'`. Callers that rely on v3-only fields for
+   * security decisions (api_key_id, client_id, byok_exempt, sanitizer hashes)
+   * should pass `{ minimumSignableVersion: 'v3' }` to ensure they never
+   * silently accept a v2-verified cert where those fields are not
+   * witness-signed.
+   *
+   * @see TOB-SDK-TS-01 (ToB review, 2026-06)
+   */
+  | 'signable_version_insufficient';
 
 export interface LucairnCertificateErrorOptions extends ErrorOptions {
   reason: VerifyCertificateFailureReason;

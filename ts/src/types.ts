@@ -387,6 +387,27 @@ export interface VerifyCertificateKeys {
   witnessPublicKey: Uint8Array | string; // raw 32B OR base64
 }
 
+/**
+ * Per-call options for {@link verifyCertificate}.
+ */
+export interface VerifyCertificateOptions {
+  /**
+   * Minimum signable protocol version that this call must resolve to.
+   * When set to `'v3'`, `verifyCertificate` throws
+   * `LucairnCertificateError({ reason: 'signable_version_insufficient' })`
+   * if the cert is verified via the v2 path (i.e. `signableVersion === 'v2'`).
+   *
+   * Use this when you rely on v3-only witness-signed fields:
+   * `api_key_id`, `client_id`, `byok_exempt`, `redaction_manifest_hash`,
+   * `sanitized_fields_body_hash`, `tms_manifest_hash`. Without this guard,
+   * a v2-verified cert leaves those fields unverified by the witness.
+   *
+   * Default: `undefined` — backward-compatible behavior; both `'v2'` and
+   * `'v3'` certs are accepted.
+   */
+  minimumSignableVersion?: 'v2' | 'v3';
+}
+
 export interface VerifyCertificateResult {
   certificateId: string;
   requestId: string;
@@ -443,7 +464,35 @@ export interface VerifyCertificateResult {
    * >= 3`; `'v2'` for all other certs (legacy + dual-protocol certs where
    * the SDK fell back to v2).
    *
+   * @security When `signableVersion === 'v2'`, the following fields are NOT
+   * covered by the witness Ed25519 signature: `api_key_id`, `client_id`,
+   * `byok_exempt`, `redaction_manifest_hash`, `sanitized_fields_body_hash`,
+   * `tms_manifest_hash`. Callers making security decisions based on any of
+   * those fields MUST require `signableVersion === 'v3'` — pass
+   * `{ minimumSignableVersion: 'v3' }` to {@link verifyCertificate} to
+   * enforce this at the call site and receive
+   * `signable_version_insufficient` rather than silently accepting a v2 cert.
+   *
    * Criterion #7 from prd-2026-06-08-typed-message-schema-sanitizer-rewrite.
    */
   signableVersion: 'v2' | 'v3';
+
+  /**
+   * `true` when a `signable_v3_signature` was present on the cert but the
+   * version dispatch resolved to v2 (i.e. `signable_protocol_version_emitted`
+   * was absent or < 3). This is structurally anomalous — legitimate v3 certs
+   * always carry `signable_protocol_version_emitted >= 3`; legitimate v2
+   * certs never carry `signable_v3_signature`.
+   *
+   * When this field is `true`, `verifyCertificate` throws
+   * `LucairnCertificateError({ reason: 'version_downgrade_detected' })`
+   * rather than returning a result — this field on the `VerifyCertificateResult`
+   * type documents what would be surfaced if the check were opt-in, but in
+   * the current implementation the downgrade check is always enforced.
+   *
+   * `false` or `undefined` on all normal certs (pure v2 and pure v3).
+   *
+   * @see TOB-SDK-TS-01 (ToB review, 2026-06)
+   */
+  v3SignatureStripped: boolean;
 }

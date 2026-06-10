@@ -2,6 +2,7 @@ import { LucairnCertificateError } from '../errors.js';
 import type {
   VeilCertificate,
   VerifyCertificateKeys,
+  VerifyCertificateOptions,
   VerifyCertificateResult,
 } from '../types.js';
 import { parseCertificate } from './parse.js';
@@ -46,11 +47,24 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *   `Uint8Array`, OR a base64 string encoding those 32 bytes. NOT PEM
  *   SPKI. Malformed input surfaces as
  *   `LucairnCertificateError({ reason: 'invalid_signature', cause })`.
+ * @param options.minimumSignableVersion - when `'v3'`, throws
+ *   `LucairnCertificateError({ reason: 'signable_version_insufficient' })`
+ *   if the cert is verified via the v2 path. Use this when you rely on
+ *   v3-only witness-signed fields (api_key_id, client_id, byok_exempt,
+ *   and the sanitizer hash fields). Default: `undefined` (accept both).
  *
  * @returns `VerifyCertificateResult` on success. `signableVersion` indicates
- *   which protocol version was verified ('v2' or 'v3').
+ *   which protocol version was verified ('v2' or 'v3'). `v3SignatureStripped`
+ *   is always `false` on a successful return (the downgrade check throws
+ *   before returning when a stripped v3 sig is detected).
  *
- * @throws `LucairnCertificateError` with one of 5 reasons:
+ * @security When `result.signableVersion === 'v2'`, the fields `api_key_id`,
+ *   `client_id`, `byok_exempt`, `redaction_manifest_hash`,
+ *   `sanitized_fields_body_hash`, and `tms_manifest_hash` are NOT covered by
+ *   the witness Ed25519 signature. Pass `{ minimumSignableVersion: 'v3' }` to
+ *   enforce v3 at the call site if you rely on those fields.
+ *
+ * @throws `LucairnCertificateError` with one of 7 reasons:
  *   - `malformed` — cert shape invalid, or gateway invariant broken
  *     (cert.request_id mismatch vs claims[0]), or unknown verdict literal
  *   - `unsupported_protocol_version` — cert.protocol_version !== 2
@@ -59,10 +73,17 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *     whitespace-only
  *   - `invalid_signature` — Ed25519 verification failed, or the provided
  *     witnessPublicKey is malformed
+ *   - `version_downgrade_detected` — `signable_v3_signature` is present but
+ *     `signable_protocol_version_emitted` is absent or < 3; this is a
+ *     structural anomaly consistent with an attacker stripping the version
+ *     field to force the v2 path and leave v3-only fields unverified
+ *   - `signable_version_insufficient` — `options.minimumSignableVersion` is
+ *     `'v3'` but the resolved signable version is `'v2'`
  */
 export async function verifyCertificate(
   rawCert: unknown,
   keys: VerifyCertificateKeys,
+  options?: VerifyCertificateOptions,
 ): Promise<VerifyCertificateResult> {
   // Guard: null/undefined/non-object keys argument.
   if (keys === null || typeof keys !== 'object') {
@@ -110,20 +131,40 @@ export async function verifyCertificate(
   // Otherwise fall back to v2 (legacy + dual-protocol certs served to v0.5.x SDK).
   const sigEmitted = cert.signable_protocol_version_emitted ?? 0;
   const v3SigRaw = cert.signable_v3_signature;
-  const useV3 =
-    sigEmitted >= V3_SIGNABLE_VERSION_THRESHOLD &&
-    typeof v3SigRaw === 'string' &&
-    v3SigRaw.trim().length > 0;
+  const v3SigPresent = typeof v3SigRaw === 'string' && v3SigRaw.trim().length > 0;
+  const useV3 = sigEmitted >= V3_SIGNABLE_VERSION_THRESHOLD && v3SigPresent;
+
+  // Step 5a: downgrade-attack guard (TOB-SDK-TS-01).
+  //
+  // A v3 signature is present but the version indicator is absent or < 3.
+  // Legitimate v3 certs ALWAYS carry signable_protocol_version_emitted >= 3;
+  // legitimate v2-only certs NEVER carry signable_v3_signature. The only path
+  // that reaches here is a tampered cert where an attacker stripped the version
+  // field to force the v2 path, which would leave the 6 v3-only fields
+  // (api_key_id, client_id, byok_exempt, redaction_manifest_hash,
+  // sanitized_fields_body_hash, tms_manifest_hash) unverified while returning
+  // valid=true. We hard-reject rather than silently downgrade.
+  if (v3SigPresent && !useV3) {
+    throw new LucairnCertificateError(
+      'Version downgrade detected: signable_v3_signature is present but ' +
+        `signable_protocol_version_emitted (${sigEmitted}) is below the v3 threshold (${V3_SIGNABLE_VERSION_THRESHOLD}). ` +
+        'This is structurally anomalous — legitimate v2-only certs never carry a v3 signature. ' +
+        'Pass the cert without modification; if you control the signing infrastructure, ensure ' +
+        'signable_protocol_version_emitted is set correctly.',
+      { reason: 'version_downgrade_detected', certificateId: cert.certificate_id },
+    );
+  }
 
   if (useV3) {
-    return verifyV3(cert, keys, v3SigRaw as string);
+    return verifyV3(cert, keys, v3SigRaw as string, options);
   }
-  return verifyV2(cert, keys);
+  return verifyV2(cert, keys, options);
 }
 
 async function verifyV2(
   cert: VeilCertificate,
   keys: VerifyCertificateKeys,
+  options?: VerifyCertificateOptions,
 ): Promise<VerifyCertificateResult> {
   // v2 uses witness_signature (= signable_v2_signature byte-for-byte).
   let signedBytes: Uint8Array;
@@ -161,6 +202,16 @@ async function verifyV2(
     });
   }
 
+  // Strict-mode gate: caller explicitly requires v3.
+  if (options?.minimumSignableVersion === 'v3') {
+    throw new LucairnCertificateError(
+      'Caller requires minimumSignableVersion=\'v3\' but this certificate was verified via the v2 signable path. ' +
+        'v3-only fields (api_key_id, client_id, byok_exempt, and the sanitizer hash fields) are not ' +
+        'witness-signed on v2 certs. Upgrade the signing infrastructure or accept v2 certs explicitly.',
+      { reason: 'signable_version_insufficient', certificateId: cert.certificate_id },
+    );
+  }
+
   return buildResult(cert, 'v2');
 }
 
@@ -168,6 +219,7 @@ async function verifyV3(
   cert: VeilCertificate,
   keys: VerifyCertificateKeys,
   v3SigRaw: string,
+  _options?: VerifyCertificateOptions,
 ): Promise<VerifyCertificateResult> {
   let signedBytes: Uint8Array;
   try {
@@ -217,5 +269,8 @@ function buildResult(cert: VeilCertificate, signableVersion: 'v2' | 'v3'): Verif
     anchorStatus: cert.anchor_status?.status ?? 'ANCHOR_STATUS_UNSPECIFIED',
     overallVerdict: cert.verification.overall_verdict,
     signableVersion,
+    // Always false on the success path: the downgrade check throws before
+    // buildResult is reached when a stripped v3 sig is detected.
+    v3SignatureStripped: false,
   };
 }
