@@ -15,8 +15,8 @@ v2 keys (UNCHANGED, byte-identical):
   overall_verdict  witness_key_id
 
 v3-only promoted carry-forwards:
-  client_id               ← cert.client_id (None when empty/absent)
-  api_key_id              ← cert.api_key_id (None when empty/absent)
+  client_id               ← cert.client_id (None when absent/None; "" preserved as "")
+  api_key_id              ← cert.api_key_id (None when absent/None; "" preserved as "")
   byok_exempt             ← cert.verification.byok_exempt (bool, default False)
   redaction_manifest_hash ← dsa-sanitizer canonical_payload["redaction_manifest_hash"]
   sanitized_fields_body_hash ← dsa-sanitizer canonical_payload["sanitized_fields_hash"]
@@ -35,11 +35,19 @@ The SDK reconstruction reads from the same place — see
 
 --- Null/empty handling ---
 
-All six promoted keys carry None (→ canonical JSON ``null``) when the
-underlying source is absent or empty.  This matches Go's
-``optionalStringForSignable(nil)`` and ``sanitizerCanonicalPayloadStringForSignable``
-returning ``nil``.  ``tms_manifest_hash`` is always None until the TMS
-rewrite Slice 5 ships; v3 SDK reconstruction must accept this without error.
+``client_id`` and ``api_key_id`` map None/absent → canonical JSON ``null``,
+and the empty string ``""`` → canonical JSON ``""``.  This matches Go's
+``optionalStringForSignable``: a nil pointer produces ``null`` and a
+present pointer (even to an empty string) produces the string value.
+Pydantic gives ``None`` for a JSON-null or absent field and ``""`` for an
+explicit empty string; only ``None`` maps to ``null`` in the signable.
+
+The four hash fields (``redaction_manifest_hash``,
+``sanitized_fields_body_hash``, ``tms_manifest_hash``, ``byok_exempt``)
+carry None (→ ``null``) when the underlying source is absent or empty,
+matching ``sanitizerCanonicalPayloadStringForSignable`` returning ``nil``.
+``tms_manifest_hash`` is always None until the TMS rewrite Slice 5 ships;
+v3 SDK reconstruction must accept this without error.
 
 --- Encoding ---
 
@@ -143,10 +151,13 @@ def derive_v3_signed_bytes(cert: VeilCertificate) -> bytes:
     go_short_form = _VERDICT_FULL_TO_SHORT[full_name]
 
     # --- v3-only carry-forward fields ---
-    # client_id: None (null) when absent or empty — matches optionalStringForSignable(nil).
-    client_id: object = cert.client_id if cert.client_id else None
-    # api_key_id: same pattern.
-    api_key_id: object = cert.api_key_id if cert.api_key_id else None
+    # client_id: None (null) ONLY when absent/None — preserve "" when present.
+    # Matches Go optionalStringForSignable: nil pointer → null, present pointer
+    # → the string value INCLUDING "".  Pydantic gives None for absent/JSON-null
+    # and "" for an explicit empty string; only None maps to null.
+    client_id: object = cert.client_id if cert.client_id is not None else None
+    # api_key_id: same rule — None → null, "" → "" (preserves distinction).
+    api_key_id: object = cert.api_key_id if cert.api_key_id is not None else None
     # byok_exempt: bool, default False.
     byok_exempt: bool = cert.verification.byok_exempt
 

@@ -582,28 +582,52 @@ class TestDowngradeDetection:
         assert result.overall_verdict == "VERDICT_VERIFIED"
         assert not result.v3_signature_stripped
 
-    def test_v3_path_missing_v3_signature_raises_witness_signature_missing(
+    def test_v3_path_missing_v3_signature_raises_version_downgrade_detected(
         self,
         real_v3_cert: dict,
         production_keys: VerifyCertificateKeys,
     ) -> None:
-        """TEST (e) TOB-SDK-PY-02: v3-dispatched cert with empty signable_v3_signature
-        → honest witness_signature_missing (NOT misleading invalid_signature)."""
+        """TEST (e) canonical downgrade dispatch: emitted>=3 but signable_v3_signature
+        is empty → version_downgrade_detected (NOT witness_signature_missing).
+
+        A legitimate v3 cert ALWAYS carries both the version field and the v3 sig —
+        the witness assembler sets them atomically.  A missing v3 sig on a v3-versioned
+        cert means the sig was stripped.  Raises version_downgrade_detected to match
+        the other tampering direction (version stripped, sig present).
+        """
         import copy
 
         tampered = copy.deepcopy(real_v3_cert)
-        # Keep the version field (so v3 dispatch is triggered) but remove the v3 sig.
+        # Keep the version field (so v3 dispatch is triggered) but strip the v3 sig.
         assert tampered.get("signable_protocol_version_emitted") == 3
-        tampered["signable_v3_signature"] = ""  # empty — simulates missing sig
+        tampered["signable_v3_signature"] = ""  # stripped — downgrade attack direction 2
 
         with pytest.raises(LucairnCertificateError) as exc_info:
             verify_certificate(tampered, production_keys)
 
-        assert exc_info.value.reason == "witness_signature_missing", (
-            f"Expected reason='witness_signature_missing', got {exc_info.value.reason!r}\n"
-            "TOB-SDK-PY-02: the old fallback to witness_signature would have "
-            "surfaced as invalid_signature, masking the real cause."
+        assert exc_info.value.reason == "version_downgrade_detected", (
+            f"Expected reason='version_downgrade_detected', got {exc_info.value.reason!r}\n"
+            "Canonical downgrade-detection: emitted>=3 with absent/empty v3 sig is a "
+            "stripping attack — must raise version_downgrade_detected, not "
+            "witness_signature_missing."
         )
+
+    def test_v3_path_absent_v3_signature_field_raises_version_downgrade_detected(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """Variant of (e): signable_v3_signature key absent entirely → version_downgrade_detected."""
+        import copy
+
+        tampered = copy.deepcopy(real_v3_cert)
+        assert tampered.get("signable_protocol_version_emitted") == 3
+        tampered.pop("signable_v3_signature", None)
+
+        with pytest.raises(LucairnCertificateError) as exc_info:
+            verify_certificate(tampered, production_keys)
+
+        assert exc_info.value.reason == "version_downgrade_detected"
 
     def test_v3_signature_stripped_flag_false_on_genuine_v3(
         self,
@@ -622,6 +646,85 @@ class TestDowngradeDetection:
         cert_dict = json.loads((_TS_FIXTURES / "cert-valid-anchored.json").read_text())
         result = verify_certificate(cert_dict, test_keys)
         assert result.v3_signature_stripped is False
+
+
+# ---------------------------------------------------------------------------
+# TestEmptyOptionalPreservation — CODEX-SDKPY-01 regression
+#
+# client_id and api_key_id must preserve "" (empty string) in the v3 signable,
+# not coerce it to null.  Matches Go optionalStringForSignable behaviour: a nil
+# pointer → null; a present pointer (even to "") → the string value.
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyOptionalPreservation:
+    """CODEX-SDKPY-01 (MED): empty-string optionals preserved in v3 signable."""
+
+    def _make_cert(
+        self,
+        real_v3_cert: dict,
+        *,
+        client_id: "str | None",
+        api_key_id: "str | None",
+    ):  # type: ignore[return]
+        import copy
+
+        d = copy.deepcopy(real_v3_cert)
+        if client_id is None:
+            d.pop("client_id", None)
+        else:
+            d["client_id"] = client_id
+        if api_key_id is None:
+            d.pop("api_key_id", None)
+        else:
+            d["api_key_id"] = api_key_id
+        return parse_certificate(d)
+
+    def test_client_id_empty_string_preserved_as_empty_string(
+        self, real_v3_cert: dict
+    ) -> None:
+        """CODEX-SDKPY-01: client_id='' in cert → '' in v3 signable (NOT null).
+
+        Matches Go assembler optionalStringForSignable: a present pointer to ""
+        produces the JSON string "", not null.
+        """
+        cert = self._make_cert(real_v3_cert, client_id="", api_key_id="k_abc123")
+        v3_bytes = derive_v3_signed_bytes(cert)
+        decoded = json.loads(v3_bytes.decode())
+        assert decoded["client_id"] == "", (
+            f"client_id='' must appear as '' in the v3 signable, got {decoded['client_id']!r}. "
+            "CODEX-SDKPY-01: truthiness check was coercing empty string to null."
+        )
+
+    def test_api_key_id_empty_string_preserved_as_empty_string(
+        self, real_v3_cert: dict
+    ) -> None:
+        """CODEX-SDKPY-01: api_key_id='' in cert → '' in v3 signable (NOT null)."""
+        cert = self._make_cert(real_v3_cert, client_id=None, api_key_id="")
+        v3_bytes = derive_v3_signed_bytes(cert)
+        decoded = json.loads(v3_bytes.decode())
+        assert decoded["api_key_id"] == "", (
+            f"api_key_id='' must appear as '' in the v3 signable, got {decoded['api_key_id']!r}. "
+            "CODEX-SDKPY-01: truthiness check was coercing empty string to null."
+        )
+
+    def test_client_id_absent_produces_null(self, real_v3_cert: dict) -> None:
+        """Absent client_id (None / JSON-null) still produces null in v3 signable."""
+        cert = self._make_cert(real_v3_cert, client_id=None, api_key_id="k_abc")
+        decoded = json.loads(derive_v3_signed_bytes(cert).decode())
+        assert decoded["client_id"] is None
+
+    def test_api_key_id_absent_produces_null(self, real_v3_cert: dict) -> None:
+        """Absent api_key_id (None / JSON-null) still produces null in v3 signable."""
+        cert = self._make_cert(real_v3_cert, client_id="org_xyz", api_key_id=None)
+        decoded = json.loads(derive_v3_signed_bytes(cert).decode())
+        assert decoded["api_key_id"] is None
+
+    def test_client_id_non_empty_string_preserved(self, real_v3_cert: dict) -> None:
+        """A normal non-empty client_id passes through unchanged."""
+        cert = self._make_cert(real_v3_cert, client_id="org_abc123", api_key_id=None)
+        decoded = json.loads(derive_v3_signed_bytes(cert).decode())
+        assert decoded["client_id"] == "org_abc123"
 
 
 _TS_FIXTURES = (
