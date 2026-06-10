@@ -9,16 +9,18 @@ Version dispatch (SDK 1.2.0, dual-protocol v3 chain):
     ``cert.witness_signature`` (which mirrors ``signable_v2_signature``
     byte-for-byte).  Result carries ``signable_version='v2'``.
 
-Downgrade protection (TOB-SDK-PY-01):
-  - If a cert carries ``signable_v3_signature`` but the version dispatch
-    resolves to the v2 path (version field absent or < 3), this is a
-    signature-stripping downgrade attempt.  The pipeline raises
-    ``LucairnCertificateError(reason='version_downgrade_detected')``
-    before any v2 verification is attempted — a genuine v2-only cert never
-    carries a v3 signature, so legitimate certs are unaffected.
-  - The ``minimum_signable_version='v3'`` strict-mode parameter lets callers
-    in a v3 deployment fail-closed on any downgrade (including a fully-stripped
-    v3 cert that presents as a clean legacy v2 cert).
+Downgrade protection (canonical, both tampering directions rejected):
+  - If ``emitted >= 3`` but ``signable_v3_signature`` is absent or blank,
+    the v3 sig was stripped from a real v3 cert.  Raises
+    ``LucairnCertificateError(reason='version_downgrade_detected')``.
+  - If ``signable_v3_signature`` is present and non-empty but ``emitted < 3``,
+    the version field was stripped from a real v3 cert.  Raises
+    ``LucairnCertificateError(reason='version_downgrade_detected')``.
+  Legitimate v3 certs always carry BOTH (the assembler sets them atomically).
+  Legitimate legacy v2 certs carry NEITHER.  No false-rejects for either.
+  The ``minimum_signable_version='v3'`` strict-mode parameter lets callers
+  in a v3 deployment fail-closed on any downgrade (including a fully-stripped
+  v3 cert that presents as a clean legacy v2 cert).
 """
 
 from __future__ import annotations
@@ -99,9 +101,9 @@ def verify_certificate(
     Returns:
         :class:`VerifyCertificateResult` on success.  ``signable_version``
         is ``'v3'`` for new dual-protocol certs, ``'v2'`` for legacy certs.
-        ``v3_signature_stripped`` is ``True`` when the cert carried a v3
-        signature but the v2 path was taken (non-strict callers only — strict
-        mode raises before reaching the v2 path).
+        ``v3_signature_stripped`` is reserved; always ``False`` under the
+        current reject-on-downgrade policy (downgrades raise before the v2
+        path is taken — the flag is kept for forward-compatibility).
 
     Raises:
         LucairnCertificateError: with ``reason`` in one of:
@@ -109,12 +111,16 @@ def verify_certificate(
           * ``malformed`` — cert shape invalid or gateway invariant broken
           * ``unsupported_protocol_version`` — ``protocol_version != 2``
           * ``witness_mismatch`` — ``keys.witness_key_id`` mismatch
-          * ``witness_signature_missing`` — empty/whitespace-only signature
+          * ``witness_signature_missing`` — ``witness_signature`` field is
+            empty/whitespace-only (checked before version dispatch)
           * ``invalid_signature`` — Ed25519 verification failed or key
             input is malformed (wrong length, non-base64, etc.)
-          * ``version_downgrade_detected`` — cert has a non-empty
-            ``signable_v3_signature`` but the version field is absent or < 3,
-            indicating a stripping attack (TOB-SDK-PY-01).
+          * ``version_downgrade_detected`` — EITHER the version field is
+            absent or < 3 while a non-empty ``signable_v3_signature`` is
+            present (version stripped from a real v3 cert), OR the version
+            field is >= 3 while ``signable_v3_signature`` is absent or blank
+            (v3 sig stripped from a real v3 cert).  Both tampering directions
+            raise this reason.
           * ``signable_version_insufficient`` — ``minimum_signable_version``
             constraint was not met (strict-mode callers only).
         TypeError: if ``keys`` is not a :class:`VerifyCertificateKeys`
@@ -175,6 +181,24 @@ def verify_certificate(
 
     if use_v3:
         # v3 path: reconstruct 13-key signable + verify signable_v3_signature.
+
+        # Canonical downgrade check: a legitimate v3 cert ALWAYS carries a non-empty
+        # signable_v3_signature — the assembler sets them atomically.  If the version
+        # field says >=3 but the v3 signature is absent or blank, the sig was stripped
+        # from a real v3 cert (the other direction of a downgrade attack from the
+        # TOB-SDK-PY-01a guard above).  Raise the same reason so both tampering
+        # directions surface identically to the caller.
+        if not cert.signable_v3_signature or cert.signable_v3_signature.strip() == "":
+            raise LucairnCertificateError(
+                f"Certificate has signable_protocol_version_emitted="
+                f"{cert.signable_protocol_version_emitted!r} (>= 3) but "
+                "signable_v3_signature is absent or blank. A legitimate v3 cert "
+                "always carries the v3 signature — it appears to have been stripped. "
+                "Verification rejected to prevent downgrade attack.",
+                reason="version_downgrade_detected",
+                certificate_id=cert.certificate_id,
+            )
+
         try:
             signed_bytes = derive_v3_signed_bytes(cert)
         except LucairnCertificateError:
@@ -186,17 +210,6 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
                 cause=exc,
             ) from exc
-
-        # TOB-SDK-PY-02: on the v3 path, require signable_v3_signature to be
-        # present and non-empty.  The old fallback to witness_signature was
-        # wrong: verifying v3 bytes against the v2 sig always fails with
-        # invalid_signature, masking the real cause (missing v3 sig field).
-        if not cert.signable_v3_signature or cert.signable_v3_signature.strip() == "":
-            raise LucairnCertificateError(
-                "v3 certificate is missing signable_v3_signature",
-                reason="witness_signature_missing",
-                certificate_id=cert.certificate_id,
-            )
 
         try:
             signature_bytes = base64.b64decode(cert.signable_v3_signature, validate=True)
