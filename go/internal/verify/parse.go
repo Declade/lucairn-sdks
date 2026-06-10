@@ -176,11 +176,27 @@ func Parse(raw any) (*RawCert, error) {
 	cert.RawClaims = claimsRaw
 
 	// v3 promoted carry-forward fields.
-	if s, ok3 := m["client_id"].(string); ok3 && s != "" {
-		cert.ClientID = &s
+	//
+	// Presence-preserving decode: a JSON string value (including "") means the
+	// field is present → set the pointer to that string. Only an absent key or
+	// an explicit JSON null (which decodes as a nil interface value) maps to a
+	// nil pointer. Mirrors assembler.go::optionalStringForSignable where
+	// nil → canonical-JSON null and "" → canonical-JSON "".
+	//
+	// The previous `ok3 && s != ""` guard incorrectly collapsed present empty
+	// strings to nil, producing a canonical-JSON null in the v3 signable map
+	// instead of "" — a byte-identity divergence from the assembler.
+	if raw, exists := m["client_id"]; exists {
+		if s, ok3 := raw.(string); ok3 {
+			cert.ClientID = &s
+		}
+		// nil raw (explicit JSON null) → cert.ClientID stays nil → canonical null ✓
 	}
-	if s, ok3 := m["api_key_id"].(string); ok3 && s != "" {
-		cert.APIKeyID = &s
+	if raw, exists := m["api_key_id"]; exists {
+		if s, ok3 := raw.(string); ok3 {
+			cert.APIKeyID = &s
+		}
+		// nil raw (explicit JSON null) → cert.APIKeyID stays nil → canonical null ✓
 	}
 
 	return cert, nil

@@ -518,3 +518,320 @@ func TestRun_LegacyV2Cert_DefaultMode_NoRegression(t *testing.T) {
 		t.Errorf("V3SignatureStripped should be false for a genuine v2 cert (no v3 sig present)")
 	}
 }
+
+// --- CODEX-SDKGO-01: downgrade dispatch — version≥3 + sig absent direction ---
+//
+// TestRun_VersionDowngradeDetected_V3VersionPresentSigStripped verifies that
+// a cert where signable_protocol_version_emitted=3 but signable_v3_signature
+// has been stripped (absent/empty) returns ReasonVersionDowngradeDetected.
+// This closes the second tampering direction: attacker removes the sig (not
+// the version) to push the pipeline to a v2 fallback that skips v3-only fields.
+// Complement to TestRun_VersionDowngradeDetected_V3SigPresentVersionStripped
+// which covers the reverse direction.
+func TestRun_VersionDowngradeDetected_V3VersionPresentSigStripped(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	// Remove the v3 sig only; leave signable_protocol_version_emitted=3 in place.
+	delete(cert, "signable_v3_signature")
+
+	_, err := Run(cert, keyID, pubBytes, RunOptions{})
+	if err == nil {
+		t.Fatal("expected error for version=3 + missing v3 sig, got nil")
+	}
+	pe, ok := err.(*PipelineError)
+	if !ok {
+		t.Fatalf("expected *PipelineError, got %T: %v", err, err)
+	}
+	if pe.Reason != ReasonVersionDowngradeDetected {
+		t.Errorf("reason = %q, want %q", pe.Reason, ReasonVersionDowngradeDetected)
+	}
+	if !strings.Contains(pe.Message, "stripping attack") {
+		t.Errorf("message should mention 'stripping attack': %q", pe.Message)
+	}
+}
+
+// --- CODEX-SDKGO-01: empty-string optional byte-exactness (parse.go fix) ---
+//
+// Parse must preserve the presence of client_id / api_key_id as empty strings
+// (set *string to pointer-to-"") rather than collapsing "" to nil. nil encodes
+// as JSON null; "" encodes as JSON "". The assembler's optionalStringForSignable
+// uses the same rule. These tests lock the parse→signable encoding for all four
+// combinations: absent, JSON null, "", and non-empty value.
+
+func TestParse_ClientID_AbsentMapsToNil(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		// client_id: absent
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.ClientID != nil {
+		t.Errorf("absent client_id: ClientID = %v (%q), want nil", parsed.ClientID, *parsed.ClientID)
+	}
+}
+
+func TestParse_ClientID_NullMapsToNil(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"client_id":    nil, // explicit JSON null (nil interface)
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.ClientID != nil {
+		t.Errorf("null client_id: ClientID = %v (%q), want nil", parsed.ClientID, *parsed.ClientID)
+	}
+}
+
+func TestParse_ClientID_EmptyStringPreserved(t *testing.T) {
+	emptyStr := ""
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"client_id":    emptyStr, // present as ""
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.ClientID == nil {
+		t.Fatal("empty-string client_id: ClientID = nil, want pointer to \"\"")
+	}
+	if *parsed.ClientID != "" {
+		t.Errorf("empty-string client_id: *ClientID = %q, want \"\"", *parsed.ClientID)
+	}
+}
+
+func TestParse_ClientID_NonEmptyValuePreserved(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"client_id":    "org_abc123",
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.ClientID == nil {
+		t.Fatal("non-empty client_id: ClientID = nil, want pointer")
+	}
+	if *parsed.ClientID != "org_abc123" {
+		t.Errorf("non-empty client_id: *ClientID = %q, want %q", *parsed.ClientID, "org_abc123")
+	}
+}
+
+// Same four cases for api_key_id.
+func TestParse_APIKeyID_AbsentMapsToNil(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		// api_key_id: absent
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.APIKeyID != nil {
+		t.Errorf("absent api_key_id: APIKeyID = %v (%q), want nil", parsed.APIKeyID, *parsed.APIKeyID)
+	}
+}
+
+func TestParse_APIKeyID_NullMapsToNil(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"api_key_id":   nil, // explicit JSON null
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.APIKeyID != nil {
+		t.Errorf("null api_key_id: APIKeyID = %v (%q), want nil", parsed.APIKeyID, *parsed.APIKeyID)
+	}
+}
+
+func TestParse_APIKeyID_EmptyStringPreserved(t *testing.T) {
+	emptyStr := ""
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"api_key_id":   emptyStr, // present as ""
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.APIKeyID == nil {
+		t.Fatal("empty-string api_key_id: APIKeyID = nil, want pointer to \"\"")
+	}
+	if *parsed.APIKeyID != "" {
+		t.Errorf("empty-string api_key_id: *APIKeyID = %q, want \"\"", *parsed.APIKeyID)
+	}
+}
+
+func TestParse_APIKeyID_NonEmptyValuePreserved(t *testing.T) {
+	raw := map[string]any{
+		"certificate_id":    "veil_x_0001",
+		"request_id":        "req_x_0001",
+		"witness_key_id":    "wk1",
+		"witness_signature": "aGVsbG8=",
+		"issued_at":         "2026-04-20T05:24:12.710321721Z",
+		"protocol_version":  float64(2),
+		"claims": []any{
+			map[string]any{"claim_id": "c1", "request_id": "req_x_0001"},
+		},
+		"verification": map[string]any{"overall_verdict": "VERDICT_VERIFIED"},
+		"api_key_id":   "k_abc123",
+	}
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if parsed.APIKeyID == nil {
+		t.Fatal("non-empty api_key_id: APIKeyID = nil, want pointer")
+	}
+	if *parsed.APIKeyID != "k_abc123" {
+		t.Errorf("non-empty api_key_id: *APIKeyID = %q, want %q", *parsed.APIKeyID, "k_abc123")
+	}
+}
+
+// TestDeriveV3SignedBytes_EmptyStringOptional_ProducesEmptyStringInSignable
+// verifies that a present-but-empty client_id or api_key_id produces the
+// canonical-JSON string "" (not null) in the v3 signable map. This is the
+// byte-exactness assertion downstream of the parse fix: "" → pointer-to-"" →
+// optStr returns "" → canonical-JSON "". The key distinction: "" and null
+// produce different bytes in the signable, so the assembler's decision is load-
+// bearing and the parser must mirror it exactly.
+func TestDeriveV3SignedBytes_EmptyStringOptional_ProducesEmptyStringInSignable(t *testing.T) {
+	emptyStr := ""
+	out, err := DeriveV3SignedBytes(DeriveV3SignedBytesInput{
+		CertificateID:          "veil_oracle_0000000000000001",
+		RequestID:              "req_oracle_0000000000000001",
+		ClaimRequestIDs:        []string{"req_oracle_0000000000000001"},
+		ClaimIDs:               []string{"clm_oracle_dsa-bridge"},
+		IssuedAt:               "2026-04-20T05:24:12.710321721Z",
+		OverallVerdictFullName: "VERDICT_VERIFIED",
+		WitnessKeyID:           "witness_v1",
+		ClientID:               &emptyStr, // present as ""
+		APIKeyID:               &emptyStr, // present as ""
+	})
+	if err != nil {
+		t.Fatalf("DeriveV3SignedBytes error: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(out, &decoded); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+
+	// client_id: present as "" → must be "" in signable (not null).
+	if v, ok := decoded["client_id"]; !ok {
+		t.Error("client_id key absent from v3 signable")
+	} else if v != "" {
+		t.Errorf("client_id = %v (%T), want empty string \"\"", v, v)
+	}
+
+	// api_key_id: present as "" → must be "" in signable (not null).
+	if v, ok := decoded["api_key_id"]; !ok {
+		t.Error("api_key_id key absent from v3 signable")
+	} else if v != "" {
+		t.Errorf("api_key_id = %v (%T), want empty string \"\"", v, v)
+	}
+}
+
+// TestDeriveV3SignedBytes_NilOptional_ProducesNullInSignable is the
+// symmetric case: nil pointer → canonical-JSON null (not "").
+func TestDeriveV3SignedBytes_NilOptional_ProducesNullInSignable(t *testing.T) {
+	out, err := DeriveV3SignedBytes(DeriveV3SignedBytesInput{
+		CertificateID:          "veil_oracle_0000000000000001",
+		RequestID:              "req_oracle_0000000000000001",
+		ClaimRequestIDs:        []string{"req_oracle_0000000000000001"},
+		ClaimIDs:               []string{"clm_oracle_dsa-bridge"},
+		IssuedAt:               "2026-04-20T05:24:12.710321721Z",
+		OverallVerdictFullName: "VERDICT_VERIFIED",
+		WitnessKeyID:           "witness_v1",
+		// ClientID and APIKeyID: nil → canonical null
+	})
+	if err != nil {
+		t.Fatalf("DeriveV3SignedBytes error: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(out, &decoded); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+
+	// nil pointer → nil in map → canonical-JSON null → decoded as nil.
+	if v, ok := decoded["client_id"]; !ok {
+		t.Error("client_id key absent from v3 signable (must be present as null)")
+	} else if v != nil {
+		t.Errorf("nil client_id = %v (%T), want nil (canonical null)", v, v)
+	}
+	if v, ok := decoded["api_key_id"]; !ok {
+		t.Error("api_key_id key absent from v3 signable (must be present as null)")
+	} else if v != nil {
+		t.Errorf("nil api_key_id = %v (%T), want nil (canonical null)", v, v)
+	}
+}

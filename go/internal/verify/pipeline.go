@@ -179,11 +179,27 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 
 	if useV3 {
 		// v3 path: reconstruct 13-key map, verify against signable_v3_signature.
+		//
+		// A legitimate v3 cert ALWAYS carries a non-empty signable_v3_signature —
+		// the assembler populates both on every v3 emit. A cert with
+		// signable_protocol_version_emitted=3 but a missing/empty v3 sig is
+		// characteristic of the other stripping direction: an adversary stripped
+		// the sig (not the version) to force a v2 fallback that would skip
+		// verification of the six v3-only fields. Reject as downgrade tampering
+		// rather than witness_signature_missing (which implies a structural
+		// malformation on an otherwise-genuine v2 cert).
 		if strings.TrimSpace(parsed.SignableV3Signature) == "" {
 			return nil, &PipelineError{
-				Reason:        ReasonWitnessSignatureMissing,
+				Reason:        ReasonVersionDowngradeDetected,
 				CertificateID: parsed.CertificateID,
-				Message:       "cert carries signable_protocol_version_emitted=3 but signable_v3_signature is absent",
+				Message: fmt.Sprintf(
+					"version downgrade detected: signable_protocol_version_emitted=%d "+
+						"but signable_v3_signature is absent or empty; "+
+						"a legitimate v3 cert always carries the v3 signature — "+
+						"missing sig with version=3 is characteristic of a stripping attack "+
+						"targeting the six v3-only fields (api_key_id, client_id, byok_exempt, hash fields)",
+					parsed.SignableProtocolVersionEmitted,
+				),
 			}
 		}
 		var v3err error
