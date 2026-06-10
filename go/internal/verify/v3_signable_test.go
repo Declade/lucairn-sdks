@@ -2,6 +2,7 @@ package verify
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -82,7 +83,7 @@ func TestDeriveV3SignedBytes_RealProductionCert_RoundTrip(t *testing.T) {
 	}
 
 	// Run the full verify pipeline.
-	result, runErr := Run(rawCert, keyID, pubBytes)
+	result, runErr := Run(rawCert, keyID, pubBytes, RunOptions{})
 	if runErr != nil {
 		t.Fatalf("Run failed on real production v3 cert: %v\n"+
 			"This means the v3 signable reconstruction is NOT byte-exact.\n"+
@@ -145,7 +146,7 @@ func TestDeriveV3SignedBytes_V2BackwardCompat_SameRealCert(t *testing.T) {
 		t.Fatalf("decode production public key: %v", err)
 	}
 
-	result, runErr := Run(v2Cert, keyID, pubBytes)
+	result, runErr := Run(v2Cert, keyID, pubBytes, RunOptions{})
 	if runErr != nil {
 		t.Fatalf("v2 backward-compat verification failed: %v\n"+
 			"witness_signature must equal signable_v2_signature on a v3 cert (PRD criterion #8).",
@@ -258,7 +259,7 @@ func TestDeriveV3SignedBytes_TrailingZeroIssuedAt_RoundTrip(t *testing.T) {
 		t.Fatalf("decode production public key: %v", err)
 	}
 
-	result, runErr := Run(paddedCert, keyID, pubBytes)
+	result, runErr := Run(paddedCert, keyID, pubBytes, RunOptions{})
 	if runErr != nil {
 		t.Fatalf("H6 regression: padded issued_at %q failed verification: %v\n"+
 			"normalizeIssuedAt must strip trailing zeros before placing issued_at in signable bytes.",
@@ -318,4 +319,202 @@ func keysOf(m map[string]any) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// --- TOB-SDK-GO-02: v3 byte-identity freeze test ---
+//
+// Companion to TestDeriveSignedBytes_MatchesSignableFreezeHex (v2 analog in
+// canonical_test.go). Pins the 13-key v3 signable map canonical bytes against
+// a golden hex stored in testdata/v3-signable-go-reference.hex.
+//
+// This catches cross-language byte drift at the byte level — any change to key
+// ordering, field encoding, or canonical-JSON serialization will fail here
+// before reaching the higher signature-verification layer.
+//
+// The oracle input uses the same fixed values as the v2 freeze test, with all
+// six v3-only optional fields absent (nil → null / false) to produce a
+// deterministic stable baseline. The hex was produced by running
+// DeriveV3SignedBytes over these inputs at the time of introduction — do NOT
+// regenerate just because you changed something; if this test fails, fix the
+// reconstruction.
+func TestDeriveV3SignedBytes_MatchesSignableFreezeHex(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	hexPath := filepath.Join(cwd, "testdata", "v3-signable-go-reference.hex")
+	hexBytes, err := os.ReadFile(hexPath)
+	if err != nil {
+		t.Fatalf("read testdata/v3-signable-go-reference.hex: %v", err)
+	}
+	expectedHex := strings.TrimSpace(string(hexBytes))
+
+	// Oracle input — same certificate identity as the v2 freeze test; all six
+	// v3-only optional fields absent so the freeze is minimal and portable.
+	out, err := DeriveV3SignedBytes(DeriveV3SignedBytesInput{
+		CertificateID: "veil_oracle_0000000000000001",
+		RequestID:     "req_oracle_0000000000000001",
+		ClaimRequestIDs: []string{
+			"req_oracle_0000000000000001",
+		},
+		ClaimIDs: []string{
+			"clm_oracle_dsa-bridge",
+		},
+		IssuedAt:               "2026-04-20T05:24:12.710321721Z",
+		OverallVerdictFullName: "VERDICT_VERIFIED",
+		WitnessKeyID:           "witness_v1",
+		// ClientID, APIKeyID, ByokExempt, hashes: all zero/nil → null/false in signable.
+	})
+	if err != nil {
+		t.Fatalf("DeriveV3SignedBytes returned error: %v", err)
+	}
+
+	actualHex := hex.EncodeToString(out)
+	if actualHex != expectedHex {
+		t.Fatalf("v3 signable byte-equality failed (13-key freeze violated):\n"+
+			"  got:  %s\n  want: %s\n  got-json: %s",
+			actualHex, expectedHex, string(out))
+	}
+}
+
+// --- TOB-SDK-GO-01: downgrade detection tests ---
+
+// buildRealV3Cert loads the real production v3 cert and returns a deep copy
+// as a mutable map. Requires the production witness key fixture.
+func buildRealV3Cert(t *testing.T) (certMap map[string]any, keyID string, pubBytes []byte) {
+	t.Helper()
+	certData := loadV3Fixture(t, "real-v3-cert.fixture.json")
+	var raw map[string]any
+	if err := json.Unmarshal(certData, &raw); err != nil {
+		t.Fatalf("parse real-v3-cert.fixture.json: %v", err)
+	}
+	// Deep-copy via JSON round-trip.
+	b, _ := json.Marshal(raw)
+	var copy map[string]any
+	_ = json.Unmarshal(b, &copy)
+
+	keyID, pubBase64 := loadProductionWitnessPublicKey(t)
+	pb, err := base64.StdEncoding.DecodeString(pubBase64)
+	if err != nil {
+		t.Fatalf("decode production public key: %v", err)
+	}
+	return copy, keyID, pb
+}
+
+// TestRun_VersionDowngradeDetected_V3SigPresentVersionStripped verifies that a
+// cert where signable_v3_signature is present but
+// signable_protocol_version_emitted is stripped returns
+// ReasonVersionDowngradeDetected (TOB-SDK-GO-01a).
+func TestRun_VersionDowngradeDetected_V3SigPresentVersionStripped(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	// Strip the version field only; leave signable_v3_signature in place.
+	delete(cert, "signable_protocol_version_emitted")
+
+	_, err := Run(cert, keyID, pubBytes, RunOptions{})
+	if err == nil {
+		t.Fatal("expected error for downgrade-stripped cert, got nil")
+	}
+	pe, ok := err.(*PipelineError)
+	if !ok {
+		t.Fatalf("expected *PipelineError, got %T: %v", err, err)
+	}
+	if pe.Reason != ReasonVersionDowngradeDetected {
+		t.Errorf("reason = %q, want %q", pe.Reason, ReasonVersionDowngradeDetected)
+	}
+	if !strings.Contains(pe.Message, "stripping attack") {
+		t.Errorf("message should mention 'stripping attack': %q", pe.Message)
+	}
+}
+
+// TestRun_VersionDowngradeDetected_V3SigPresentVersionSetToTwo is the variant
+// where the attacker sets signable_protocol_version_emitted = 2 explicitly
+// instead of removing the field (TOB-SDK-GO-01a variant).
+func TestRun_VersionDowngradeDetected_V3SigPresentVersionSetToTwo(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	// Set version to 2 (< 3) while leaving the v3 sig present.
+	cert["signable_protocol_version_emitted"] = float64(2)
+
+	_, err := Run(cert, keyID, pubBytes, RunOptions{})
+	if err == nil {
+		t.Fatal("expected error for version=2+v3sig cert, got nil")
+	}
+	pe, ok := err.(*PipelineError)
+	if !ok {
+		t.Fatalf("expected *PipelineError, got %T: %v", err, err)
+	}
+	if pe.Reason != ReasonVersionDowngradeDetected {
+		t.Errorf("reason = %q, want %q", pe.Reason, ReasonVersionDowngradeDetected)
+	}
+}
+
+// TestRun_MinimumSignableVersion_V3_OnV2Cert verifies that
+// MinimumSignableVersion:"v3" rejects a fully-stripped v2-only cert with
+// ReasonSignableVersionInsufficient (TOB-SDK-GO-01b).
+func TestRun_MinimumSignableVersion_V3_OnV2Cert(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	// Produce a fully-stripped v2 cert: remove both version AND v3 sig.
+	// witness_signature is the v2 sig and is untouched; this mimics a
+	// genuine v2-path (no stripping attack, no v3 sig present).
+	delete(cert, "signable_protocol_version_emitted")
+	delete(cert, "signable_v3_signature")
+
+	_, err := Run(cert, keyID, pubBytes, RunOptions{MinimumSignableVersion: "v3"})
+	if err == nil {
+		t.Fatal("expected error for v2 cert with MinimumSignableVersion=v3, got nil")
+	}
+	pe, ok := err.(*PipelineError)
+	if !ok {
+		t.Fatalf("expected *PipelineError, got %T: %v", err, err)
+	}
+	if pe.Reason != ReasonSignableVersionInsufficient {
+		t.Errorf("reason = %q, want %q", pe.Reason, ReasonSignableVersionInsufficient)
+	}
+	if !strings.Contains(pe.Message, "v3") {
+		t.Errorf("message should mention 'v3': %q", pe.Message)
+	}
+}
+
+// TestRun_MinimumSignableVersion_V3_OnGenuineV3Cert verifies that
+// MinimumSignableVersion:"v3" passes a genuine v3 cert with
+// SignableVersion="v3" (TOB-SDK-GO-01c).
+func TestRun_MinimumSignableVersion_V3_OnGenuineV3Cert(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	result, err := Run(cert, keyID, pubBytes, RunOptions{MinimumSignableVersion: "v3"})
+	if err != nil {
+		t.Fatalf("genuine v3 cert with MinimumSignableVersion=v3 failed: %v", err)
+	}
+	if result.SignableVersion != "v3" {
+		t.Errorf("SignableVersion = %q, want %q", result.SignableVersion, "v3")
+	}
+	if result.V3SignatureStripped {
+		t.Errorf("V3SignatureStripped should be false on a genuine v3 cert")
+	}
+}
+
+// TestRun_LegacyV2Cert_DefaultMode_NoRegression verifies that a genuine legacy
+// v2 cert (no signable_v3_signature, no version field) still verifies with
+// SignableVersion="v2" under default mode (no MinimumSignableVersion set).
+// This is the primary backward-compat regression guard (TOB-SDK-GO-01d).
+func TestRun_LegacyV2Cert_DefaultMode_NoRegression(t *testing.T) {
+	cert, keyID, pubBytes := buildRealV3Cert(t)
+
+	// Build a genuine v2-only cert from the v3 fixture: remove both v3 fields.
+	delete(cert, "signable_protocol_version_emitted")
+	delete(cert, "signable_v3_signature")
+	// witness_signature = signable_v2_signature = the v2 sig; v2 path verifies.
+
+	result, err := Run(cert, keyID, pubBytes, RunOptions{})
+	if err != nil {
+		t.Fatalf("legacy v2 cert failed under default mode: %v", err)
+	}
+	if result.SignableVersion != "v2" {
+		t.Errorf("SignableVersion = %q, want %q (v2 backward-compat regression)", result.SignableVersion, "v2")
+	}
+	if result.V3SignatureStripped {
+		t.Errorf("V3SignatureStripped should be false for a genuine v2 cert (no v3 sig present)")
+	}
 }

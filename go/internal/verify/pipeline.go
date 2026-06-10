@@ -28,6 +28,11 @@ type Result struct {
 	// map. Corresponds to PRD criterion #7. Empty only on unexpected internal
 	// paths (should never happen in practice).
 	SignableVersion string
+	// V3SignatureStripped is true when signable_v3_signature was present but
+	// the pipeline resolved to the v2 path (version absent/< 3). Always false
+	// on a successful default-mode verification (the stripping guard rejects
+	// such certs before reaching this point).
+	V3SignatureStripped bool
 }
 
 // FailureReason matches lucairn.VerifyCertificateFailureReason literals.
@@ -36,11 +41,13 @@ type Result struct {
 type FailureReason string
 
 const (
-	ReasonMalformed                  FailureReason = "malformed"
-	ReasonUnsupportedProtocolVersion FailureReason = "unsupported_protocol_version"
-	ReasonWitnessMismatch            FailureReason = "witness_mismatch"
-	ReasonWitnessSignatureMissing    FailureReason = "witness_signature_missing"
-	ReasonInvalidSignature           FailureReason = "invalid_signature"
+	ReasonMalformed                   FailureReason = "malformed"
+	ReasonUnsupportedProtocolVersion  FailureReason = "unsupported_protocol_version"
+	ReasonWitnessMismatch             FailureReason = "witness_mismatch"
+	ReasonWitnessSignatureMissing     FailureReason = "witness_signature_missing"
+	ReasonInvalidSignature            FailureReason = "invalid_signature"
+	ReasonVersionDowngradeDetected    FailureReason = "version_downgrade_detected"
+	ReasonSignableVersionInsufficient FailureReason = "signable_version_insufficient"
 )
 
 // PipelineError is the typed error returned by Run. The parent package
@@ -55,9 +62,18 @@ type PipelineError struct {
 func (e *PipelineError) Error() string { return e.Message }
 func (e *PipelineError) Unwrap() error { return e.Err }
 
+// RunOptions carries optional behavioral flags for Run. Zero value is safe
+// and gives default backward-compatible behavior.
+type RunOptions struct {
+	// MinimumSignableVersion, when set to "v3", causes Run to return
+	// ReasonSignableVersionInsufficient if the resolved signable version is
+	// not "v3". Empty string (default) allows both v2 and v3.
+	MinimumSignableVersion string
+}
+
 // Run executes the full verify pipeline on a raw JSON-decoded cert body.
 // On success returns (Result, nil). On failure returns (_, *PipelineError).
-func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any) (*Result, error) {
+func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts RunOptions) (*Result, error) {
 	parsed, err := Parse(rawCert)
 	if err != nil {
 		var em *ErrParseMalformed
@@ -117,6 +133,45 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any) (*Resul
 	// on all v3 certs, so an old SDK using witness_signature still verifies.
 	// New SDKs use the explicit v3 path for v3 certs.
 	useV3 := parsed.SignableProtocolVersionEmitted >= 3
+
+	// --- TOB-SDK-GO-01 (MED): downgrade stripping guard ---
+	//
+	// Detect partial downgrade: signable_v3_signature is present and non-empty
+	// but signable_protocol_version_emitted is absent or < 3. This pattern is
+	// characteristic of an active stripping attack — an adversary removed the
+	// version field to force v2 dispatch, which would leave the six v3-only
+	// fields (api_key_id, client_id, byok_exempt, redaction_manifest_hash,
+	// sanitized_fields_body_hash, tms_manifest_hash) unverified while returning
+	// "valid".
+	//
+	// Genuine certs:
+	//   v2-only (legacy): signable_v3_signature absent/empty AND version absent.
+	//   v3 dual-protocol: BOTH signable_v3_signature non-empty AND version=3.
+	//
+	// The combination "v3 sig present + version absent/low" is not a valid cert
+	// shape; reject it unconditionally.
+	v3SigPresent := strings.TrimSpace(parsed.SignableV3Signature) != ""
+	if v3SigPresent && !useV3 {
+		return nil, &PipelineError{
+			Reason:        ReasonVersionDowngradeDetected,
+			CertificateID: parsed.CertificateID,
+			Message: fmt.Sprintf(
+				"version downgrade detected: signable_v3_signature is present but "+
+					"signable_protocol_version_emitted is %d (< 3); "+
+					"this is characteristic of a stripping attack that would leave "+
+					"v3-only fields (api_key_id, client_id, byok_exempt, hash fields) "+
+					"unverified while returning a valid v2 signature",
+				parsed.SignableProtocolVersionEmitted,
+			),
+		}
+	}
+
+	// Track whether a v3 sig was present when we took the v2 path. This can
+	// only happen if the caller opts out of the stripping guard (which we do
+	// not expose in the public API at this time; the field is reserved for
+	// diagnostic use). With the guard above in place this will always be false
+	// on the success path.
+	v3SignatureStripped := v3SigPresent && !useV3
 
 	var signedBytes []byte
 	var signatureToVerify string
@@ -231,13 +286,33 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any) (*Resul
 		anchorStatus = "ANCHOR_STATUS_UNSPECIFIED"
 	}
 
+	// --- TOB-SDK-GO-01 (MED): minimum signable version enforcement ---
+	//
+	// When the caller requires v3 guarantees for the six additional signed
+	// fields, reject any cert that resolved to v2 verification.
+	if opts.MinimumSignableVersion == "v3" && signableVersion != "v3" {
+		return nil, &PipelineError{
+			Reason:        ReasonSignableVersionInsufficient,
+			CertificateID: parsed.CertificateID,
+			Message: fmt.Sprintf(
+				"signable version insufficient: MinimumSignableVersion=%q but cert "+
+					"resolved to signable_version=%q; "+
+					"fields api_key_id, client_id, byok_exempt, redaction_manifest_hash, "+
+					"sanitized_fields_body_hash, and tms_manifest_hash are NOT covered "+
+					"by the witness signature on v2 certs",
+				opts.MinimumSignableVersion, signableVersion,
+			),
+		}
+	}
+
 	return &Result{
-		CertificateID:   parsed.CertificateID,
-		RequestID:       parsed.RequestID,
-		WitnessKeyID:    parsed.WitnessKeyID,
-		IssuedAtISO:     parsed.IssuedAt,
-		AnchorStatus:    anchorStatus,
-		OverallVerdict:  parsed.OverallVerdict,
-		SignableVersion: signableVersion,
+		CertificateID:       parsed.CertificateID,
+		RequestID:           parsed.RequestID,
+		WitnessKeyID:        parsed.WitnessKeyID,
+		IssuedAtISO:         parsed.IssuedAt,
+		AnchorStatus:        anchorStatus,
+		OverallVerdict:      parsed.OverallVerdict,
+		SignableVersion:     signableVersion,
+		V3SignatureStripped: v3SignatureStripped,
 	}, nil
 }

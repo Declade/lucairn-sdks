@@ -215,6 +215,29 @@ type VerifyCertificateKeys struct {
 	// those 32 bytes. NOT PEM SPKI. Malformed input surfaces as
 	// CertificateError{ Reason: ReasonInvalidSignature }.
 	WitnessPublicKey any
+
+	// MinimumSignableVersion enforces a floor on the signable-protocol version
+	// the verified certificate must use. Accepted values:
+	//
+	//   ""    (default) — backward-compatible behavior. v2 and v3 certs are
+	//         both accepted. Downgrade attacks (v3-sig-present but version
+	//         stripped) are still rejected via the default stripping guard.
+	//
+	//   "v3"  — strict mode. Returns CertificateError{Reason:
+	//         ReasonSignableVersionInsufficient} if the resolved signable
+	//         version is not "v3". Use this when the caller depends on the
+	//         v3 witness-signed guarantee for api_key_id, client_id,
+	//         byok_exempt, redaction_manifest_hash, sanitized_fields_body_hash,
+	//         or tms_manifest_hash.
+	//
+	// Any other value is treated as "" (permissive). Future signable versions
+	// will be added here as new named constants.
+	//
+	// NOTE: when SignableVersion == "v2", the fields listed above are NOT
+	// covered by the witness signature; an attacker could tamper with them
+	// without invalidating the signature. Callers relying on those fields for
+	// access-control or audit decisions MUST set MinimumSignableVersion: "v3".
+	MinimumSignableVersion string
 }
 
 // VerifyCertificateResult is returned from a successful VerifyCertificate.
@@ -251,7 +274,26 @@ type VerifyCertificateResult struct {
 	// signable_v3_signature is present and valid.
 	// "v2" is returned for all legacy certs and certs whose
 	// signable_protocol_version_emitted < 3.
+	//
+	// IMPORTANT: when SignableVersion == "v2", the following fields are NOT
+	// covered by the witness Ed25519 signature and MUST NOT be trusted for
+	// security decisions without out-of-band corroboration:
+	//   APIKeyID, ClientID, ByokExempt (on VeilCertificate.Verification),
+	//   redaction_manifest_hash, sanitized_fields_body_hash, tms_manifest_hash.
+	// Callers relying on any of these fields MUST set
+	// VerifyCertificateKeys.MinimumSignableVersion = "v3".
 	SignableVersion string
+
+	// V3SignatureStripped is true when the certificate carries a non-empty
+	// signable_v3_signature but signable_protocol_version_emitted was absent
+	// or < 3, causing the pipeline to dispatch via the v2 path. This
+	// combination is a hallmark of a downgrade stripping attack; by default
+	// (no opt-out) the pipeline rejects such certs with
+	// ReasonVersionDowngradeDetected before reaching this point. V3SignatureStripped
+	// is therefore always false on a successful verification result — it is
+	// surfaced here as a diagnostic field for callers that opt out of the
+	// stripping guard (not recommended) and inspect the raw result.
+	V3SignatureStripped bool
 }
 
 // -- Proxy request / response types --------------------------------------

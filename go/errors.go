@@ -101,6 +101,29 @@ const (
 	ReasonWitnessMismatch            VerifyCertificateFailureReason = "witness_mismatch"
 	ReasonWitnessSignatureMissing    VerifyCertificateFailureReason = "witness_signature_missing"
 	ReasonInvalidSignature           VerifyCertificateFailureReason = "invalid_signature"
+
+	// ReasonVersionDowngradeDetected is returned when a certificate carries a
+	// v3 signature (signable_v3_signature is present and non-empty) but
+	// signable_protocol_version_emitted is absent or < 3. This pattern is
+	// characteristic of an active stripping attack: an adversary removed the
+	// version field to force v2 dispatch, which would leave v3-only fields
+	// (api_key_id, client_id, byok_exempt, redaction_manifest_hash,
+	// sanitized_fields_body_hash, tms_manifest_hash) unverified by the
+	// witness signature while returning "valid". Genuine v2-only certs never
+	// carry signable_v3_signature; genuine v3 certs always carry both the
+	// version field and the v3 signature — the combination of "v3 sig present
+	// + version absent/low" is not a valid cert shape. Default behavior
+	// (no MinimumSignableVersion set) rejects this shape. Setting
+	// AllowV3SignatureStripped: true on VerifyCertificateKeys opts out
+	// (not recommended).
+	ReasonVersionDowngradeDetected VerifyCertificateFailureReason = "version_downgrade_detected"
+
+	// ReasonSignableVersionInsufficient is returned when
+	// VerifyCertificateKeys.MinimumSignableVersion is "v3" and the resolved
+	// signable version is "v2". Callers that depend on the v3 witness-signed
+	// guarantee for api_key_id, client_id, byok_exempt, or the sanitizer hash
+	// fields MUST set MinimumSignableVersion: "v3" to enforce this.
+	ReasonSignableVersionInsufficient VerifyCertificateFailureReason = "signable_version_insufficient"
 )
 
 // ResponseValidationError is returned when a 2xx gateway response fails

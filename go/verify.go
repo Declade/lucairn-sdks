@@ -38,7 +38,9 @@ func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificate
 		return nil, err
 	}
 
-	result, runErr := verify.Run(rawAny, keys.WitnessKeyID, keys.WitnessPublicKey)
+	result, runErr := verify.Run(rawAny, keys.WitnessKeyID, keys.WitnessPublicKey, verify.RunOptions{
+		MinimumSignableVersion: keys.MinimumSignableVersion,
+	})
 	if runErr != nil {
 		var pe *verify.PipelineError
 		if errors.As(runErr, &pe) {
@@ -72,6 +74,7 @@ func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificate
 		AnchorStatus:               VeilCertAnchorStatus(result.AnchorStatus),
 		OverallVerdict:             VeilVerdict(result.OverallVerdict),
 		SignableVersion:            result.SignableVersion,
+		V3SignatureStripped:        result.V3SignatureStripped,
 	}, nil
 }
 
