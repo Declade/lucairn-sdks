@@ -36,6 +36,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.test.json"

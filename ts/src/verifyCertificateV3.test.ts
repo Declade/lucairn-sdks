@@ -324,22 +324,41 @@ describe('verifyCertificate v3 — version dispatch', () => {
     });
   });
 
-  it('(g) falls back to v2 when signable_v3_signature is empty string', async () => {
+  it('(g) throws version_downgrade_detected when signable_v3_signature is empty but version=3', async () => {
+    // TOB-SDK-TS-01 second direction: emitted >= 3 but v3 sig stripped/blank.
+    // Attacker could strip the v3 sig to bypass v3 field verification while
+    // keeping version >= 3. Canonical dispatch hard-rejects this.
     const rawCert = loadFixture<Record<string, unknown>>('cert-real-v3-production.json');
     const cert: Record<string, unknown> = {
       ...rawCert,
-      signable_v3_signature: '', // empty → force v2 path
+      signable_v3_signature: '', // stripped v3 sig, but version=3 still present
     };
     const keys = productionKeys();
-    const result = await verifyCertificate(cert, keys);
-    expect(result.signableVersion).toBe('v2');
+    await expect(verifyCertificate(cert, keys)).rejects.toMatchObject({
+      reason: 'version_downgrade_detected',
+    });
   });
 
-  it('(g2) falls back to v2 when signable_v3_signature is whitespace-only', async () => {
+  it('(g2) throws version_downgrade_detected when signable_v3_signature is whitespace-only but version=3', async () => {
+    // Same attack vector as (g) with whitespace-only signature.
     const rawCert = loadFixture<Record<string, unknown>>('cert-real-v3-production.json');
     const cert: Record<string, unknown> = {
       ...rawCert,
-      signable_v3_signature: '   ', // whitespace-only → force v2 path
+      signable_v3_signature: '   ', // whitespace-only stripped v3 sig, but version=3 still present
+    };
+    const keys = productionKeys();
+    await expect(verifyCertificate(cert, keys)).rejects.toMatchObject({
+      reason: 'version_downgrade_detected',
+    });
+  });
+
+  it('(g3) falls back to v2 when BOTH signable_v3_signature and version are absent', async () => {
+    // Legitimate legacy v2 path: neither version field nor v3 sig present.
+    const rawCert = loadFixture<Record<string, unknown>>('cert-real-v3-production.json');
+    const cert: Record<string, unknown> = {
+      ...rawCert,
+      signable_protocol_version_emitted: null,
+      signable_v3_signature: '', // both absent → legitimate v2
     };
     const keys = productionKeys();
     const result = await verifyCertificate(cert, keys);

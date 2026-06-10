@@ -122,29 +122,41 @@ export async function verifyCertificate(
     });
   }
 
-  // Step 5: version dispatch.
+  // Step 5: version dispatch — canonical tri-state (TOB-SDK-TS-01).
   //
-  // Use v3 path when ALL of:
-  //   (a) cert.signable_protocol_version_emitted >= 3
-  //   (b) cert.signable_v3_signature is present and non-empty
+  // Legitimate certs fall into exactly two valid states:
+  //   - Genuine v3: signable_protocol_version_emitted >= 3  AND  signable_v3_signature non-empty
+  //   - Genuine v2: signable_protocol_version_emitted < 3   AND  signable_v3_signature absent/empty
   //
-  // Otherwise fall back to v2 (legacy + dual-protocol certs served to v0.5.x SDK).
+  // Any other combination is structurally anomalous and is hard-rejected:
+  //   - emitted >= 3 but v3 sig absent/blank: attacker stripped the v3 sig to
+  //     bypass v3 field verification while keeping the version indicator.
+  //   - v3 sig present but emitted < 3: attacker stripped the version field to
+  //     force the v2 path and leave v3-only fields unverified.
+  //
+  // Both tampering directions throw 'version_downgrade_detected'.
   const sigEmitted = cert.signable_protocol_version_emitted ?? 0;
   const v3SigRaw = cert.signable_v3_signature;
   const v3SigPresent = typeof v3SigRaw === 'string' && v3SigRaw.trim().length > 0;
-  const useV3 = sigEmitted >= V3_SIGNABLE_VERSION_THRESHOLD && v3SigPresent;
 
-  // Step 5a: downgrade-attack guard (TOB-SDK-TS-01).
-  //
-  // A v3 signature is present but the version indicator is absent or < 3.
-  // Legitimate v3 certs ALWAYS carry signable_protocol_version_emitted >= 3;
-  // legitimate v2-only certs NEVER carry signable_v3_signature. The only path
-  // that reaches here is a tampered cert where an attacker stripped the version
-  // field to force the v2 path, which would leave the 6 v3-only fields
-  // (api_key_id, client_id, byok_exempt, redaction_manifest_hash,
-  // sanitized_fields_body_hash, tms_manifest_hash) unverified while returning
-  // valid=true. We hard-reject rather than silently downgrade.
-  if (v3SigPresent && !useV3) {
+  let useV3: boolean;
+  if (sigEmitted >= V3_SIGNABLE_VERSION_THRESHOLD) {
+    // version >= 3: the v3 sig MUST be present. A legitimate v3 cert always
+    // carries signable_v3_signature; absent/blank means the sig was stripped.
+    if (!v3SigPresent) {
+      throw new LucairnCertificateError(
+        'Version downgrade detected: signable_protocol_version_emitted is ' +
+          `${sigEmitted} (>= v3 threshold) but signable_v3_signature is absent or blank. ` +
+          'Legitimate v3 certs always carry the v3 signature. ' +
+          'Pass the cert without modification; if you control the signing infrastructure, ensure ' +
+          'signable_v3_signature is set correctly.',
+        { reason: 'version_downgrade_detected', certificateId: cert.certificate_id },
+      );
+    }
+    useV3 = true;
+  } else if (v3SigPresent) {
+    // version < 3 but v3 sig present: attacker stripped/lowered the version
+    // field to force the v2 path, leaving v3-only fields unverified.
     throw new LucairnCertificateError(
       'Version downgrade detected: signable_v3_signature is present but ' +
         `signable_protocol_version_emitted (${sigEmitted}) is below the v3 threshold (${V3_SIGNABLE_VERSION_THRESHOLD}). ` +
@@ -153,6 +165,9 @@ export async function verifyCertificate(
         'signable_protocol_version_emitted is set correctly.',
       { reason: 'version_downgrade_detected', certificateId: cert.certificate_id },
     );
+  } else {
+    // Both absent/empty: legitimate legacy v2 cert.
+    useV3 = false;
   }
 
   if (useV3) {

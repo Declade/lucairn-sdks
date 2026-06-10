@@ -116,7 +116,7 @@ describe('LucairnCertificateError', () => {
     }).toThrow(LucairnCertificateError);
   });
 
-  it('reason union is exhaustive over the 5 v1 reasons (compile-time check)', () => {
+  it('reason union is exhaustive over all 7 reasons (compile-time check)', () => {
     // Record<Reason, true> — missing a key is a compile error, catching any
     // future rename or accidental removal of a reason literal.
     const exhaustive: Record<VerifyCertificateFailureReason, true> = {
@@ -125,8 +125,10 @@ describe('LucairnCertificateError', () => {
       witness_mismatch: true,
       witness_signature_missing: true,
       invalid_signature: true,
+      version_downgrade_detected: true,
+      signable_version_insufficient: true,
     };
-    expect(Object.keys(exhaustive)).toHaveLength(5);
+    expect(Object.keys(exhaustive)).toHaveLength(7);
   });
 });
 
