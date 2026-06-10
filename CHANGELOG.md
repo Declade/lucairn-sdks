@@ -51,6 +51,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SignableV3Signature`, `RawClaims`, `ClientID`, `APIKeyID`, `ByokExempt`
   for v3 dispatch.
 
+## [python 1.2.0] — 2026-06-10
+
+### Added
+- **v3 dual-protocol certificate verification** (SDK signable-versioning v3
+  chain, criterion #7/#8). `verify_certificate` now dispatches on
+  `signable_protocol_version_emitted`: certs with value `>= 3` are verified
+  against `signable_v3_signature` using the new 13-key signable map (v2's 7
+  keys + `client_id`, `api_key_id`, `byok_exempt`, `redaction_manifest_hash`,
+  `sanitized_fields_body_hash`, `tms_manifest_hash`). Certs without the field
+  fall back to the legacy 7-key v2 path (backward compat, criterion #8).
+- `VerifyCertificateResult.signable_version` field: `'v3'` for new dual-protocol
+  certs, `'v2'` for legacy certs (criterion #7).
+- New `derive_v3_signed_bytes()` function in `verify_certificate/v3_signable.py`
+  implementing the 13-key v3 reconstruction. Hash fields sourced from
+  `dsa-sanitizer` claim's `canonical_payload` (strip-surviving; body bytes are
+  gateway-stripped but the hashes survive in the sanitizer-signed inner JSON).
+  `tms_manifest_hash` is `None`/`null` until TMS rewrite Slice 5 — accepted
+  without error.
+- `normalize_issued_at()` utility exported from `verify_certificate/signable.py`.
+
+### Fixed
+- **issued_at RFC3339Nano trailing-zero mismatch (H6, ~10% verify-failure class)**.
+  The witness signs `issued_at` using Go `time.RFC3339Nano` which strips trailing
+  zeros (e.g. `.1Z`). The gateway serves via protojson which zero-pads to 9 digits
+  (e.g. `.100000000Z`). The SDK now normalizes the served timestamp before placing
+  it into the signable bytes. Applied to both v2 and v3 reconstruction paths.
+  Round-trip validated against a real production v3 cert (Ed25519 signature verifies
+  against the live production witness key).
+
+### Changed
+- `VeilCertificate` Pydantic model gains optional fields: `api_key_id` (str|None),
+  `signable_v2_signature` (str|None), `signable_v3_signature` (str|None),
+  `signable_protocol_version_emitted` (int, default 0). All default-safe; older
+  certs without these fields parse cleanly.
+
 ## [mcp-server 1.2.6] — 2026-05-14
 
 ### Fixed
