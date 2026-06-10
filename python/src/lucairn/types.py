@@ -470,6 +470,27 @@ class VerifyCertificateResult:
             ``witness_signature`` / ``signable_v2_signature``), ``'v3'``
             for new 13-key path (verifies against ``signable_v3_signature``).
             SDK signable-versioning v3 chain (PR #247 + this SDK release).
+
+            SECURITY NOTE: when ``signable_version == 'v2'``, the fields
+            ``api_key_id``, ``client_id``, ``byok_exempt``, and the sanitizer
+            hash fields (``redaction_manifest_hash``, ``sanitized_fields_body_hash``,
+            ``tms_manifest_hash``) are NOT covered by the witness signature.
+            Callers that rely on those fields for security decisions MUST
+            require ``signable_version == 'v3'`` — e.g. pass
+            ``minimum_signable_version='v3'`` to :func:`verify_certificate`.
+        v3_signature_stripped: ``True`` when the certificate carried a
+            ``signable_v3_signature`` but verification fell back to the v2
+            path (e.g. because ``signable_protocol_version_emitted`` was
+            absent or < 3). ``False`` in all other cases.
+
+            This flag is set only when strict-mode
+            (``minimum_signable_version='v3'``) is NOT in use — strict mode
+            raises :class:`~lucairn.errors.LucairnCertificateError` with
+            ``reason='version_downgrade_detected'`` before the v2 path is
+            taken, so the result object is never constructed.
+
+            Non-strict callers can inspect this field to detect a potential
+            downgrade without failing hard.
     """
 
     certificate_id: str
@@ -480,6 +501,7 @@ class VerifyCertificateResult:
     anchor_status: VeilCertAnchorStatus
     overall_verdict: VeilVerdict
     signable_version: str = "v2"
+    v3_signature_stripped: bool = False
 
 
 # ---------------------------------------------------------------------------

@@ -478,6 +478,152 @@ class TestSignableVersionOnLegacyCerts:
         assert result.signable_version in ("v2", "v3")
 
 
+# ---------------------------------------------------------------------------
+# TestDowngradeDetection — TOB-SDK-PY-01 + TOB-SDK-PY-02
+# ---------------------------------------------------------------------------
+
+
+class TestDowngradeDetection:
+    """Trail-of-Bits findings TOB-SDK-PY-01 (MEDIUM) and TOB-SDK-PY-02 (LOW).
+
+    (a) v3 cert with version field stripped but v3 sig present
+        → raises version_downgrade_detected (TOB-SDK-PY-01a).
+    (b) minimum_signable_version='v3' on a genuine v2 cert (no v3 sig)
+        → raises signable_version_insufficient (TOB-SDK-PY-01b).
+    (c) genuine v3 cert with minimum_signable_version='v3'
+        → passes with signable_version='v3' (no regression).
+    (d) genuine legacy v2 cert with default args
+        → still passes signable_version='v2' (no regression).
+    (e) v3 path with missing signable_v3_signature
+        → raises witness_signature_missing with honest error (TOB-SDK-PY-02).
+    """
+
+    def test_version_stripped_with_v3_sig_raises_downgrade_detected(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (a) TOB-SDK-PY-01a: strip version field but leave v3 sig → version_downgrade_detected."""
+        import copy
+
+        tampered = copy.deepcopy(real_v3_cert)
+        # Confirm fixture is a v3 cert
+        assert tampered.get("signable_protocol_version_emitted") == 3
+        assert tampered.get("signable_v3_signature")
+
+        # Strip the version field (attacker removes it to force the v2 path)
+        del tampered["signable_protocol_version_emitted"]
+        # v3 signature left intact — this is the downgrade-attempt shape
+
+        with pytest.raises(LucairnCertificateError) as exc_info:
+            verify_certificate(tampered, production_keys)
+
+        assert exc_info.value.reason == "version_downgrade_detected", (
+            f"Expected reason='version_downgrade_detected', got {exc_info.value.reason!r}"
+        )
+
+    def test_version_set_to_zero_with_v3_sig_raises_downgrade_detected(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (a) variant: version field set to 0 (< 3) but v3 sig present → version_downgrade_detected."""
+        import copy
+
+        tampered = copy.deepcopy(real_v3_cert)
+        tampered["signable_protocol_version_emitted"] = 0  # force v2 dispatch
+        assert tampered.get("signable_v3_signature")  # v3 sig still present
+
+        with pytest.raises(LucairnCertificateError) as exc_info:
+            verify_certificate(tampered, production_keys)
+
+        assert exc_info.value.reason == "version_downgrade_detected"
+
+    def test_minimum_signable_version_v3_on_legacy_v2_cert_raises(
+        self,
+        test_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (b) TOB-SDK-PY-01b: minimum_signable_version='v3' on legacy cert → signable_version_insufficient."""
+        cert_dict = json.loads((_TS_FIXTURES / "cert-valid-anchored.json").read_text())
+        # Confirm it's a genuine legacy v2 cert (no v3 sig)
+        assert not cert_dict.get("signable_v3_signature")
+        assert not cert_dict.get("signable_protocol_version_emitted")
+
+        with pytest.raises(LucairnCertificateError) as exc_info:
+            verify_certificate(cert_dict, test_keys, minimum_signable_version="v3")
+
+        assert exc_info.value.reason == "signable_version_insufficient", (
+            f"Expected reason='signable_version_insufficient', got {exc_info.value.reason!r}"
+        )
+
+    def test_genuine_v3_cert_with_minimum_signable_version_v3_passes(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (c): genuine v3 cert + minimum_signable_version='v3' → passes, signable_version='v3'."""
+        result = verify_certificate(
+            real_v3_cert, production_keys, minimum_signable_version="v3"
+        )
+        assert result.signable_version == "v3", (
+            f"Expected signable_version='v3', got {result.signable_version!r}"
+        )
+        assert result.certificate_id == real_v3_cert["certificate_id"]
+        assert not result.v3_signature_stripped
+
+    def test_genuine_legacy_v2_cert_default_args_still_passes(
+        self,
+        test_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (d): genuine legacy v2 cert with default args → passes, signable_version='v2' (no regression)."""
+        cert_dict = json.loads((_TS_FIXTURES / "cert-valid-anchored.json").read_text())
+        result = verify_certificate(cert_dict, test_keys)
+        assert result.signable_version == "v2"
+        assert result.overall_verdict == "VERDICT_VERIFIED"
+        assert not result.v3_signature_stripped
+
+    def test_v3_path_missing_v3_signature_raises_witness_signature_missing(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """TEST (e) TOB-SDK-PY-02: v3-dispatched cert with empty signable_v3_signature
+        → honest witness_signature_missing (NOT misleading invalid_signature)."""
+        import copy
+
+        tampered = copy.deepcopy(real_v3_cert)
+        # Keep the version field (so v3 dispatch is triggered) but remove the v3 sig.
+        assert tampered.get("signable_protocol_version_emitted") == 3
+        tampered["signable_v3_signature"] = ""  # empty — simulates missing sig
+
+        with pytest.raises(LucairnCertificateError) as exc_info:
+            verify_certificate(tampered, production_keys)
+
+        assert exc_info.value.reason == "witness_signature_missing", (
+            f"Expected reason='witness_signature_missing', got {exc_info.value.reason!r}\n"
+            "TOB-SDK-PY-02: the old fallback to witness_signature would have "
+            "surfaced as invalid_signature, masking the real cause."
+        )
+
+    def test_v3_signature_stripped_flag_false_on_genuine_v3(
+        self,
+        real_v3_cert: dict,
+        production_keys: VerifyCertificateKeys,
+    ) -> None:
+        """v3_signature_stripped is False on a genuine v3 cert (happy path)."""
+        result = verify_certificate(real_v3_cert, production_keys)
+        assert result.v3_signature_stripped is False
+
+    def test_v3_signature_stripped_flag_false_on_clean_legacy_v2(
+        self,
+        test_keys: VerifyCertificateKeys,
+    ) -> None:
+        """v3_signature_stripped is False on a clean legacy v2 cert (no v3 sig present)."""
+        cert_dict = json.loads((_TS_FIXTURES / "cert-valid-anchored.json").read_text())
+        result = verify_certificate(cert_dict, test_keys)
+        assert result.v3_signature_stripped is False
+
+
 _TS_FIXTURES = (
     Path(__file__).resolve().parent.parent.parent
     / "ts"

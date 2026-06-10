@@ -8,6 +8,8 @@ VerifyCertificateFailureReason = Literal[
     "witness_mismatch",
     "witness_signature_missing",
     "invalid_signature",
+    "version_downgrade_detected",
+    "signable_version_insufficient",
 ]
 
 
