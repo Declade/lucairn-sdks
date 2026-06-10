@@ -71,6 +71,7 @@ func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificate
 		WitnessAssertedIssuedAtISO: result.IssuedAtISO,
 		AnchorStatus:               VeilCertAnchorStatus(result.AnchorStatus),
 		OverallVerdict:             VeilVerdict(result.OverallVerdict),
+		SignableVersion:            result.SignableVersion,
 	}, nil
 }
 

@@ -42,11 +42,11 @@ const (
 type VeilClaimType string
 
 const (
-	ClaimTypeUnspecified         VeilClaimType = "CLAIM_TYPE_UNSPECIFIED"
-	ClaimTypeTokenGenerated      VeilClaimType = "CLAIM_TYPE_TOKEN_GENERATED"
-	ClaimTypePIISanitized        VeilClaimType = "CLAIM_TYPE_PII_SANITIZED"
-	ClaimTypeInferenceCompleted  VeilClaimType = "CLAIM_TYPE_INFERENCE_COMPLETED"
-	ClaimTypeEventsRecorded      VeilClaimType = "CLAIM_TYPE_EVENTS_RECORDED"
+	ClaimTypeUnspecified        VeilClaimType = "CLAIM_TYPE_UNSPECIFIED"
+	ClaimTypeTokenGenerated     VeilClaimType = "CLAIM_TYPE_TOKEN_GENERATED"
+	ClaimTypePIISanitized       VeilClaimType = "CLAIM_TYPE_PII_SANITIZED"
+	ClaimTypeInferenceCompleted VeilClaimType = "CLAIM_TYPE_INFERENCE_COMPLETED"
+	ClaimTypeEventsRecorded     VeilClaimType = "CLAIM_TYPE_EVENTS_RECORDED"
 )
 
 // VeilClaim is one per-service claim carried by the certificate. Only
@@ -106,10 +106,10 @@ type VeilVerificationResult struct {
 // VeilAnchorStatusInfo is the anchor status sub-object. v1 surfaces
 // Status; all other fields are informational.
 type VeilAnchorStatusInfo struct {
-	Status     VeilCertAnchorStatus `json:"status"`
-	Attempts   *int                 `json:"attempts,omitempty"`
-	LastError  string               `json:"last_error,omitempty"`
-	HumanNote  string               `json:"human_note,omitempty"`
+	Status    VeilCertAnchorStatus `json:"status"`
+	Attempts  *int                 `json:"attempts,omitempty"`
+	LastError string               `json:"last_error,omitempty"`
+	HumanNote string               `json:"human_note,omitempty"`
 }
 
 // VeilExternalAttestation is the opaque attestation block. v1 verify does
@@ -125,7 +125,9 @@ type VeilExternalAttestation struct {
 // GET /api/v1/veil/certificate/{request_id}.
 //
 // Gateway marshaller:
-//   protojson.MarshalOptions{ EmitUnpopulated: true, UseProtoNames: true }
+//
+//	protojson.MarshalOptions{ EmitUnpopulated: true, UseProtoNames: true }
+//
 // Field names are snake_case; enum values emit in full-name form.
 //
 // Unknown/additive fields are preserved via Go's default json.Unmarshal
@@ -161,15 +163,38 @@ type VeilCertificate struct {
 	// certificate top-level as a *string mirror of the protojson shape:
 	// nil renders as `null`; populated renders as a quoted JSON string.
 	//
-	// IMPORTANT (locked decision): ClientID is NOT part of the witness
-	// signable subset — the witness signable map is still 7 keys. Tamper-
-	// evidence for ClientID flows INDIRECTLY through the bridge claim's
-	// canonical_payload, which IS bridge-signed and IS part of the witness
-	// signable via the claim_ids array. Promotion to the signable map is
-	// deferred to the SDK signable-versioning workstream. Source:
-	// dual-sandbox-architecture/services/veil-witness/internal/assembler/
+	// IMPORTANT (locked decision, SDK signable-versioning v3 chain):
+	// ClientID is NOT part of the v2 signable (7 keys, UNCHANGED).
+	// ClientID IS part of the v3 signable (13 keys). Tamper-evidence on
+	// v2-only SDKs flows INDIRECTLY via the bridge claim's canonical_payload.
+	// Source: dual-sandbox-architecture/services/veil-witness/internal/assembler/
 	// assembler.go:131-160.
 	ClientID *string `json:"client_id,omitempty"`
+
+	// APIKeyID is the gateway API-key metadata field (proto field 15, optional
+	// string) added in Phase B (PRD prd-2026-06-08-api-key-id-in-cert.md).
+	// Format: "k_<base32_16>" (direct-mint) or "sync-<sha256[:32]>" (control-API-synced).
+	// nil on older certs (pre Phase B deploy) and control-API-synced keys.
+	// NOT in v2 signable (7 keys, UNCHANGED); IS in v3 signable (13 keys).
+	APIKeyID *string `json:"api_key_id,omitempty"`
+
+	// v3 dual-protocol fields (absent on legacy v2 certs).
+
+	// SignableV2Signature is the base64-encoded Ed25519 signature over the
+	// 7-key v2 signable map. Mirrors WitnessSignature byte-for-byte so
+	// v0.5.x SDKs (which only know WitnessSignature) continue to verify
+	// unchanged. Present only on certs signed by a v3-capable witness.
+	SignableV2Signature string `json:"signable_v2_signature,omitempty"`
+
+	// SignableV3Signature is the base64-encoded Ed25519 signature over the
+	// 13-key v3 signable map. Present only when SignableProtocolVersionEmitted >= 3.
+	SignableV3Signature string `json:"signable_v3_signature,omitempty"`
+
+	// SignableProtocolVersionEmitted is the highest signable-protocol version
+	// the witness emitted on this cert (proto field 18). 0 = absent (v2 cert).
+	// 3 = dual-protocol cert carrying both v2 + v3 signatures. The SDK
+	// dispatches to v3 verification when this is >= 3.
+	SignableProtocolVersionEmitted int `json:"signable_protocol_version_emitted,omitempty"`
 }
 
 // GetClientID returns cert.ClientID dereferenced, or "" if the cert is
@@ -218,6 +243,15 @@ type VerifyCertificateResult struct {
 
 	AnchorStatus   VeilCertAnchorStatus
 	OverallVerdict VeilVerdict
+
+	// SignableVersion is "v2" when the witness signature was verified against
+	// the 7-key v2 signable map, or "v3" when verified against the 13-key v3
+	// map (PRD criterion #7 — SDK signable-versioning v3 chain).
+	// "v3" is returned when cert.signable_protocol_version_emitted >= 3 AND
+	// signable_v3_signature is present and valid.
+	// "v2" is returned for all legacy certs and certs whose
+	// signable_protocol_version_emitted < 3.
+	SignableVersion string
 }
 
 // -- Proxy request / response types --------------------------------------
@@ -266,19 +300,19 @@ type MessagesResponse interface {
 
 // ProxySyncResponse is the sync (200 OK) terminal result.
 type ProxySyncResponse struct {
-	Status              string            `json:"status"` // "JOB_STATUS_COMPLETED" or "JOB_STATUS_FAILED"
-	ModelUsed           string            `json:"model_used"`
-	LatencyMs           int               `json:"latency_ms"`
-	Result              json.RawMessage   `json:"result,omitempty"`
-	DLPRedacted         *bool             `json:"dlp_redacted,omitempty"`
-	Relinked            *bool             `json:"relinked,omitempty"`
-	ErrorMessage        string            `json:"error_message,omitempty"`
-	RequestID           string            `json:"request_id,omitempty"`
-	ComplianceTrace     json.RawMessage   `json:"compliance_trace,omitempty"`
-	GroundTruthEval     json.RawMessage   `json:"ground_truth_evaluation,omitempty"`
-	Veil                *ProxyVeilReceipt `json:"veil,omitempty"`
-	VeilEvidence        json.RawMessage   `json:"veil_evidence,omitempty"`
-	Tracevault          json.RawMessage   `json:"tracevault,omitempty"`
+	Status          string            `json:"status"` // "JOB_STATUS_COMPLETED" or "JOB_STATUS_FAILED"
+	ModelUsed       string            `json:"model_used"`
+	LatencyMs       int               `json:"latency_ms"`
+	Result          json.RawMessage   `json:"result,omitempty"`
+	DLPRedacted     *bool             `json:"dlp_redacted,omitempty"`
+	Relinked        *bool             `json:"relinked,omitempty"`
+	ErrorMessage    string            `json:"error_message,omitempty"`
+	RequestID       string            `json:"request_id,omitempty"`
+	ComplianceTrace json.RawMessage   `json:"compliance_trace,omitempty"`
+	GroundTruthEval json.RawMessage   `json:"ground_truth_evaluation,omitempty"`
+	Veil            *ProxyVeilReceipt `json:"veil,omitempty"`
+	VeilEvidence    json.RawMessage   `json:"veil_evidence,omitempty"`
+	Tracevault      json.RawMessage   `json:"tracevault,omitempty"`
 }
 
 func (*ProxySyncResponse) isMessagesResponse() {}

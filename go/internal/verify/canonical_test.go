@@ -206,7 +206,9 @@ func TestCanonicalJSON_MatchesGoReferenceHex(t *testing.T) {
 // authoritative pinned canonical form. If this test fails after a deliberate
 // signable-shape change, regenerate BOTH the Go-side and SDK-side fixtures
 // per the steps documented at
-//   dual-sandbox-architecture/services/veil-witness/internal/testoracle/README.md
+//
+//	dual-sandbox-architecture/services/veil-witness/internal/testoracle/README.md
+//
 // — never paper over by regenerating just this hex.
 func TestDeriveSignedBytes_MatchesSignableFreezeHex(t *testing.T) {
 	fixtures := tsFixturesDir(t)

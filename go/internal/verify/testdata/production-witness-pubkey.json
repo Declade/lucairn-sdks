@@ -1,0 +1,5 @@
+{
+  "_note": "Production Hetzner pilot witness public key (Ed25519, base64-encoded raw 32 bytes). Derived from the LCR_WITNESS_SIGNING_KEY seed on the production veil-witness service. Used to verify real-production certificates in SDK integration tests.",
+  "witnessKeyID": "witness_v1",
+  "publicKey": "ALoYnR2xElnmroA+71c55gC+AfI9tc3I9PSv99+qvMU="
+}

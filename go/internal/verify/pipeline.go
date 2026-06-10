@@ -23,6 +23,11 @@ type Result struct {
 	IssuedAtISO    string
 	AnchorStatus   string
 	OverallVerdict string
+	// SignableVersion is "v2" when the witness signature was verified against
+	// the 7-key v2 signable map, or "v3" when verified against the 13-key v3
+	// map. Corresponds to PRD criterion #7. Empty only on unexpected internal
+	// paths (should never happen in practice).
+	SignableVersion string
 }
 
 // FailureReason matches lucairn.VerifyCertificateFailureReason literals.
@@ -97,34 +102,104 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any) (*Resul
 		}
 	}
 
-	signedBytes, err := DeriveSignedBytes(DeriveSignedBytesInput{
-		CertificateID:          parsed.CertificateID,
-		RequestID:              parsed.RequestID,
-		ClaimRequestIDs:        parsed.ClaimRequestIDs,
-		ClaimIDs:               parsed.ClaimIDs,
-		IssuedAt:               parsed.IssuedAt,
-		OverallVerdictFullName: parsed.OverallVerdict,
-		WitnessKeyID:           parsed.WitnessKeyID,
-	})
-	if err != nil {
-		var me *MalformedError
-		if errors.As(err, &me) {
+	// --- Version dispatch ---
+	//
+	// signable_protocol_version_emitted >= 3 → verify v3 (13-key) against
+	// signable_v3_signature. v2 signable bytes are STILL correct (witness
+	// mirrors witness_signature to signable_v2_signature byte-for-byte) but
+	// for v3 certs we prefer the richer v3 verification path so the caller
+	// sees SignableVersion="v3" (PRD criterion #7).
+	//
+	// signable_protocol_version_emitted <= 0 (absent) or < 3 → v2 path:
+	// reconstruct 7-key map, verify against witness_signature.
+	//
+	// Backward compat guarantee (criterion #8): v2 signature == witness_signature
+	// on all v3 certs, so an old SDK using witness_signature still verifies.
+	// New SDKs use the explicit v3 path for v3 certs.
+	useV3 := parsed.SignableProtocolVersionEmitted >= 3
+
+	var signedBytes []byte
+	var signatureToVerify string
+	var signableVersion string
+
+	if useV3 {
+		// v3 path: reconstruct 13-key map, verify against signable_v3_signature.
+		if strings.TrimSpace(parsed.SignableV3Signature) == "" {
+			return nil, &PipelineError{
+				Reason:        ReasonWitnessSignatureMissing,
+				CertificateID: parsed.CertificateID,
+				Message:       "cert carries signable_protocol_version_emitted=3 but signable_v3_signature is absent",
+			}
+		}
+		var v3err error
+		signedBytes, v3err = DeriveV3SignedBytes(DeriveV3SignedBytesInput{
+			CertificateID:           parsed.CertificateID,
+			RequestID:               parsed.RequestID,
+			ClaimRequestIDs:         parsed.ClaimRequestIDs,
+			ClaimIDs:                parsed.ClaimIDs,
+			IssuedAt:                parsed.IssuedAt,
+			OverallVerdictFullName:  parsed.OverallVerdict,
+			WitnessKeyID:            parsed.WitnessKeyID,
+			ClientID:                parsed.ClientID,
+			APIKeyID:                parsed.APIKeyID,
+			ByokExempt:              parsed.ByokExempt,
+			RedactionManifestHash:   ExtractSanitizerPayloadHash(parsed.RawClaims, "redaction_manifest_hash"),
+			SanitizedFieldsBodyHash: ExtractSanitizerPayloadHash(parsed.RawClaims, "sanitized_fields_hash"),
+			TMSManifestHash:         ExtractSanitizerPayloadHash(parsed.RawClaims, "tms_manifest_hash"),
+		})
+		if v3err != nil {
+			var me *MalformedError
+			if errors.As(v3err, &me) {
+				return nil, &PipelineError{
+					Reason:        ReasonMalformed,
+					CertificateID: parsed.CertificateID,
+					Message:       me.Reason,
+					Err:           v3err,
+				}
+			}
 			return nil, &PipelineError{
 				Reason:        ReasonMalformed,
 				CertificateID: parsed.CertificateID,
-				Message:       me.Reason,
-				Err:           err,
+				Message:       "failed to derive v3 signed payload: " + v3err.Error(),
+				Err:           v3err,
 			}
 		}
-		return nil, &PipelineError{
-			Reason:        ReasonMalformed,
-			CertificateID: parsed.CertificateID,
-			Message:       "failed to derive signed payload: " + err.Error(),
-			Err:           err,
+		signatureToVerify = parsed.SignableV3Signature
+		signableVersion = "v3"
+	} else {
+		// v2 path: reconstruct 7-key map, verify against witness_signature.
+		var v2err error
+		signedBytes, v2err = DeriveSignedBytes(DeriveSignedBytesInput{
+			CertificateID:          parsed.CertificateID,
+			RequestID:              parsed.RequestID,
+			ClaimRequestIDs:        parsed.ClaimRequestIDs,
+			ClaimIDs:               parsed.ClaimIDs,
+			IssuedAt:               parsed.IssuedAt,
+			OverallVerdictFullName: parsed.OverallVerdict,
+			WitnessKeyID:           parsed.WitnessKeyID,
+		})
+		if v2err != nil {
+			var me *MalformedError
+			if errors.As(v2err, &me) {
+				return nil, &PipelineError{
+					Reason:        ReasonMalformed,
+					CertificateID: parsed.CertificateID,
+					Message:       me.Reason,
+					Err:           v2err,
+				}
+			}
+			return nil, &PipelineError{
+				Reason:        ReasonMalformed,
+				CertificateID: parsed.CertificateID,
+				Message:       "failed to derive signed payload: " + v2err.Error(),
+				Err:           v2err,
+			}
 		}
+		signatureToVerify = parsed.WitnessSignature
+		signableVersion = "v2"
 	}
 
-	signatureBytes, err := base64.StdEncoding.DecodeString(parsed.WitnessSignature)
+	signatureBytes, err := base64.StdEncoding.DecodeString(signatureToVerify)
 	if err != nil {
 		return nil, &PipelineError{
 			Reason:        ReasonInvalidSignature,
@@ -157,11 +232,12 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any) (*Resul
 	}
 
 	return &Result{
-		CertificateID:  parsed.CertificateID,
-		RequestID:      parsed.RequestID,
-		WitnessKeyID:   parsed.WitnessKeyID,
-		IssuedAtISO:    parsed.IssuedAt,
-		AnchorStatus:   anchorStatus,
-		OverallVerdict: parsed.OverallVerdict,
+		CertificateID:   parsed.CertificateID,
+		RequestID:       parsed.RequestID,
+		WitnessKeyID:    parsed.WitnessKeyID,
+		IssuedAtISO:     parsed.IssuedAt,
+		AnchorStatus:    anchorStatus,
+		OverallVerdict:  parsed.OverallVerdict,
+		SignableVersion: signableVersion,
 	}, nil
 }

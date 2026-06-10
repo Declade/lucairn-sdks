@@ -96,11 +96,11 @@ func (e *NetworkError) lucairnError() {}
 type VerifyCertificateFailureReason string
 
 const (
-	ReasonMalformed                   VerifyCertificateFailureReason = "malformed"
-	ReasonUnsupportedProtocolVersion  VerifyCertificateFailureReason = "unsupported_protocol_version"
-	ReasonWitnessMismatch             VerifyCertificateFailureReason = "witness_mismatch"
-	ReasonWitnessSignatureMissing     VerifyCertificateFailureReason = "witness_signature_missing"
-	ReasonInvalidSignature            VerifyCertificateFailureReason = "invalid_signature"
+	ReasonMalformed                  VerifyCertificateFailureReason = "malformed"
+	ReasonUnsupportedProtocolVersion VerifyCertificateFailureReason = "unsupported_protocol_version"
+	ReasonWitnessMismatch            VerifyCertificateFailureReason = "witness_mismatch"
+	ReasonWitnessSignatureMissing    VerifyCertificateFailureReason = "witness_signature_missing"
+	ReasonInvalidSignature           VerifyCertificateFailureReason = "invalid_signature"
 )
 
 // ResponseValidationError is returned when a 2xx gateway response fails

@@ -31,6 +31,24 @@ type RawCert struct {
 	OverallVerdict   string
 	WitnessKeyID     string
 	WitnessSignature string
+
+	// v3 dual-protocol fields (optional — absent on v2 certs).
+	// SignableProtocolVersionEmitted = 0 means the field was absent (v2 cert).
+	// = 3 means the cert carries both v2 + v3 signatures.
+	SignableProtocolVersionEmitted int
+	// SignableV3Signature is the base64-encoded Ed25519 signature over the
+	// 13-key v3 signable map. Empty string when absent.
+	SignableV3Signature string
+
+	// Raw claims array ([]any) for v3 sanitizer-payload hash extraction.
+	// Populated by Parse so the pipeline can call ExtractSanitizerPayloadHash
+	// without re-parsing the cert.
+	RawClaims []any
+
+	// v3 promoted carry-forward fields from cert top-level.
+	ClientID   *string // cert.client_id   (optional proto field 14)
+	APIKeyID   *string // cert.api_key_id   (optional proto field 15)
+	ByokExempt bool    // cert.verification.byok_exempt
 }
 
 func Parse(raw any) (*RawCert, error) {
@@ -131,6 +149,39 @@ func Parse(raw any) (*RawCert, error) {
 		}
 	}
 	cert.OverallVerdict = ov
+
+	// byok_exempt (optional bool, default false for older certs that omit it).
+	if be, ok3 := verification["byok_exempt"].(bool); ok3 {
+		cert.ByokExempt = be
+	}
+
+	// v3 dual-protocol fields (optional — absent on legacy v2 certs).
+	// signable_protocol_version_emitted: may be float64 (JSON number) or int.
+	switch pve := m["signable_protocol_version_emitted"].(type) {
+	case float64:
+		cert.SignableProtocolVersionEmitted = int(pve)
+	case int:
+		cert.SignableProtocolVersionEmitted = pve
+	case json.Number:
+		if n, err := pve.Int64(); err == nil {
+			cert.SignableProtocolVersionEmitted = int(n)
+		}
+		// absent or nil → 0 (v2 cert; zero-value)
+	}
+	if sv3, ok3 := mustStr("signable_v3_signature"); ok3 {
+		cert.SignableV3Signature = sv3
+	}
+
+	// Store raw claims for v3 sanitizer-payload hash extraction.
+	cert.RawClaims = claimsRaw
+
+	// v3 promoted carry-forward fields.
+	if s, ok3 := m["client_id"].(string); ok3 && s != "" {
+		cert.ClientID = &s
+	}
+	if s, ok3 := m["api_key_id"].(string); ok3 && s != "" {
+		cert.APIKeyID = &s
+	}
 
 	return cert, nil
 }
