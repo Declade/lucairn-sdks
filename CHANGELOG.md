@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [ts 1.2.0] — 2026-06-10
+
+### Added
+- **v3 dual-protocol certificate verification** (`verifyCertificate`). When
+  `cert.signable_protocol_version_emitted >= 3` and `cert.signable_v3_signature`
+  is present, the SDK verifies the 13-key v3 signable map (7 v2 keys + 6
+  promoted carry-forwards: `client_id`, `api_key_id`, `byok_exempt`,
+  `redaction_manifest_hash`, `sanitized_fields_body_hash`, `tms_manifest_hash`)
+  and returns `signableVersion: 'v3'` on the result. Legacy certs and dual-
+  protocol certs served to v0.5.x callers continue verifying via the 7-key v2
+  path and return `signableVersion: 'v2'`. Both paths use the same Ed25519
+  witness key — no caller change required. (PRD criterion #7/#8.)
+- `signableVersion: 'v2' | 'v3'` field on `VerifyCertificateResult`.
+- `api_key_id`, `signable_v2_signature`, `signable_v3_signature`,
+  `signable_protocol_version_emitted` optional fields on `VeilCertificate` type.
+- `deriveWitnessSignedBytesV3` exported from `verify-certificate/signable.ts`.
+- `normalizeIssuedAt` exported from `verify-certificate/signable.ts` (regression-
+  test surface; not a primary SDK API).
+
+### Fixed
+- **`issued_at` RFC3339Nano normalization (H6)**: the witness signs
+  `issuedAt.Format(time.RFC3339Nano)` which strips trailing fractional-second
+  zeros (e.g., `.1Z`), but the gateway serves the cert via protojson which
+  zero-pads to 9 digits (e.g., `.100000000Z`). The SDK now normalizes the
+  protojson form before placing `issued_at` in the signable bytes, fixing
+  ~10% of certs that would otherwise fail verify. Applied to both v2 and v3
+  signable reconstruction paths.
+
 ## [mcp-server 1.2.6] — 2026-05-14
 
 ### Fixed

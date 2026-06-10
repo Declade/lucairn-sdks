@@ -253,6 +253,7 @@ describe('verifyCertificate — happy paths', () => {
       witnessAssertedIssuedAtIso: cert.issued_at,
       anchorStatus: 'ANCHOR_STATUS_ANCHORED',
       overallVerdict: 'VERDICT_VERIFIED',
+      signableVersion: 'v2', // no signable_protocol_version_emitted on this fixture → v2 path
     });
   });
 

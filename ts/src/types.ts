@@ -278,12 +278,12 @@ export interface VeilCertificate {
 
   /**
    * Client identifier (the issuing org_id) for client-side correlation.
-   * Optional metadata only — NOT part of the witness signable map. The
-   * tamper-evidence chain for org_id runs via the bridge claim's
-   * canonical_payload (which IS in the witness signable via `claims`),
-   * so a verifier that needs cryptographic certainty about the issuing
-   * org should check `claims[bridge].canonical_payload` rather than this
-   * top-level field.
+   * Optional metadata only — NOT part of the v2 witness signable map; IS
+   * part of the v3 signable. The tamper-evidence chain for org_id runs via
+   * the bridge claim's canonical_payload (which IS in the witness signable
+   * via `claims`), so a verifier that needs cryptographic certainty about
+   * the issuing org should check `claims[bridge].canonical_payload` rather
+   * than this top-level field.
    *
    * Source: proto/veil/v1/veil.proto:160 (`optional string client_id = 14`).
    * Set by the witness assembler from the bridge claim payload at
@@ -295,6 +295,45 @@ export interface VeilCertificate {
    * dual-sandbox-architecture main.
    */
   client_id?: string | null;
+
+  /**
+   * API key identifier associated with the cert. Part of the v3 signable
+   * map. Optional metadata on v2 certs. Format: `k_<base32_16>` for
+   * direct-mint keys, `sync-<sha256[:32]>` for control-API-synced keys.
+   *
+   * Source: proto/veil/v1/veil.proto (`optional string api_key_id = 15`).
+   * Shipped via PR #242. NOT in the 7-key v2 signable.
+   */
+  api_key_id?: string | null;
+
+  /**
+   * v2 signature — mirrors `witness_signature` byte-for-byte (the same
+   * Ed25519 signing op over the 7-key v2 signable). Carried explicitly so
+   * callers can distinguish v2-path verification from v3-path verification.
+   *
+   * Source: proto/veil/v1/veil.proto (`bytes signable_v2_signature = 379`).
+   * Shipped via PR #247 (TMS SDK chain step 1).
+   */
+  signable_v2_signature?: string | null;
+
+  /**
+   * v3 signature — Ed25519 over the 13-key v3 signable map. Present on
+   * certs emitted after witness PR #247. Absent on older certs (field
+   * is not backfilled). The SDK uses this for v3 verification when
+   * `signable_protocol_version_emitted >= 3`.
+   *
+   * Source: proto/veil/v1/veil.proto (`bytes signable_v3_signature = 380`).
+   */
+  signable_v3_signature?: string | null;
+
+  /**
+   * Protocol version of the signable that was emitted by the witness at
+   * cert creation time. 3 = v3 dual-protocol cert (carries both v2 and v3
+   * signatures). Absent / 0 on older certs → SDK falls back to v2.
+   *
+   * Source: proto/veil/v1/veil.proto (`int32 signable_protocol_version_emitted = 381`).
+   */
+  signable_protocol_version_emitted?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -397,4 +436,14 @@ export interface VerifyCertificateResult {
    * metadata.
    */
   overallVerdict: VeilVerdict;
+
+  /**
+   * Which signable protocol version was verified. `'v3'` when the cert
+   * carries `signable_v3_signature` and `signable_protocol_version_emitted
+   * >= 3`; `'v2'` for all other certs (legacy + dual-protocol certs where
+   * the SDK fell back to v2).
+   *
+   * Criterion #7 from prd-2026-06-08-typed-message-schema-sanitizer-rewrite.
+   */
+  signableVersion: 'v2' | 'v3';
 }
