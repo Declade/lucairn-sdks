@@ -318,6 +318,26 @@ describe('GatewayClient.sendMessage', () => {
     })
   })
 
+  it('maps a 422 non-envelope body to invalid_request_error (INFO-1 convention)', async () => {
+    // Gateway WriteAnthropicError puts `invalid_request_error` on the wire for
+    // 422; the fallback must match so that non-envelope 422 bodies round-trip
+    // correctly rather than emitting the retired `passthrough_audit_contraindicated`
+    // string which does not follow the Anthropic <noun>_error convention.
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(fakeResponse(422, 'passthrough audit contraindicated'))
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    await expect(client.sendMessage(baseInput)).rejects.toMatchObject({
+      name: 'GatewayError',
+      status: 422,
+      errorType: 'invalid_request_error',
+    })
+  })
+
   it('wraps fetch network errors as GatewayError with status 0', async () => {
     const fetchSpy = vi.fn().mockRejectedValue(new Error('ENOTFOUND'))
     const client = new GatewayClient({

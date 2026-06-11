@@ -301,3 +301,42 @@ describe('gateway 401 error hint (CON-08 brand lock)', () => {
     await server.close()
   })
 })
+
+describe('gateway 422 passthrough_audit contraindication hint (INFO-2)', () => {
+  it('surfaces the passthrough_audit hint on a 422', async () => {
+    // gatewayErrorToToolResult appends a human-readable hint on 422 so the
+    // calling agent understands why the request was refused (PII above the
+    // refusal threshold in a system block).
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('passthrough audit contraindicated', {
+        status: 422,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    const server = buildServer(client)
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const mcpClient = new Client({ name: 'test-client', version: '0.0.1' }, { capabilities: {} })
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)])
+
+    const result = (await mcpClient.callTool({
+      name: CHAT_TOOL_NAME,
+      arguments: {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 256,
+        messages: [{ role: 'user', content: 'hi' }],
+      },
+    })) as { isError?: boolean; content: Array<{ type: string; text: string }> }
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('passthrough_audit contraindicated')
+
+    await mcpClient.close()
+    await server.close()
+  })
+})
