@@ -371,6 +371,14 @@ function gatewayErrorToToolResult(err: GatewayError): {
     lines.push('Check your LUCAIRN_API_KEY value.')
   } else if (err.status === 403) {
     lines.push('License or permission denied. See https://lucairn.eu/account.')
+  } else if (err.status === 422) {
+    // passthrough_audit contraindication (DSA PR #263): the gateway refused
+    // because a system block carried PII above the refusal threshold and
+    // could not be safely passed through for audit. The gateway's body
+    // message (appended above) carries the specific detail when present.
+    lines.push(
+      'passthrough_audit contraindicated — system block contains PII above the refusal threshold.',
+    )
   } else if (err.status === 429) {
     lines.push('Rate or quota limit exceeded.')
   } else if (err.status >= 500) {

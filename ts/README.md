@@ -167,6 +167,20 @@ try {
 }
 ```
 
+> **Witness key format.** `witnessPublicKey` must be the **raw 32-byte**
+> Ed25519 public key, supplied as a `Uint8Array` or a base64 string. The
+> pilot's `/.well-known/veil-keys.json` discovery endpoint, however, serves
+> the key as a **hex** string. Decode hex → bytes before passing it in,
+> otherwise verification fails with `must be 32 bytes, got 48`:
+>
+> ```ts
+> // hex (e.g. from /.well-known/veil-keys.json) -> raw 32 bytes
+> const witnessPublicKey = Uint8Array.from(
+>   hexString.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
+> );
+> // ...then pass witnessPublicKey to verifyCertificate({ witnessKeyId, witnessPublicKey })
+> ```
+
 ## New helpers (1.0)
 
 ### `getCertificateSummary(requestId, options?): Promise<string>`
