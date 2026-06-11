@@ -269,6 +269,10 @@ export class GatewayClient {
   private errorTypeForStatus(status: number): string {
     if (status === 401) return 'authentication_error'
     if (status === 403) return 'permission_error'
+    // 422 passthrough_audit contraindication (DSA PR #263 on
+    // /api/v1/mcp/messages): a system block carried PII above the refusal
+    // threshold, so the gateway refused the passthrough audit.
+    if (status === 422) return 'passthrough_audit_contraindicated'
     if (status === 429) return 'rate_limit_error'
     if (status === 503) return 'service_unavailable'
     if (status >= 500) return 'api_error'

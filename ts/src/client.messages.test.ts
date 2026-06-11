@@ -155,7 +155,14 @@ describe('Lucairn.messages() — HTTP error mapping', () => {
   const cases: Array<{ status: number; label: string; body: Record<string, unknown> }> = [
     { status: 400, label: 'bad request', body: { error: 'invalid_request', message: 'missing prompt_template' } },
     { status: 401, label: 'unauthorized', body: { error: 'invalid_api_key' } },
-    { status: 429, label: 'rate limit', body: { error: 'rate_limit_exceeded', retry_after: 30 } },
+    {
+      status: 429,
+      label: 'rate limit',
+      body: {
+        type: 'error',
+        error: { type: 'rate_limit_error', message: 'Rate limit exceeded. Retry after 60 seconds.' },
+      },
+    },
     { status: 500, label: 'server error', body: { error: 'internal' } },
   ];
 

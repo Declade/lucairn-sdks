@@ -67,6 +67,12 @@ export interface AnthropicResponseBody {
       sanitizer_layers?: string[]
       redaction_count: number
       latency_ms: number
+      /**
+       * Optional. Count of mid-conversation system blocks folded into the
+       * sanitized request. Emitted by the gateway via omitempty (DSA PR #263),
+       * so absent on responses with no mid-conversation system folding.
+       */
+      mid_conv_system_folded?: number
     }
   }
 }

@@ -126,6 +126,21 @@ result = client.verify_certificate(cert, keys)
 print(result.overall_verdict, result.anchor_status)
 ```
 
+> **Witness key format.** `witness_public_key` must be the **raw 32-byte**
+> Ed25519 public key, supplied as `bytes` or a base64 string. The pilot's
+> `/.well-known/veil-keys.json` discovery endpoint, however, serves the key
+> as a **hex** string. Decode hex → bytes before passing it in, otherwise
+> verification fails with `must be 32 bytes, got 48`:
+>
+> ```python
+> # hex (e.g. from /.well-known/veil-keys.json) -> raw 32 bytes
+> witness_public_key = bytes.fromhex(hex_string)
+> keys = VerifyCertificateKeys(
+>     witness_key_id="witness_v1",
+>     witness_public_key=witness_public_key,
+> )
+> ```
+
 ## Public API
 
 ### `Lucairn(config: LucairnConfig)`
