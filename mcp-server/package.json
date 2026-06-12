@@ -1,6 +1,6 @@
 {
   "name": "@lucairn/mcp-server",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "mcpName": "io.github.Declade/lucairn-mcp-server",
   "description": "Model Context Protocol server for Lucairn — privacy-preserving AI gateway",
   "license": "MIT",
