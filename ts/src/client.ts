@@ -16,6 +16,7 @@ import type {
   ProxySyncResponse,
   VeilCertificate,
   VerifyCertificateKeys,
+  VerifyCertificateOptions,
   VerifyCertificateResult,
 } from './types.js';
 import { verifyCertificate as verifyCertificateImpl } from './verify-certificate/index.js';
@@ -407,11 +408,18 @@ export class Lucairn {
   // and key-format conventions. External RFC 3161 timestamp + Sigstore
   // Rekor transparency-log verification are out of scope for this SDK
   // release — see session 2b-cert-strong for the follow-up.
+  //
+  // options.minimumSignableVersion: optional strict-mode floor. When set to
+  // 'v3', throws LucairnCertificateError({ reason: 'signable_version_insufficient' })
+  // if the cert is verified via the v2 path. Parity with Go
+  // VerifyCertificateKeys.MinimumSignableVersion. Default undefined →
+  // backward-compatible behaviour.
   async verifyCertificate(
     cert: VeilCertificate,
     keys: VerifyCertificateKeys,
+    options?: VerifyCertificateOptions,
   ): Promise<VerifyCertificateResult> {
-    return verifyCertificateImpl(cert, keys);
+    return verifyCertificateImpl(cert, keys, options);
   }
 
   // Fetch a Veil Certificate by request_id from the gateway's
