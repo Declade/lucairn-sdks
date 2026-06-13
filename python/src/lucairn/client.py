@@ -215,6 +215,8 @@ class Lucairn:
         self,
         cert: VeilCertificate | dict[str, Any],
         keys: VerifyCertificateKeys,
+        *,
+        minimum_signable_version: str | None = None,
     ) -> VerifyCertificateResult:
         """Verify a Veil Certificate's witness Ed25519 signature.
 
@@ -222,9 +224,20 @@ class Lucairn:
         full failure-reason list and key-format conventions. External RFC
         3161 timestamp + Sigstore Rekor transparency-log verification are
         out of scope for this SDK release.
+
+        Args:
+            cert: certificate to verify (dict or :class:`VeilCertificate`).
+            keys: trust-root keys (:class:`VerifyCertificateKeys`).
+            minimum_signable_version: optional strict-mode floor. When set to
+                ``'v3'``, raises
+                :class:`~lucairn.errors.LucairnCertificateError` with
+                ``reason='signable_version_insufficient'`` if the cert is
+                verified via the v2 path. Parity with Go
+                ``VerifyCertificateKeys.MinimumSignableVersion``. Default
+                ``None`` preserves backward-compatible behaviour.
         """
 
-        return _verify_certificate_impl(cert, keys)
+        return _verify_certificate_impl(cert, keys, minimum_signable_version=minimum_signable_version)
 
     def get_certificate(
         self,
