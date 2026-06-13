@@ -62,8 +62,8 @@ describe('Lucairn.verifyCertificate() — minimumSignableVersion forwarding', ()
     const keys = testKeys();
 
     // Fixture must be pure v2 — no v3 sig, no version field
-    expect((cert as Record<string, unknown>)['signable_v3_signature']).toBeFalsy();
-    expect((cert as Record<string, unknown>)['signable_protocol_version_emitted']).toBeFalsy();
+    expect((cert as unknown as Record<string, unknown>)['signable_v3_signature']).toBeFalsy();
+    expect((cert as unknown as Record<string, unknown>)['signable_protocol_version_emitted']).toBeFalsy();
 
     await expect(
       client.verifyCertificate(cert, keys, { minimumSignableVersion: 'v3' }),
