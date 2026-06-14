@@ -7,7 +7,7 @@ labels: security
 
 > **STOP.** Do not file vulnerability reports through the public GitHub issue tracker.
 >
-> Email **mps.action@gmail.com** instead. Coordinated disclosure terms are in [SECURITY.md](../../SECURITY.md).
+> Email **security@lucairn.eu** instead. Coordinated disclosure terms are in [SECURITY.md](../../SECURITY.md).
 
 If you are filing a non-vulnerability security-adjacent question (documentation, hardening guidance, audit-trail clarification), continue below.
 
