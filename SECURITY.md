@@ -4,7 +4,7 @@
 
 If you find a security issue in this repository, please **do not** open a public GitHub issue.
 
-Instead, email **mps.action@gmail.com** with:
+Instead, email **security@lucairn.eu** with:
 - A description of the issue
 - Steps to reproduce
 - Affected version / commit SHA
@@ -27,7 +27,3 @@ Out of scope:
 - Third-party services we depend on (Hetzner, Cloudflare, Supabase, Anthropic, etc.). Report those to the relevant vendor's security disclosure channel.
 - Issues in clients' own deployments of our software (configuration, network, identity provider integrations) — those are the customer's responsibility.
 - Social engineering attacks against employees or contractors.
-
-## Pending
-
-This policy is provisional. As the project matures we will publish a dedicated `security@lucairn.eu` mailbox + a long-term PGP key. The interim email above remains valid in the meantime.
