@@ -94,31 +94,74 @@ const VERDICT_FULL_TO_SHORT: Record<VeilVerdict, string> = Object.assign(
 );
 
 /**
- * Normalize an RFC 3339 issued_at timestamp to Go's time.RFC3339Nano format:
- * strip trailing zeros from the fractional-second part; drop the fractional
- * part entirely when all digits are zero.
+ * Normalize an RFC 3339 issued_at timestamp to the EXACT form the Go witness
+ * assembler signs: `time.Parse(time.RFC3339Nano, s)` then
+ * `t.UTC().Format(time.RFC3339Nano)`. This (a) converts any non-UTC offset to
+ * the equivalent UTC `Z` time and (b) strips trailing fractional-second zeros
+ * (dropping the dot entirely when the whole fraction is zero).
+ *
+ * Parity note (this fix, 2026-06-15): the previous TS implementation kept the
+ * original offset suffix and only stripped trailing zeros; Go re-emits in UTC.
+ * The witness ALWAYS signs Zulu (UTC) timestamps, so on every real cert this is
+ * byte-equivalent to the old behaviour. The change only affects the latent
+ * never-emitted shape of a non-Zulu offset timestamp, bringing TS into exact
+ * parity with Go (and Python).
+ *
+ * On parse failure the original string is returned unchanged (fail-open) —
+ * matching Go's `if err != nil { return s }`.
  *
  * Examples:
- *   "2026-06-10T00:01:59.878143387Z" → unchanged (no trailing zeros)
+ *   "2026-06-10T00:01:59.878143387Z" → unchanged (no trailing zeros, already UTC)
  *   "2026-05-01T12:00:00.100000000Z" → "2026-05-01T12:00:00.1Z"
  *   "2026-05-01T12:00:00.000000000Z" → "2026-05-01T12:00:00Z"
  *   "2026-05-01T12:00:00Z"           → unchanged (no fractional part)
+ *   "2026-05-01T12:00:00.5+02:00"    → "2026-05-01T10:00:00.5Z"  (UTC-normalized)
  *
  * @internal exported for regression test only
  */
 export function normalizeIssuedAt(ts: string): string {
-  // Match: prefix + fractional-second part + timezone suffix (Z or ±HH:MM).
-  const m = /^(.+?)(\.\d+)(Z|[+-].*)$/.exec(ts);
+  // Parse the RFC3339 components. Group 1 = date+time to the second, group 2 =
+  // optional fractional part (".NNN" — the dot is captured), group 3 = the
+  // timezone designator (Z or ±HH:MM). The fractional part is offset-invariant.
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(ts);
   if (!m) {
-    // No fractional part — return as-is.
+    // Not a parseable RFC3339 timestamp — fail-open (Go returns s on parse err).
     return ts;
   }
-  const prefix = m[1];
-  const frac = m[2].replace(/0+$/, ''); // strip trailing zeros from fractional
-  const suffix = m[3];
-  // If stripping leaves just "." (all zeros, e.g., ".000000000"), drop it.
-  const normalizedFrac = frac === '.' ? '' : frac;
-  return `${prefix}${normalizedFrac}${suffix}`;
+  const secondsPart = m[1];
+  const fracRaw = m[2] ?? ''; // includes leading dot, or "" if no fraction
+  const tz = m[3];
+
+  // Strip trailing zeros from the fractional part (Go time.RFC3339Nano does
+  // this); drop the dot entirely if nothing remains.
+  let frac = fracRaw;
+  if (frac) {
+    frac = frac.replace(/0+$/, '');
+    if (frac === '.') frac = '';
+  }
+
+  if (tz === 'Z') {
+    // Already UTC — just emit the (zero-stripped) seconds + Z.
+    return `${secondsPart}${frac}Z`;
+  }
+
+  // Non-UTC offset: convert the wall-clock seconds to UTC exactly like Go's
+  // t.UTC(). The sub-second fraction is offset-invariant (UTC conversion only
+  // shifts whole minutes/hours), so we manipulate the seconds-resolution
+  // instant separately and re-attach the preserved fraction afterwards.
+  const sign = tz[0] === '-' ? -1 : 1;
+  const offHours = Number(tz.slice(1, 3));
+  const offMins = Number(tz.slice(4, 6));
+  const offsetMs = sign * (offHours * 60 + offMins) * 60 * 1000;
+  // Interpret secondsPart as if it were UTC, then subtract the offset to get
+  // the true UTC instant at second resolution.
+  const wallAsUtcMs = new Date(`${secondsPart}Z`).getTime();
+  if (Number.isNaN(wallAsUtcMs)) {
+    return ts; // fail-open on an unparseable wall-clock
+  }
+  const trueUtcMs = wallAsUtcMs - offsetMs;
+  const utcSeconds = new Date(trueUtcMs).toISOString().slice(0, 19); // "YYYY-MM-DDTHH:mm:ss"
+  return `${utcSeconds}${frac}Z`;
 }
 
 /**
@@ -219,9 +262,21 @@ function sanitizerHashField(cert: VeilCertificate, key: string): string | null {
     try {
       const cpJson = Buffer.from(claim.canonical_payload, 'base64').toString('utf8');
       const cp = JSON.parse(cpJson) as Record<string, unknown>;
-      const payload = cp['payload'];
-      if (typeof payload !== 'object' || payload === null) return null;
-      const val = (payload as Record<string, unknown>)[key];
+      // Flat-fallback (parity with Go v3_signable.go:157-162 and Python
+      // v3_signable.py:114-116): the canonical_payload JSON normally wraps the
+      // hash keys under a "payload" object, but some older canonical_payload
+      // shapes carry them at the top level. When "payload" is absent or is not
+      // an object, treat the outer object itself as the inner — matching the Go
+      // assembler oracle. (Byte-equivalent on every cert the gateway emits today,
+      // which always carries the wrapped "payload" shape — this only changes the
+      // result on the flat shape, which TS previously returned null for while Go
+      // and Python read the value.)
+      const payloadRaw = cp['payload'];
+      const inner =
+        typeof payloadRaw === 'object' && payloadRaw !== null
+          ? (payloadRaw as Record<string, unknown>)
+          : cp;
+      const val = inner[key];
       if (typeof val === 'string' && val.length > 0) return val;
     } catch {
       // Malformed canonical_payload — return null (fail-open per strip-surviving contract).

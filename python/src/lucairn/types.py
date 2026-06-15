@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from lucairn.errors import VerifyCertificateFailureReason  # re-exported for convenience
 
@@ -419,10 +419,29 @@ class VeilCertificate(BaseModel):
     #   v0.5.x backward compat (same 7-key signed bytes).
     # signable_v3_signature: new 13-key signed bytes (v2 keys + 6 carry-forwards).
     # signable_protocol_version_emitted: int, value 3 on v3 certs. When absent
-    #   (older certs) the SDK defaults to 0 and falls back to v2 path.
+    #   (older certs) the SDK defaults to 0 and falls back to v2 path. A JSON
+    #   ``null`` is coerced to 0 by the validator below — matching TS (``?? 0``)
+    #   and Go (nil → 0). The gateway never emits null today, so this is a pure
+    #   cross-language tolerance parity fix, not a behaviour change on real certs.
     signable_v2_signature: str | None = None
     signable_v3_signature: str | None = None
     signable_protocol_version_emitted: int = 0
+
+    @field_validator("signable_protocol_version_emitted", mode="before")
+    @classmethod
+    def _coerce_null_signable_version_to_zero(cls, v: object) -> object:
+        """Tolerate an explicit JSON ``null`` for the version field → 0.
+
+        Parity with TS (``cert.signable_protocol_version_emitted ?? 0``) and Go
+        (a nil/absent proto int defaults to 0). Pydantic would otherwise reject
+        ``None`` for an ``int`` field as malformed. Absent (key missing) already
+        hits the ``= 0`` default; this handler covers the explicit-``null`` case
+        only. Any non-null value passes through to normal int validation
+        (so a bad type like ``"three"`` still raises, unchanged).
+        """
+        if v is None:
+            return 0
+        return v
 
 
 # ---------------------------------------------------------------------------

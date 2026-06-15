@@ -41,6 +41,9 @@ ISSUED_AT NORMALIZATION (H6 fix, 1.2.0):
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timedelta, timezone
+
 from lucairn.errors import LucairnCertificateError
 from lucairn.types import VeilCertificate, VeilVerdict
 from lucairn.verify_certificate.canonical_json import canonical_json
@@ -70,14 +73,24 @@ _VERDICT_FULL_TO_SHORT: dict[VeilVerdict, str] = {
 def normalize_issued_at(issued_at: str) -> str:
     """Normalize a protojson-serialized RFC 3339 timestamp to Go RFC3339Nano form.
 
-    The witness signs ``issuedAt.Format(time.RFC3339Nano)`` which strips
-    trailing zeros from the fractional-seconds component.  The gateway
-    serves the timestamp via protojson which zero-pads to 9 digits.
-    This function strips trailing zeros from the fractional part so the
-    SDK reconstructs the exact bytes the witness signed.
+    Mirrors the Go witness assembler's
+    ``time.Parse(time.RFC3339Nano, s)`` → ``t.UTC().Format(time.RFC3339Nano)``.
+    This (a) converts any non-UTC offset to the equivalent UTC ``Z`` time and
+    (b) strips trailing fractional-second zeros (dropping the dot entirely
+    when the whole fraction is zero) so the SDK reconstructs the exact bytes
+    the witness signed.
 
-    Applies to BOTH the v2 and v3 reconstruction paths (pre-existing v2
-    bug, fixed in SDK 1.2.0 as part of the v3 dual-protocol release).
+    Applies to BOTH the v2 and v3 reconstruction paths.
+
+    Parity note (this fix, 2026-06-15): the previous Python implementation
+    returned non-``Z`` timestamps UNCHANGED; Go re-emits in UTC.  The witness
+    ALWAYS signs Zulu (UTC) timestamps, so on every real cert this is
+    byte-equivalent to the old behaviour.  The change only affects the latent
+    never-emitted shape of a non-Zulu offset timestamp, bringing Python into
+    exact parity with Go (and TS).
+
+    On parse failure the original string is returned unchanged (fail-open) —
+    matching Go's ``if err != nil { return s }``.
 
     Examples::
 
@@ -85,21 +98,48 @@ def normalize_issued_at(issued_at: str) -> str:
         '2026-06-10T00:01:59.000000000Z' → '2026-06-10T00:01:59Z'
         '2026-06-10T00:01:59.878143387Z' → '2026-06-10T00:01:59.878143387Z'  (no change)
         '2026-06-10T00:01:59Z'           → '2026-06-10T00:01:59Z'  (no change)
+        '2026-05-01T12:00:00.5+02:00'    → '2026-05-01T10:00:00.5Z'  (UTC-normalized)
     """
-    # Only handle UTC Z-suffix timestamps (the witness always emits UTC).
-    # Non-Z timestamps are returned unchanged to avoid silent corruption.
-    if not issued_at.endswith("Z"):
+    # Parse the RFC3339 components. The fractional part is offset-invariant, so
+    # it is preserved verbatim (modulo trailing-zero stripping) across the UTC
+    # conversion. Group 1 = date+time-to-second, group 2 = optional ".NNN"
+    # fraction (dot captured), group 3 = timezone designator (Z or ±HH:MM).
+    m = re.match(
+        r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})$",
+        issued_at,
+    )
+    if m is None:
+        # Not a parseable RFC3339 timestamp — fail-open (Go returns s on err).
         return issued_at
-    main = issued_at[:-1]  # strip Z
-    dot = main.rfind(".")
-    if dot == -1:
-        return issued_at  # no fractional part, nothing to strip
-    frac = main[dot + 1 :]
-    frac_stripped = frac.rstrip("0")
-    if not frac_stripped:
-        # All fractional digits were zeros — drop the dot entirely.
-        return main[:dot] + "Z"
-    return main[:dot] + "." + frac_stripped + "Z"
+    seconds_part = m.group(1)
+    frac_raw = m.group(2) or ""  # includes leading dot, or "" if no fraction
+    tz = m.group(3)
+
+    # Strip trailing zeros from the fractional part (Go time.RFC3339Nano does
+    # this); drop the dot entirely if nothing remains.
+    frac = frac_raw
+    if frac:
+        frac = frac.rstrip("0")
+        if frac == ".":
+            frac = ""
+
+    if tz == "Z":
+        # Already UTC — just emit the (zero-stripped) seconds + Z.
+        return seconds_part + frac + "Z"
+
+    # Non-UTC offset: convert the wall-clock seconds to UTC exactly like Go's
+    # t.UTC(), then re-attach the preserved (offset-invariant) fraction.
+    try:
+        dt = datetime.strptime(seconds_part, "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return issued_at  # fail-open on an unparseable wall-clock
+    sign = -1 if tz[0] == "-" else 1
+    off_minutes = sign * (int(tz[1:3]) * 60 + int(tz[4:6]))
+    utc_dt = dt - timedelta(minutes=off_minutes)
+    utc_seconds = utc_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return utc_seconds + frac + "Z"
 
 
 def _validate_claims(cert: VeilCertificate) -> list[str]:
