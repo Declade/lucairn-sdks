@@ -246,18 +246,16 @@ def verify_certificate(
 
     else:
         # v2 path: legacy 7-key signable + witness_signature.
-
-        # TOB-SDK-PY-01(b): strict-mode check — fail-closed if caller requires v3.
-        if minimum_signable_version == "v3":
-            raise LucairnCertificateError(
-                "minimum_signable_version='v3' required but cert resolved to the v2 "
-                f"path (signable_protocol_version_emitted="
-                f"{cert.signable_protocol_version_emitted!r}). "
-                "The v3-only fields (api_key_id, client_id, byok_exempt, and the "
-                "sanitizer hash fields) are not covered by the v2 witness signature.",
-                reason="signable_version_insufficient",
-                certificate_id=cert.certificate_id,
-            )
+        #
+        # NOTE (cross-language parity, 2026-06-15): the strict-mode
+        # minimum_signable_version=='v3' check is deliberately performed AFTER
+        # Ed25519 verification (further down), NOT before. This matches TS
+        # (index.ts verifyV2) and Go (pipeline.go Run) which both run the
+        # signature check first and only then enforce the version floor. The
+        # effect: a TAMPERED v2 cert returns reason='invalid_signature' (the
+        # security-relevant verdict) rather than 'signable_version_insufficient'
+        # (a policy verdict that would mask the tamper). A genuine, signature-
+        # valid v2 cert still surfaces 'signable_version_insufficient'.
 
         # TOB-SDK-PY-01(c): surface whether a v3 sig was present but ignored.
         # (Downgrade-detected certs never reach here; this covers non-strict
@@ -307,6 +305,22 @@ def verify_certificate(
             raise LucairnCertificateError(
                 "Witness Ed25519 signature verification failed",
                 reason="invalid_signature",
+                certificate_id=cert.certificate_id,
+            )
+
+        # TOB-SDK-PY-01(b): strict-mode floor — enforced AFTER signature
+        # verification so a tampered v2 cert surfaces as 'invalid_signature'
+        # (matching TS verifyV2 and Go Run). Only a genuine, signature-valid
+        # v2 cert reaches here and is rejected as 'signable_version_insufficient'
+        # when the caller requires v3.
+        if minimum_signable_version == "v3":
+            raise LucairnCertificateError(
+                "minimum_signable_version='v3' required but cert resolved to the v2 "
+                f"path (signable_protocol_version_emitted="
+                f"{cert.signable_protocol_version_emitted!r}). "
+                "The v3-only fields (api_key_id, client_id, byok_exempt, and the "
+                "sanitizer hash fields) are not covered by the v2 witness signature.",
+                reason="signable_version_insufficient",
                 certificate_id=cert.certificate_id,
             )
 

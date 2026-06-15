@@ -139,10 +139,25 @@ describe('normalizeIssuedAt — H6 trailing-zero fix', () => {
     expect(normalizeIssuedAt('2026-05-01T12:00:00.500000000Z')).toBe(
       '2026-05-01T12:00:00.5Z', // trailing zeros stripped
     );
-    // Timezone offset form (not UTC Z)
+    // Timezone offset form (not UTC Z): cross-language parity fix (2026-06-15)
+    // — now converted to the equivalent UTC `Z` time exactly like Go's
+    // `time.Parse(RFC3339Nano).UTC().Format(RFC3339Nano)`. 14:00 at +02:00 ==
+    // 12:00 UTC, trailing zeros stripped. The witness only ever signs Zulu, so
+    // this is never exercised on a real cert; it brings TS into byte parity
+    // with Go (and Python) on the latent shape.
     expect(normalizeIssuedAt('2026-05-01T14:00:00.100000000+02:00')).toBe(
-      '2026-05-01T14:00:00.1+02:00',
+      '2026-05-01T12:00:00.1Z',
     );
+    // Negative offset shifts the wall-clock the other way.
+    expect(normalizeIssuedAt('2026-05-01T08:00:00-03:00')).toBe(
+      '2026-05-01T11:00:00Z',
+    );
+    // +00:00 (== UTC) collapses to Z with trailing zeros stripped.
+    expect(normalizeIssuedAt('2026-06-10T00:01:59.100000000+00:00')).toBe(
+      '2026-06-10T00:01:59.1Z',
+    );
+    // Unparseable input fails open (matches Go's `return s` on parse error).
+    expect(normalizeIssuedAt('not-a-timestamp')).toBe('not-a-timestamp');
   });
 
   it('(c2) issued_at normalization is applied in v2 signable reconstruction', () => {

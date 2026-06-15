@@ -261,12 +261,29 @@ class TestIssuedAtNormalization:
     def test_unchanged_when_no_fractional_part(self) -> None:
         assert normalize_issued_at("2026-06-10T00:01:59Z") == "2026-06-10T00:01:59Z"
 
-    def test_unchanged_when_not_utc_z_suffix(self) -> None:
-        # Non-Z timestamps pass through unchanged (witness always emits UTC).
+    def test_non_utc_offset_normalized_to_utc_z(self) -> None:
+        # Cross-language parity fix (2026-06-15): non-Z offsets are now converted
+        # to the equivalent UTC `Z` time (and trailing zeros stripped), exactly
+        # like Go's `time.Parse(RFC3339Nano).UTC().Format(RFC3339Nano)`. The
+        # witness always emits UTC, so this is never exercised on a real cert —
+        # it brings Python into byte parity with Go (and TS) on the latent shape.
+        # +00:00 (== UTC) → Z, trailing zeros stripped.
         assert (
             normalize_issued_at("2026-06-10T00:01:59.100000000+00:00")
-            == "2026-06-10T00:01:59.100000000+00:00"
+            == "2026-06-10T00:01:59.1Z"
         )
+        # A genuine non-UTC offset shifts the wall-clock to UTC.
+        assert (
+            normalize_issued_at("2026-05-01T12:00:00.5+02:00") == "2026-05-01T10:00:00.5Z"
+        )
+        # Negative offset.
+        assert (
+            normalize_issued_at("2026-05-01T08:00:00-03:00") == "2026-05-01T11:00:00Z"
+        )
+
+    def test_unparseable_returns_unchanged(self) -> None:
+        # Fail-open on a non-RFC3339 string (matches Go's `return s` on parse err).
+        assert normalize_issued_at("not-a-timestamp") == "not-a-timestamp"
 
     def test_partial_trailing_zeros_stripped(self) -> None:
         assert normalize_issued_at("2026-06-10T00:01:59.500Z") == "2026-06-10T00:01:59.5Z"

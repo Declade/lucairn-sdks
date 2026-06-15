@@ -79,6 +79,29 @@ function stringifyLeaf(s: string): string {
   return escapeHtmlSafe(JSON.stringify(s));
 }
 
+// Module-level UTF-8 encoder reused by the key comparator (cheaper than
+// allocating a fresh TextEncoder per comparison).
+const KEY_UTF8_ENCODER = new TextEncoder();
+
+/**
+ * Compare two strings by their UTF-8 byte sequences (lexicographic, unsigned).
+ * This is the ordering Go's encoding/json uses for map keys and the ordering
+ * Python's canonical_json uses (`key=lambda k: k.encode("utf-8")`). JS's
+ * default string `<` compares UTF-16 code units, which differs from UTF-8 byte
+ * order for code points above U+FFFF. Using this comparator keeps the three
+ * SDKs byte-identical for any key set, ASCII or not.
+ */
+function compareUtf8Bytes(a: string, b: string): number {
+  if (a === b) return 0;
+  const ab = KEY_UTF8_ENCODER.encode(a);
+  const bb = KEY_UTF8_ENCODER.encode(b);
+  const n = Math.min(ab.length, bb.length);
+  for (let i = 0; i < n; i++) {
+    if (ab[i] !== bb[i]) return ab[i] - bb[i];
+  }
+  return ab.length - bb.length;
+}
+
 function marshalSorted(v: unknown, seen: WeakSet<object>): string {
   if (isRawIntegerNumber(v)) return v.value;
   if (v === null) return 'null';
@@ -107,10 +130,16 @@ function marshalSorted(v: unknown, seen: WeakSet<object>): string {
     }
     seen.add(v as object);
     const obj = v as Record<string, unknown>;
-    // Byte-wise string sort matches Go sort.Strings for ASCII keys. The
-    // 7-field Veil signable set is ASCII-only; a future signed field with
-    // non-ASCII keys would require switching to a bytewise-UTF-8 sort.
-    const keys = Object.keys(obj).sort();
+    // Bytewise UTF-8 key sort — matches Go's encoding/json (which orders map
+    // keys by their raw string bytes, i.e. UTF-8) and Python's
+    // `sorted(keys, key=lambda k: k.encode("utf-8"))`. JS's default
+    // `Array.prototype.sort()` compares UTF-16 code units, which diverges from
+    // UTF-8 byte order for characters above the BMP (e.g. emoji, whose
+    // surrogate-pair code units sort before BMP chars like U+E000–U+FFFF while
+    // their UTF-8 bytes sort after). The Veil signable key set is ASCII-only so
+    // this is byte-equivalent on every real cert; the explicit UTF-8 sort keeps
+    // all three SDKs in exact parity if a non-ASCII signed key is ever added.
+    const keys = Object.keys(obj).sort(compareUtf8Bytes);
     const parts = keys.map(
       (k) => `${stringifyLeaf(k)}:${marshalSorted(obj[k], seen)}`,
     );
