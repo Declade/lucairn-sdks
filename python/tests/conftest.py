@@ -81,6 +81,28 @@ def canonical_reference(ts_fixtures_dir: Path) -> tuple[dict[str, Any], str]:
 
 
 @pytest.fixture(scope="session")
+def canonical_reference_nonascii(ts_fixtures_dir: Path) -> tuple[dict[str, Any], str]:
+    """(revived input dict, expected hex string) for the M3 non-ASCII vector.
+
+    The hex is the witness signer's CanonicalJSON output
+    (dual-sandbox-architecture/pkg/veil/canonical.go) on this exact input — the
+    same fixture file the Go and TS golden tests consume.
+    """
+
+    raw_input = json.loads(
+        (
+            ts_fixtures_dir / "canonical-json-nonascii-go-reference-input.json"
+        ).read_text()
+    )
+    expected_hex = (
+        (ts_fixtures_dir / "canonical-json-nonascii-go-reference.hex")
+        .read_text()
+        .strip()
+    )
+    return revive_raw_integers(raw_input), expected_hex
+
+
+@pytest.fixture(scope="session")
 def cert_valid_anchored(ts_fixtures_dir: Path) -> dict[str, Any]:
     return json.loads((ts_fixtures_dir / "cert-valid-anchored.json").read_text())
 

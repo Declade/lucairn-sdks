@@ -107,12 +107,40 @@ func TestCanonicalJSON_RejectsFloats(t *testing.T) {
 	}
 }
 
-func TestCanonicalJSON_HTMLEscapesInLowercaseHex(t *testing.T) {
+// M3 - witness parity. The witness signer emits <, >, & LITERALLY (it does NOT
+// HTML-escape them); U+2028 / U+2029 are >= U+0080 so they escape to lowercase.
+func TestCanonicalJSON_EmitsHTMLCharsLiterallyAndEscapesLineSeparators(t *testing.T) {
 	out, err := CanonicalJSON(map[string]any{"k": "<>&\u2028\u2029"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"k":"\u003c\u003e\u0026\u2028\u2029"}`
+	want := `{"k":"<>&\u2028\u2029"}`
+	if got := string(out); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// M3 - every rune >= U+0080 escapes to lowercase \uXXXX; a supplementary-plane
+// rune (emoji) becomes a UTF-16 surrogate pair, matching the witness's
+// encodePythonAsciiString.
+func TestCanonicalJSON_EscapesNonASCIIAndEmojiSurrogatePair(t *testing.T) {
+	out, err := CanonicalJSON(map[string]any{"k": "\u00e9\U0001F984"}) // e-acute + unicorn
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"k":"\u00e9\ud83e\udd84"}`
+	if got := string(out); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// M3 - U+007F (DEL) is escaped to lowercase \u007f despite being ASCII.
+func TestCanonicalJSON_EscapesDELChar(t *testing.T) {
+	out, err := CanonicalJSON(map[string]any{"k": "a\u007fb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"k":"a\u007fb"}`
 	if got := string(out); got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -190,6 +218,45 @@ func TestCanonicalJSON_MatchesGoReferenceHex(t *testing.T) {
 	if actualHex != expectedHex {
 		t.Fatalf("canonical-JSON byte-equality failed:\n  got:  %s\n  want: %s\n  got-bytes:  %s\n  want-bytes: %s",
 			actualHex, expectedHex, string(out), "<see hex>")
+	}
+}
+
+// M3 - cross-language NON-ASCII golden cross-check. The hex bytes are the raw
+// output of the witness signer (dual-sandbox-architecture/pkg/veil/canonical.go,
+// CanonicalJSON) on the same input - the authoritative faithfulness assertion
+// for the non-ASCII path: every codepoint >= U+0080 -> lowercase \uXXXX
+// (supplementary plane -> surrogate pair); <>& literal; U+2028/2029 escaped;
+// control chars; non-ASCII KEYS sorted bytewise over UTF-8; nested + array-of-
+// maps. A one-byte divergence here means a non-ASCII signable would fail
+// signature verification on a valid cert. The SAME fixture is also consumed by
+// the TS and Python golden tests.
+func TestCanonicalJSON_MatchesWitnessReferenceHex_NonASCII(t *testing.T) {
+	fixtures := tsFixturesDir(t)
+
+	inputBytes, err := os.ReadFile(filepath.Join(fixtures, "canonical-json-nonascii-go-reference-input.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw any
+	if err := json.Unmarshal(inputBytes, &raw); err != nil {
+		t.Fatal(err)
+	}
+	revived := reviveRawIntegers(raw)
+
+	hexBytes, err := os.ReadFile(filepath.Join(fixtures, "canonical-json-nonascii-go-reference.hex"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedHex := strings.TrimSpace(string(hexBytes))
+
+	out, err := CanonicalJSON(revived)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualHex := hex.EncodeToString(out)
+	if actualHex != expectedHex {
+		t.Fatalf("non-ASCII canonical byte-equality failed:\n  got:  %s\n  want: %s\n  got-str: %s",
+			actualHex, expectedHex, string(out))
 	}
 }
 

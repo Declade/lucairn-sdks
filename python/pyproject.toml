@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lucairn"
-version = "1.3.0"
+version = "1.4.0"
 description = "Lucairn — privacy-preserving AI gateway client for Python"
 readme = "README.md"
 license = { text = "MIT" }

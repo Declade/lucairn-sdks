@@ -6,8 +6,14 @@ Byte-identical to:
 
 This is NOT RFC 8785 JCS. It is the witness's signing algorithm:
   - recursive sorted keys at every map depth (bytewise UTF-8 sort)
-  - leaves through json.dumps(..., ensure_ascii=False, separators=(",", ":"))
-    then HTML-safe post-processing to match Go's default json.Marshal
+  - leaves through json.dumps(..., ensure_ascii=True, separators=(",", ":")),
+    which is byte-identical to the witness signer
+    (dual-sandbox-architecture/pkg/veil/canonical.go:encodePythonAsciiString):
+    every codepoint >= U+0080 is escaped to a lowercase ``\\uXXXX`` (supplementary
+    plane -> UTF-16 surrogate pair ``\\uHHHH\\uLLLL``), and ``<`` ``>`` ``&`` are
+    emitted LITERALLY (the witness does NOT HTML-escape them). U+2028 / U+2029 are
+    >= U+0080 and so are escaped to ``\\u2028`` / ``\\u2029`` by ensure_ascii=True —
+    no special-casing needed.
   - Python int emits as integer JSON (e.g. ``2``), preserving Go's
     json.Marshal(int) output. ``float`` is rejected at the boundary to
     prevent accidental float-formatting divergence between languages —
@@ -45,39 +51,35 @@ def canonical_json(value: Any) -> bytes:
 
     seen: set[int] = set()
     s = _marshal_sorted(value, seen)
-    try:
-        return s.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        # Lone / mismatched surrogates survive json.dumps(ensure_ascii=False)
-        # as Python str codepoints but fail to encode to UTF-8. Convert to
-        # TypeError so the verify_certificate pipeline wraps it as
-        # LucairnCertificateError(reason="malformed") rather than leaking
-        # a raw UnicodeEncodeError.
-        raise TypeError(
-            f"canonical_json: input contains invalid UTF-16 surrogate bytes: {exc}"
-        ) from exc
+    # The serialized string is pure ASCII (ensure_ascii=True escapes every
+    # codepoint >= U+0080), so encoding never raises UnicodeEncodeError. Lone /
+    # mismatched surrogates are rejected earlier, inside _stringify_leaf, before
+    # they can survive into the escaped output — see the surrogate guard there.
+    return s.encode("ascii")
 
 
 def _stringify_leaf(s: str) -> str:
-    # json.dumps with ensure_ascii=False emits the string's Unicode verbatim
-    # (matching JS JSON.stringify pre-HTML-escape). separators is irrelevant
-    # for a leaf string but passed for uniformity. json.dumps will still
-    # escape control chars, quotes, and backslashes per the JSON spec.
-    encoded = json.dumps(s, ensure_ascii=False, separators=(",", ":"))
-    # HTML-safe escape to match Go's default json.Marshal. Lowercase hex —
-    # case and exact char set are load-bearing. Order does not matter since
-    # none of these replacements introduce another target character.
-    encoded = encoded.replace("<", "\\u003c")
-    encoded = encoded.replace(">", "\\u003e")
-    encoded = encoded.replace("&", "\\u0026")
-    # U+2028 / U+2029 are valid UTF-8 but illegal inside a JS string literal.
-    # Pre-ES2019 JSON.stringify escaped them by default; ES2019+ does not.
-    # Go's json.Marshal does not escape them by default either. Both TS and
-    # Python explicitly escape so the witness sees the same bytes regardless
-    # of host JSON engine.
-    encoded = encoded.replace("\u2028", "\\u2028")
-    encoded = encoded.replace("\u2029", "\\u2029")
-    return encoded
+    # Reject lone / mismatched UTF-16 surrogate codepoints BEFORE serializing.
+    # ensure_ascii=True would otherwise emit them as a lowercase \uXXXX escape
+    # (and the ASCII encode would succeed), silently producing a string no
+    # well-formed witness-signed payload could contain. A surrogate means
+    # malformed Unicode -> reject as a typed TypeError so the verify_certificate
+    # pipeline wraps it as reason="malformed".
+    for ch in s:
+        if 0xD800 <= ord(ch) <= 0xDFFF:
+            raise TypeError(
+                "canonical_json: input contains invalid UTF-16 surrogate "
+                f"codepoint U+{ord(ch):04X}"
+            )
+    # json.dumps with ensure_ascii=True is byte-identical to the witness signer
+    # (dual-sandbox-architecture/pkg/veil/canonical.go:encodePythonAsciiString):
+    #   - escapes EVERY codepoint >= U+0080 to a lowercase \uXXXX escape
+    #     (supplementary plane -> UTF-16 surrogate pair \uHHHH\uLLLL), including
+    #     U+2028 / U+2029 -> \u2028 / \u2029 (no special-casing needed);
+    #   - emits <, >, & LITERALLY (the witness does NOT HTML-escape them);
+    #   - escapes control chars, quotes, and backslashes per the JSON spec.
+    # separators is irrelevant for a leaf string but passed for uniformity.
+    return json.dumps(s, ensure_ascii=True, separators=(",", ":"))
 
 
 def _marshal_sorted(v: Any, seen: set[int]) -> str:

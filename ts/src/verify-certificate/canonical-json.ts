@@ -10,9 +10,14 @@
 //
 // This is NOT RFC 8785 JCS. It is the witness's signing algorithm:
 //   - recursive sorted keys at every map depth (Go sort.Strings, byte-wise
-//     over UTF-8; TS Array.prototype.sort on string keys matches for ASCII)
-//   - leaves through JSON.stringify, then HTML-safe post-processing to match
-//     Go's default json.Marshal HTML escaping
+//     over UTF-8; see compareUtf8Bytes below — non-ASCII keys sort identically
+//     to the witness)
+//   - leaves through an ensure_ascii=True escaper that is byte-identical to the
+//     witness signer (pkg/veil/canonical.go:encodePythonAsciiString): EVERY
+//     UTF-16 code unit >= U+0080 becomes a lowercase \uXXXX escape (a
+//     supplementary-plane rune is naturally two code units -> a surrogate pair
+//     \uHHHH\uLLLL), and <, >, & are emitted LITERALLY (the witness does NOT
+//     HTML-escape them). U+2028 / U+2029 are >= U+0080 so they escape too.
 //   - integers-as-integers via the rawIntegerNumber branded type; naked JS
 //     numbers throw at the boundary
 // Output: zero whitespace, no trailing newline, UTF-8 bytes.
@@ -64,19 +69,69 @@ export function canonicalJson(value: unknown): Uint8Array {
   return new TextEncoder().encode(s);
 }
 
-// HTML-safe escape to match Go's default json.Marshal. Lowercase hex —
-// case and exact char set are load-bearing.
-function escapeHtmlSafe(jsonString: string): string {
-  return jsonString
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
+// Lowercase-hex \uXXXX for a 16-bit code unit. The witness emits lowercase hex.
+function u(codeUnit: number): string {
+  return '\\u' + codeUnit.toString(16).padStart(4, '0');
 }
 
+/**
+ * Serialize a string to a JSON string literal whose bytes are byte-identical
+ * to Python's `json.dumps(s, ensure_ascii=True)` and the witness signer
+ * (pkg/veil/canonical.go:encodePythonAsciiString).
+ *
+ * We iterate by UTF-16 code unit (the natural unit for a JS string), which
+ * means a supplementary-plane rune is encountered as its two surrogate code
+ * units and each is emitted as `\uHHHH` / `\uLLLL` — exactly the surrogate pair
+ * the witness produces from utf16.EncodeRune. No HTML escaping: `<` `>` `&` are
+ * emitted literally. U+2028 / U+2029 are >= U+0080 so they escape to \u2028 /
+ * \u2029 through the general path. Char-class table (matches the witness):
+ *
+ *   U+0008 -> \b   U+0009 -> \t   U+000A -> \n   U+000C -> \f   U+000D -> \r
+ *   other U+0000..U+001F -> \u00XX (lowercase)
+ *   U+0022 (") -> \"      U+005C (\) -> \\
+ *   U+0020..U+007E (incl < > &) -> literal (except the two above)
+ *   U+007F (DEL) -> \u007f
+ *   U+0080..U+FFFF (incl. surrogate code units) -> \uXXXX (lowercase)
+ */
 function stringifyLeaf(s: string): string {
-  return escapeHtmlSafe(JSON.stringify(s));
+  let out = '"';
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    switch (c) {
+      case 0x22: // "
+        out += '\\"';
+        break;
+      case 0x5c: // backslash
+        out += '\\\\';
+        break;
+      case 0x08:
+        out += '\\b';
+        break;
+      case 0x09:
+        out += '\\t';
+        break;
+      case 0x0a:
+        out += '\\n';
+        break;
+      case 0x0c:
+        out += '\\f';
+        break;
+      case 0x0d:
+        out += '\\r';
+        break;
+      default:
+        if (c < 0x20 || c === 0x7f || c >= 0x80) {
+          // C0 controls (other than the short escapes above), DEL, and every
+          // code unit >= U+0080 (incl. surrogate halves) -> lowercase \uXXXX.
+          out += u(c);
+        } else {
+          // Printable ASCII U+0020..U+007E except " and \ — emit literally.
+          // This deliberately includes <, >, & (the witness does NOT escape).
+          out += s.charAt(i);
+        }
+    }
+  }
+  return out + '"';
 }
 
 // Module-level UTF-8 encoder reused by the key comparator (cheaper than

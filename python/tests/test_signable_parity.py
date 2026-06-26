@@ -164,9 +164,11 @@ def test_non_ascii_key_sort() -> None:
     bmp_key = ""
     astral_key = "\U0001f600"
     out = canonical_json({bmp_key: "bmp", astral_key: "astral", "a": "ascii"})
-    want = (
-        '{"a":"ascii","' + bmp_key + '":"bmp","' + astral_key + '":"astral"}'
-    ).encode("utf-8")
+    # M3: keys render ensure_ascii-escaped in the output (U+E000 -> \\ue000,
+    # U+1F600 -> the UTF-16 surrogate pair \\ud83d\\ude00), matching the
+    # witness. The SORT ORDER (bytewise UTF-8) is unchanged and remains the
+    # load-bearing assertion.
+    want = b'{"a":"ascii","\\ue000":"bmp","\\ud83d\\ude00":"astral"}'
     assert out == want, f"\n  got:  {out!r}\n  want: {want!r}"
 
 
