@@ -123,7 +123,36 @@ function stringifyLeaf(s: string): string {
         if (c < 0x20 || c === 0x7f || c >= 0x80) {
           // C0 controls (other than the short escapes above), DEL, and every
           // code unit >= U+0080 (incl. surrogate halves) -> lowercase \uXXXX.
-          out += u(c);
+          //
+          // Lone-surrogate guard: a valid supplementary-plane rune arrives as a
+          // high-surrogate (U+D800..U+DBFF) immediately followed by a low-
+          // surrogate (U+DC00..U+DFFF) — that is the correct astral pair path
+          // and is left to emit as \uHHHH\uLLLL. A *lone* surrogate (high
+          // without a following low, or a low without a preceding high) is not
+          // valid Unicode / UTF-16; Python raises on it (.encode("utf-8") fails)
+          // so we must reject here for parity — both implementations are then
+          // fail-closed rather than silently diverging.
+          if (c >= 0xd800 && c <= 0xdbff) {
+            // High surrogate: valid only if the next code unit is a low surrogate.
+            // charCodeAt returns NaN when the index is past the end; NaN fails
+            // both bounds checks, so the lone-surrogate branch fires correctly.
+            const next = s.charCodeAt(i + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) {
+              throw new TypeError(
+                `canonicalJson: lone surrogate U+${c.toString(16).toUpperCase().padStart(4, '0')} at index ${i}`,
+              );
+            }
+            // Valid pair: emit both halves as \uHHHH\uLLLL, advance past the low.
+            out += u(c) + u(next);
+            i++;
+          } else if (c >= 0xdc00 && c <= 0xdfff) {
+            // Low surrogate without a preceding high surrogate.
+            throw new TypeError(
+              `canonicalJson: lone surrogate U+${c.toString(16).toUpperCase().padStart(4, '0')} at index ${i}`,
+            );
+          } else {
+            out += u(c);
+          }
         } else {
           // Printable ASCII U+0020..U+007E except " and \ — emit literally.
           // This deliberately includes <, >, & (the witness does NOT escape).
