@@ -59,6 +59,30 @@ describe('canonicalJson — port of pkg/veil/canonical.go', () => {
     expect(new TextDecoder().decode(bytes)).toBe('{"k":"\\u00e9\\ud83e\\udd84"}');
   });
 
+  // TOB-001 — lone-surrogate reject for parity with Python. Python's
+  // json.dumps(ensure_ascii=True) raises when the string carries an unpaired
+  // surrogate (str.encode("utf-8") fails). Both implementations must be
+  // fail-closed: a malformed signable surfaces as a TypeError → the
+  // verify_certificate pipeline wraps it as reason="malformed" in all SDKs.
+  // Valid astral pairs (high + immediately following low surrogate) are NOT
+  // affected — they still emit as \uHHHH\uLLLL.
+  it('throws on a lone high surrogate (no following low surrogate)', () => {
+    // U+D800 is a high surrogate without a following low surrogate.
+    expect(() => canonicalJson({ a: '\uD800' })).toThrow(TypeError);
+    expect(() => canonicalJson({ a: '\uD800' })).toThrow(/surrogate/i);
+  });
+
+  it('throws on a lone low surrogate', () => {
+    expect(() => canonicalJson({ a: '\uDC00' })).toThrow(TypeError);
+    expect(() => canonicalJson({ a: '\uDC00' })).toThrow(/surrogate/i);
+  });
+
+  it('still emits a valid astral surrogate pair as \\uHHHH\\uLLLL (not broken by the guard)', () => {
+    // U+1F984 (unicorn emoji) = 🦄 — valid pair, must round-trip.
+    const bytes = canonicalJson({ k: '🦄' });
+    expect(new TextDecoder().decode(bytes)).toBe('{"k":"\\ud83e\\udd84"}');
+  });
+
   it('escapes the DEL char (U+007F) to lowercase \\u007f', () => {
     const bytes = canonicalJson({ k: 'ab' });
     expect(new TextDecoder().decode(bytes)).toBe('{"k":"a\\u007fb"}');
