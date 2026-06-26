@@ -195,8 +195,12 @@ func TestParity_NonAsciiKeySort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CanonicalJSON: %v", err)
 	}
-	// UTF-8 byte order: "a" (0x61) < bmpKey (0xee...) < astralKey (0xf0...).
-	want := `{"a":"ascii","` + bmpKey + `":"bmp","` + astralKey + `":"astral"}`
+	// UTF-8 byte order is unchanged: "a" (0x61) < bmpKey (0xee...) < astralKey
+	// (0xf0...). M3: the keys now render ensure_ascii-escaped in the output -
+	// U+E000 -> \ue000, U+1F600 -> the UTF-16 surrogate pair \ud83d\ude00 -
+	// matching the witness's encodePythonAsciiString. The sort POSITION is the
+	// load-bearing assertion; the escaped rendering is the M3 change.
+	want := `{"a":"ascii","\ue000":"bmp","\ud83d\ude00":"astral"}`
 	if string(out) != want {
 		t.Fatalf("non-ASCII key sort:\n  got:  %s\n  want: %s", string(out), want)
 	}

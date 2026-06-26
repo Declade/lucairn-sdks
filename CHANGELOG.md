@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [sdk 1.4.0] — 2026-06-26
+
+### Fixed
+- **Canonical-JSON aligned to the witness signer (M3).** The TS canonical-JSON
+  verifier (`ts/src/verify-certificate/canonical-json.ts`) now reconstructs the
+  witness signer's bytes exactly: every UTF-16 code unit `>= U+0080` is escaped
+  to a lowercase `\uXXXX` (a supplementary-plane rune renders as its surrogate
+  pair `\uHHHH\uLLLL`), and `<`, `>`, `&` are emitted **literally** (the witness
+  does NOT HTML-escape them — the previous `escapeHtmlSafe(JSON.stringify(...))`
+  path both HTML-escaped `<>&` and emitted raw UTF-8 for non-ASCII, diverging on
+  both axes). `U+2028` / `U+2029` are `>= U+0080` and so escape through the same
+  path. The UTF-8 byte-wise key sort (from the prior release) is unchanged.
+  **Backward-compatible, NOT a protocol bump:** the signable shape is unchanged
+  and existing ASCII certificates produce byte-identical output (the ASCII
+  signable-freeze fixtures are untouched). The only behavioural change: a
+  certificate whose signable carries a non-ASCII byte or `<>&` now verifies
+  (it previously failed `invalid_signature`). Cross-language **golden** test
+  added — `canonicalJson` is asserted byte-identical to the witness's
+  `pkg/veil/canonical.go` `CanonicalJSON` on a non-ASCII vector (é, à, em-dash,
+  unicorn emoji surrogate pair, `<>&`, `U+2028/2029`, control chars, non-ASCII
+  keys, nested + array-of-maps), via a fixture shared with the Go and Python
+  golden tests. Closes the latent witness↔SDK divergence (M3). Publish before
+  any non-ASCII `org_id` / `client_id` is introduced upstream.
+
+## [Python 1.4.0] — 2026-06-26
+
+### Fixed
+- **Canonical-JSON aligned to the witness signer (M3).** `canonical_json`
+  (`python/src/lucairn/verify_certificate/canonical_json.py`) now serializes
+  leaves with `json.dumps(..., ensure_ascii=True)` — byte-identical to the
+  witness signer — and the explicit `<>&` HTML-escaping (and the redundant
+  `U+2028`/`U+2029` post-processing) has been removed: `ensure_ascii=True`
+  escapes every codepoint `>= U+0080` to a lowercase `\uXXXX` (supplementary
+  plane → surrogate pair) and emits `<`, `>`, `&` literally, matching the
+  witness. Lone / mismatched UTF-16 surrogates are still rejected as a typed
+  `TypeError` (now via an explicit pre-serialization guard, since
+  `ensure_ascii=True` would otherwise emit them). Backward-compatible, NOT a
+  protocol bump — see the `sdk 1.4.0` entry. Shared cross-language golden test
+  added.
+
+## [Go v1.3.0] — 2026-06-26
+
+### Fixed
+- **Canonical-JSON aligned to the witness signer (M3).** `verify.CanonicalJSON`
+  (`go/internal/verify/canonical.go`) replaces the previous `json.Marshal`
+  (default `SetEscapeHTML(true)`) leaf encoding — which HTML-escaped `<>&` and
+  emitted raw UTF-8 for non-ASCII — with an explicit port of the witness's
+  `encodePythonAsciiString`: every rune `>= U+0080` → lowercase `\uXXXX`
+  (supplementary plane → UTF-16 surrogate pair), control chars → short escapes
+  or `\u00XX`, `U+007F` → ``, and `<`, `>`, `&` emitted literally. Map
+  keys are sorted bytewise over their UTF-8 bytes at every nesting level via
+  explicit recursion (no longer relying on `json.Marshal`'s key ordering).
+  Backward-compatible, NOT a protocol bump — the v2/v3 signable-freeze fixtures
+  are byte-identical. Shared cross-language golden test added.
+
 ## [ts 1.2.0] — 2026-06-10
 
 ### Added

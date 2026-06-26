@@ -146,7 +146,10 @@ describe('parity: bytewise-UTF-8 canonical-JSON key sort (fix 4)', () => {
     const astralKey = '\u{1F600}';
     const out = canonicalJson({ [bmpKey]: 'bmp', [astralKey]: 'astral', a: 'ascii' });
     const got = new TextDecoder().decode(out);
-    const want = `{"a":"ascii","${bmpKey}":"bmp","${astralKey}":"astral"}`;
+    // M3: keys render ensure_ascii-escaped (U+E000 -> , U+1F600 -> the
+    // UTF-16 surrogate pair 😀), matching the witness. The SORT ORDER
+    // (bytewise UTF-8) is unchanged and remains the load-bearing assertion.
+    const want = '{"a":"ascii","\\ue000":"bmp","\\ud83d\\ude00":"astral"}';
     expect(got).toBe(want);
   });
 

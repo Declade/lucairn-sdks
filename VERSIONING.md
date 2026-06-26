@@ -53,10 +53,24 @@ The supported version is pinned in:
 
 | SDK package           | SDK version range | Verifiable gateway `protocol_version` |
 |-----------------------|-------------------|---------------------------------------|
-| `@lucairn/sdk`        | 1.1.x             | 2                                     |
-| `lucairn` (Python)    | 1.1.x             | 2                                     |
-| `github.com/declade/lucairn-sdks/go` | v1.1.x | 2                                |
+| `@lucairn/sdk`        | 1.4.x             | 2                                     |
+| `lucairn` (Python)    | 1.4.x             | 2                                     |
+| `github.com/declade/lucairn-sdks/go` | v1.3.x | 2                                |
 | `@lucairn/mcp-server` | 1.2.x             | 2 (delegates verification to the bundled verify pipeline) |
+
+> **Canonical-JSON encoding alignment (sdk 1.4.0 / Python 1.4.0 / Go v1.3.0).**
+> These releases align the SDK canonical-JSON verifier to the witness signer's
+> exact bytes: every codepoint `>= U+0080` is escaped to a lowercase `\uXXXX`
+> (supplementary plane → UTF-16 surrogate pair) and `<` `>` `&` are emitted
+> **literally** (the witness does NOT HTML-escape them). This is a
+> **backward-compatible** fix, **NOT** a protocol bump — the signable *shape*
+> (7-key v2 / 13-key v3) is unchanged, so the verifiable `protocol_version`
+> stays `2`. Every existing ASCII certificate produces byte-identical output
+> under the old and new encoders (proven by the unchanged ASCII signable-freeze
+> fixtures); the only observable change is that a future certificate whose
+> signable carries a non-ASCII byte or `<>&` now verifies (it previously failed).
+> Publish the aligned encoders before any non-ASCII `org_id` / `client_id` is
+> introduced upstream.
 
 All four packages currently verify `protocol_version = 2` only. A future
 gateway protocol bump (→ 3) will be a **coordinated** SDK release across all

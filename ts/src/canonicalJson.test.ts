@@ -40,16 +40,28 @@ describe('canonicalJson — port of pkg/veil/canonical.go', () => {
     expect(() => canonicalJson({ n: 1 })).toThrow(TypeError);
   });
 
-  // B1 — Go-parity HTML escaping. Go's json.Marshal applies HTML-safe
-  // escaping by default; TS JSON.stringify does not. This test asserts
-  // the port produces the exact lowercase-hex \u escapes Go emits.
-  it('escapes <, >, &, U+2028, U+2029 in lowercase hex to match Go json.Marshal', () => {
+  // M3 — witness parity for <>& and the line separators. The witness signer
+  // (pkg/veil/canonical.go, = Python json.dumps(ensure_ascii=True)) emits
+  // <, >, & LITERALLY (it does NOT HTML-escape them); U+2028 / U+2029 are
+  // >= U+0080 and so escape to lowercase. This corrects the earlier (wrong)
+  // HTML-escaping assumption.
+  it('emits <, >, & literally and escapes U+2028, U+2029 to match the witness', () => {
     const bytes = canonicalJson({ k: '<>&\u2028\u2029' });
-    // Go emits: {"k":"\u003c\u003e\u0026\u2028\u2029"}
-    // Case (lowercase hex) is load-bearing — Go uses lowercase.
-    expect(new TextDecoder().decode(bytes)).toBe(
-      '{"k":"\\u003c\\u003e\\u0026\\u2028\\u2029"}',
-    );
+    // Witness emits <>& literally + lowercase-hex escaped line separators.
+    expect(new TextDecoder().decode(bytes)).toBe('{"k":"<>&\\u2028\\u2029"}');
+  });
+
+  // M3 — every code unit >= U+0080 escapes to a lowercase \uXXXX, and a
+  // supplementary-plane rune (emoji) becomes a UTF-16 surrogate pair, exactly
+  // like the witness's encodePythonAsciiString.
+  it('escapes non-ASCII to lowercase \\uXXXX and emoji to a surrogate pair (witness parity)', () => {
+    const bytes = canonicalJson({ k: 'é\u{1F984}' });
+    expect(new TextDecoder().decode(bytes)).toBe('{"k":"\\u00e9\\ud83e\\udd84"}');
+  });
+
+  it('escapes the DEL char (U+007F) to lowercase \\u007f', () => {
+    const bytes = canonicalJson({ k: 'ab' });
+    expect(new TextDecoder().decode(bytes)).toBe('{"k":"a\\u007fb"}');
   });
 
   it('does not double-escape quotes or backslashes (JSON.stringify defaults)', () => {
@@ -118,6 +130,33 @@ describe('canonicalJson — port of pkg/veil/canonical.go', () => {
     const rawInput = JSON.parse(
       readFileSync(
         join(fixturesDir, 'canonical-json-go-reference-input.json'),
+        'utf8',
+      ),
+    );
+    const revived = reviveRawIntegers(rawInput);
+    const bytes = canonicalJson(revived);
+    const actualHex = Buffer.from(bytes).toString('hex');
+    expect(actualHex).toBe(expectedHex);
+  });
+
+  // M3 — cross-language NON-ASCII golden cross-check. The hex bytes are the raw
+  // output of the witness signer (dual-sandbox-architecture/pkg/veil/canonical.go,
+  // CanonicalJSON) on the same input. This is the authoritative faithfulness
+  // assertion for the non-ASCII path: every codepoint >= U+0080 -> lowercase
+  // \uXXXX (supplementary plane -> surrogate pair); <>& literal; U+2028/2029
+  // escaped; control chars; non-ASCII KEYS sorted bytewise over UTF-8; nested +
+  // array-of-maps. A one-byte divergence here means a non-ASCII signable would
+  // fail signature verification on a valid cert. The SAME fixture file is also
+  // consumed by the Go and Python golden tests — one witness-pinned source of
+  // truth shared across all three SDKs.
+  it('matches the witness reference hex on the non-ASCII vector (byte-for-byte)', () => {
+    const expectedHex = readFileSync(
+      join(fixturesDir, 'canonical-json-nonascii-go-reference.hex'),
+      'utf8',
+    ).trim();
+    const rawInput = JSON.parse(
+      readFileSync(
+        join(fixturesDir, 'canonical-json-nonascii-go-reference-input.json'),
         'utf8',
       ),
     );

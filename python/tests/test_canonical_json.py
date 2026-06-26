@@ -47,10 +47,22 @@ def test_bool_before_int_in_dispatch() -> None:
     assert out == b'{"a":true,"b":false}'
 
 
-def test_escapes_html_chars_and_line_separators_in_lowercase_hex() -> None:
+def test_emits_html_chars_literally_and_escapes_line_separators() -> None:
     out = canonical_json({"k": "<>&\u2028\u2029"})
-    # Go emits: {"k":"\u003c\u003e\u0026\u2028\u2029"}
-    assert out == b'{"k":"\\u003c\\u003e\\u0026\\u2028\\u2029"}'
+    assert out == b'{"k":"<>&\\u2028\\u2029"}'
+
+
+def test_escapes_non_ascii_and_emoji_surrogate_pair() -> None:
+    # M3 witness parity: every codepoint >= U+0080 -> lowercase \uXXXX;
+    # supplementary plane (emoji) -> UTF-16 surrogate pair.
+    out = canonical_json({"k": "é\U0001f984"})  # e-acute + unicorn
+    assert out == b'{"k":"\\u00e9\\ud83e\\udd84"}'
+
+
+def test_escapes_del_char() -> None:
+    # U+007F (DEL) is escaped to lowercase  despite being technically ASCII.
+    out = canonical_json({"k": "ab"})
+    assert out == b'{"k":"a\\u007fb"}'
 
 
 def test_does_not_double_escape_quotes_or_backslashes() -> None:
@@ -143,5 +155,25 @@ def test_matches_go_reference_hex_byte_for_byte(
     """
 
     revived, expected_hex = canonical_reference
+    out = canonical_json(revived)
+    assert out.hex() == expected_hex
+
+
+def test_matches_witness_reference_hex_nonascii_byte_for_byte(
+    canonical_reference_nonascii: tuple[dict[str, Any], str],
+) -> None:
+    """M3 — cross-language NON-ASCII golden cross-check.
+
+    The hex bytes in canonical-json-nonascii-go-reference.hex are the raw
+    output of the witness signer (dual-sandbox-architecture/pkg/veil/
+    canonical.go, CanonicalJSON) on the same input. Exercises: every codepoint
+    >= U+0080 -> lowercase ``\\uXXXX`` (supplementary plane -> surrogate pair),
+    literal ``<>&``, escaped U+2028/2029, control chars, non-ASCII KEYS sorted
+    bytewise over UTF-8, nested + array-of-maps. A one-byte divergence here
+    means a non-ASCII signable would fail signature verification on a valid
+    cert. The SAME fixture is also consumed by the Go and TS golden tests.
+    """
+
+    revived, expected_hex = canonical_reference_nonascii
     out = canonical_json(revived)
     assert out.hex() == expected_hex
