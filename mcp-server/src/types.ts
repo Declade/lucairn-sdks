@@ -62,8 +62,16 @@ export interface AnthropicResponseBody {
       request_id: string
       veil_certificate_url?: string
       veil_summary_url?: string
-      pii_in_ai?: boolean
-      identity_in_ai?: boolean
+      /**
+       * @deprecated Legacy measurement; null means it was not measured —
+       * see the gateway processing attestation. Never coerce null to false.
+       */
+      pii_in_ai?: boolean | null
+      /**
+       * @deprecated Legacy measurement; null means it was not measured —
+       * see the gateway processing attestation. Never coerce null to false.
+       */
+      identity_in_ai?: boolean | null
       sanitizer_layers?: string[]
       redaction_count: number
       latency_ms: number
