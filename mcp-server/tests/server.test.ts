@@ -258,6 +258,124 @@ describe('formatToolResult', () => {
   })
 })
 
+describe('compliance null tolerance (deprecated-nullable pii_in_ai/identity_in_ai)', () => {
+  // DSA gateway main (PR #380) emits pii_in_ai: null / identity_in_ai: null
+  // when the legacy measurement was not run — the old absolute-boolean
+  // semantics was a false attestation. A PRESENT-but-null value must
+  // validate against the outputSchema (JSON Schema `required` only governs
+  // absence, not the type of a present null), and null must NEVER be
+  // coerced to false anywhere in this package.
+  const gatewayBody = (
+    compliance: NonNullable<NonNullable<AnthropicResponseBody['metadata']>['dsa_compliance']>,
+  ): AnthropicResponseBody => ({
+    id: 'msg_dsa_null',
+    type: 'message',
+    role: 'assistant',
+    content: [{ type: 'text', text: 'ok' }],
+    model: 'claude-sonnet-4-6',
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 1, output_tokens: 1 },
+    metadata: { dsa_compliance: compliance },
+  })
+
+  const roundTrip = async (
+    compliance: NonNullable<NonNullable<AnthropicResponseBody['metadata']>['dsa_compliance']>,
+  ) => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(gatewayBody(compliance)), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const client = new GatewayClient({
+      apiKey: 'lcr_live_test',
+      baseUrl: 'https://gateway.lucairn.eu',
+      fetchImpl: fetchSpy,
+    })
+    const server = buildServer(client)
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const mcpClient = new Client({ name: 'test-client', version: '0.0.1' }, { capabilities: {} })
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)])
+
+    // listTools arms the SDK client's ajv outputSchema validator, so the
+    // callTool below is a REAL JSON-Schema validation of structuredContent
+    // against CHAT_TOOL_DESCRIPTOR.outputSchema — with the old
+    // `type: 'boolean'` declaration this round-trip throws McpError.
+    await mcpClient.listTools()
+
+    try {
+      return (await mcpClient.callTool({
+        name: CHAT_TOOL_NAME,
+        arguments: {
+          model: 'claude-sonnet-4-6',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: 'hi' }],
+        },
+      })) as {
+        isError?: boolean
+        structuredContent?: {
+          compliance?: { pii_in_ai?: boolean | null; identity_in_ai?: boolean | null }
+        }
+      }
+    } finally {
+      await mcpClient.close()
+      await server.close()
+    }
+  }
+
+  it('declares pii_in_ai/identity_in_ai as nullable booleans in the outputSchema', () => {
+    const props = CHAT_TOOL_DESCRIPTOR.outputSchema.properties.compliance.properties
+    expect(props.pii_in_ai.type).toEqual(['boolean', 'null'])
+    expect(props.identity_in_ai.type).toEqual(['boolean', 'null'])
+    // Presence stays optional either way — neither field is required.
+    const required: readonly string[] =
+      CHAT_TOOL_DESCRIPTOR.outputSchema.properties.compliance.required
+    expect(required).not.toContain('pii_in_ai')
+    expect(required).not.toContain('identity_in_ai')
+  })
+
+  it('passes null through formatToolResult without coercing to false', () => {
+    const out = formatToolResult(
+      gatewayBody({
+        request_id: 'req_null',
+        pii_in_ai: null,
+        identity_in_ai: null,
+        redaction_count: 0,
+        latency_ms: 50,
+      }),
+    )
+    expect(out.structuredContent.compliance?.pii_in_ai).toBeNull()
+    expect(out.structuredContent.compliance?.identity_in_ai).toBeNull()
+  })
+
+  it('validates a present-but-null pii_in_ai/identity_in_ai against the outputSchema end-to-end', async () => {
+    const result = await roundTrip({
+      request_id: 'req_null_e2e',
+      pii_in_ai: null,
+      identity_in_ai: null,
+      redaction_count: 0,
+      latency_ms: 50,
+    })
+    expect(result.isError).toBeFalsy()
+    expect(result.structuredContent?.compliance?.pii_in_ai).toBeNull()
+    expect(result.structuredContent?.compliance?.identity_in_ai).toBeNull()
+  })
+
+  it('still validates the legacy boolean form (back-compat)', async () => {
+    const result = await roundTrip({
+      request_id: 'req_bool_e2e',
+      pii_in_ai: false,
+      identity_in_ai: false,
+      redaction_count: 0,
+      latency_ms: 50,
+    })
+    expect(result.isError).toBeFalsy()
+    expect(result.structuredContent?.compliance?.pii_in_ai).toBe(false)
+    expect(result.structuredContent?.compliance?.identity_in_ai).toBe(false)
+  })
+})
+
 describe('exceedsInputCap (TOB-005 soft input cap)', () => {
   it('returns false for small inputs', () => {
     expect(exceedsInputCap({ messages: [{ role: 'user', content: 'hi' }] })).toBe(false)
