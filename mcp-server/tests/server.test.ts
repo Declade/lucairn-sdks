@@ -178,6 +178,57 @@ describe('formatToolResult', () => {
     expect(out.structuredContent.compliance?.latency_ms).toBe(142)
   })
 
+  it('declares pii_in_ai/identity_in_ai as nullable booleans in the outputSchema (deprecated-nullable gateway contract)', () => {
+    const complianceProps = CHAT_TOOL_DESCRIPTOR.outputSchema.properties.compliance.properties
+    expect(complianceProps.pii_in_ai.type).toEqual(['boolean', 'null'])
+    expect(complianceProps.identity_in_ai.type).toEqual(['boolean', 'null'])
+    // Absence, not type-of-present-value, is what `required` governs — these
+    // two fields must stay out of `required` so a present-but-null value
+    // (the new gateway contract) still validates.
+    const required = CHAT_TOOL_DESCRIPTOR.outputSchema.properties.compliance.required
+    expect(required).not.toContain('pii_in_ai')
+    expect(required).not.toContain('identity_in_ai')
+  })
+
+  it('round-trips pii_in_ai/identity_in_ai: null without throwing and without coercing null to false', () => {
+    const out = formatToolResult({
+      ...baseResp,
+      metadata: {
+        dsa_compliance: {
+          request_id: 'req_null',
+          redaction_count: 0,
+          latency_ms: 50,
+          pii_in_ai: null,
+          identity_in_ai: null,
+        },
+      },
+    })
+    expect(out.structuredContent.compliance).toBeDefined()
+    expect(out.structuredContent.compliance?.pii_in_ai).toBeNull()
+    expect(out.structuredContent.compliance?.identity_in_ai).toBeNull()
+    // Explicitly guard against the exact regression this fix exists to
+    // prevent: null silently collapsing to false (a false attestation).
+    expect(out.structuredContent.compliance?.pii_in_ai).not.toBe(false)
+    expect(out.structuredContent.compliance?.identity_in_ai).not.toBe(false)
+  })
+
+  it('still round-trips pii_in_ai/identity_in_ai: false (old boolean form, back-compat)', () => {
+    const out = formatToolResult({
+      ...baseResp,
+      metadata: {
+        dsa_compliance: {
+          request_id: 'req_bool',
+          redaction_count: 0,
+          latency_ms: 50,
+          pii_in_ai: false,
+          identity_in_ai: true,
+        },
+      },
+    })
+    expect(out.structuredContent.compliance?.pii_in_ai).toBe(false)
+    expect(out.structuredContent.compliance?.identity_in_ai).toBe(true)
+  })
+
   it('normalizes structured compliance certificate links to public summaries', () => {
     const out = formatToolResult({
       ...baseResp,

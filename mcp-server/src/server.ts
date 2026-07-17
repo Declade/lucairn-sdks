@@ -236,8 +236,18 @@ export const CHAT_TOOL_DESCRIPTOR = {
           request_id: { type: 'string' },
           veil_certificate_url: { type: 'string' },
           veil_summary_url: { type: 'string' },
-          pii_in_ai: { type: 'boolean' },
-          identity_in_ai: { type: 'boolean' },
+          pii_in_ai: {
+            type: ['boolean', 'null'],
+            description:
+              'Deprecated legacy measurement; null means it was not ' +
+              'measured — see the gateway processing attestation.',
+          },
+          identity_in_ai: {
+            type: ['boolean', 'null'],
+            description:
+              'Deprecated legacy measurement; null means it was not ' +
+              'measured — see the gateway processing attestation.',
+          },
           sanitizer_layers: {
             type: 'array',
             items: { type: 'string' },
