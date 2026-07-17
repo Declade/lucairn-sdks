@@ -1,6 +1,6 @@
 {
   "name": "@lucairn/mcp-server",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "mcpName": "io.github.Declade/lucairn-mcp-server",
   "description": "Model Context Protocol server for Lucairn — privacy-preserving AI gateway",
   "license": "MIT",
@@ -41,6 +41,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.test.json"

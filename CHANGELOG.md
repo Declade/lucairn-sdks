@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [mcp-server 1.2.9] — 2026-07-17
+
+### Fixed
+- **Broken 1.2.8 publish (missing `dist/`).** `1.2.8` shipped to npm with only
+  `LICENSE`, `README.md`, and `package.json` — no compiled code — because
+  `dist/` is gitignored and there was no build hook to run it before packing.
+  Publishing from a clean checkout (no prior local `npm run build`) packed
+  zero code; `1.2.7` only worked because `dist/` happened to already exist in
+  the publisher's working directory at the time.
+- Added `"prepack": "npm run build"` to `mcp-server/package.json` `scripts`.
+  `prepack` runs automatically before both `npm pack` and `npm publish`,
+  so publishing now always compiles `dist/` first regardless of the
+  publisher's local build state.
+- Version bumped 1.2.8 → 1.2.9 (1.2.8's version number is burned on the
+  registry with broken content; publish 1.2.9 instead of re-publishing 1.2.8).
+
 ## [sdk 1.4.0] — 2026-06-26
 
 ### Fixed
