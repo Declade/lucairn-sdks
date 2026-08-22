@@ -10,28 +10,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Python 1.4.1] — 2026-08-22
 
 ### Fixed
-- **30s-timeout / 202-receipt race (T-702).** `_DEFAULT_TIMEOUT_S`
+- **30s-timeout / 202-receipt race, narrowed (T-702).** `_DEFAULT_TIMEOUT_S`
   (`python/src/lucairn/client.py`) was `30.0`, with a comment citing
   "TS DEFAULT_TIMEOUT_MS = 30_000" — a constant that no longer exists.
-  `ts/src/client.ts` moved to `DEFAULT_TIMEOUT_MS = 60_000` in the CON-07
-  fix (`f874f0a`, 2026-05-28 hardening audit), deliberately raised above
-  the gateway's 30s sync-wait boundary (after which it returns a 202
-  processing receipt with a `job_id`) and below the gateway's 120s
-  `proxyClientTimeout`. The Python SDK's stale 30s default meant a caller
-  on a ~30s turn timed out exactly at the receipt handoff and never saw
-  the `job_id` to poll. Bumped `_DEFAULT_TIMEOUT_S` to `60.0` and the
-  comment now cites the live TS constant. No API surface change —
-  behavior-only default change; callers who need the old behavior can
-  still pass `timeout=30`.
+  `ts/src/client.ts:40` moved to `DEFAULT_TIMEOUT_MS = 60_000` in the
+  CON-07 fix (`f874f0a`, 2026-05-28 hardening audit). 30s is the
+  gateway's **default** sync-wait timeout (after which it returns a 202
+  processing receipt with a `job_id`); it is configurable
+  (`GATEWAY_WAIT_TIMEOUT`), and both hosted compose files already pin it
+  to 120s, with the live pilot box running an even higher override. The
+  Python SDK's stale 30s default meant a caller against an unconfigured
+  gateway on a ~30s turn timed out exactly at the receipt handoff and
+  never saw the `job_id` to poll. Bumped `_DEFAULT_TIMEOUT_S` to `60.0`
+  and the comment now cites the live TS constant — this restores
+  cross-SDK parity with TS and narrows the race, but does **not**
+  structurally close it against a gateway configured above 60s; callers
+  with long-running turns (e.g. L3) should pass an explicit timeout at or
+  above the gateway's configured wait. No API surface change — behavior-
+  only default change; callers who don't override the timeout now wait
+  up to 60s (was 30s) before a timeout error on a dead/unreachable
+  gateway.
 
 ## [Go v1.3.1] — 2026-08-22
 
 ### Fixed
-- **30s-timeout / 202-receipt race (T-702).** Same defect and fix as
-  `Python 1.4.1` above, in `go/lucairn.go`'s `DefaultTimeout` constant
-  (was `30 * time.Second`, citing the same dead TS constant). Bumped to
-  `60 * time.Second`, comment now cites the live `ts/src/client.ts:41`
-  value. No API surface change.
+- **30s-timeout / 202-receipt race, narrowed (T-702).** Same defect and
+  fix as `Python 1.4.1` above, in `go/lucairn.go`'s `DefaultTimeout`
+  constant (was `30 * time.Second`, citing the same dead TS constant).
+  Bumped to `60 * time.Second`, comment now cites the live
+  `ts/src/client.ts:40` value and the gateway's **default** (configurable)
+  30s sync-wait boundary — see the `Python 1.4.1` entry above for the
+  full boundary detail; this bump restores cross-SDK parity with TS and
+  narrows the race, it does not structurally close it against a gateway
+  configured above 60s. No API surface change; callers who don't override
+  the timeout now wait up to 60s (was 30s) before a timeout error on a
+  dead/unreachable gateway.
 
 ## [mcp-server 1.2.9] — 2026-07-17
 

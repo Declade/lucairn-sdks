@@ -148,15 +148,19 @@ func TestNew_DefaultTimeout(t *testing.T) {
 	}
 }
 
-// TestDefaultTimeout_MatchesTSTwin pins the literal value (not just
-// self-reflection against the constant) so a regression back to 30s is
-// caught even if someone "fixes" DefaultTimeout and this test together.
-// The independent cross-SDK reference is ts/src/client.ts:41
-// (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE the gateway's 30s
-// sync-wait/202-receipt boundary. T-702: Go previously cited a dead TS
-// constant ("DEFAULT_TIMEOUT_MS = 30_000") that no longer exists.
+// TestDefaultTimeout_MatchesTSTwin pins the literal TS value as of this
+// PR (not just self-reflection against DefaultTimeout), so a lone edit to
+// DefaultTimeout fails this test. It does NOT detect cross-file drift: if
+// ts/src/client.ts's constant changes, this paired local literal has to be
+// updated by hand — the two sides are not read from a shared source.
+// The independent cross-SDK reference is ts/src/client.ts:40
+// (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE 30s, the gateway's
+// DEFAULT sync-wait timeout (configurable; hosted/pilot deployments run
+// higher — see DefaultTimeout's doc comment above). T-702: Go previously
+// cited a dead TS constant ("DEFAULT_TIMEOUT_MS = 30_000") that no longer
+// exists.
 func TestDefaultTimeout_MatchesTSTwin(t *testing.T) {
-	const tsDefaultTimeoutMs = 60_000 // mirrors ts/src/client.ts:41
+	const tsDefaultTimeoutMs = 60_000 // mirrors ts/src/client.ts:40
 	want := time.Duration(tsDefaultTimeoutMs) * time.Millisecond
 	if DefaultTimeout != want {
 		t.Errorf("DefaultTimeout = %v, want %v (parity with ts/src/client.ts DEFAULT_TIMEOUT_MS)", DefaultTimeout, want)
