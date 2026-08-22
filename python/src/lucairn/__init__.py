@@ -76,4 +76,4 @@ __all__ = [
     "get_client_id",
 ]
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"

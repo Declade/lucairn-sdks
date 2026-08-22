@@ -148,6 +148,24 @@ func TestNew_DefaultTimeout(t *testing.T) {
 	}
 }
 
+// TestDefaultTimeout_MatchesTSTwin pins the literal value (not just
+// self-reflection against the constant) so a regression back to 30s is
+// caught even if someone "fixes" DefaultTimeout and this test together.
+// The independent cross-SDK reference is ts/src/client.ts:41
+// (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE the gateway's 30s
+// sync-wait/202-receipt boundary. T-702: Go previously cited a dead TS
+// constant ("DEFAULT_TIMEOUT_MS = 30_000") that no longer exists.
+func TestDefaultTimeout_MatchesTSTwin(t *testing.T) {
+	const tsDefaultTimeoutMs = 60_000 // mirrors ts/src/client.ts:41
+	want := time.Duration(tsDefaultTimeoutMs) * time.Millisecond
+	if DefaultTimeout != want {
+		t.Errorf("DefaultTimeout = %v, want %v (parity with ts/src/client.ts DEFAULT_TIMEOUT_MS)", DefaultTimeout, want)
+	}
+	if DefaultTimeout != 60*time.Second {
+		t.Errorf("DefaultTimeout = %v, want 60s", DefaultTimeout)
+	}
+}
+
 func TestNew_AcceptsPositiveTimeout(t *testing.T) {
 	c, err := New(validAPIKey, WithTimeout(5*time.Second))
 	if err != nil {

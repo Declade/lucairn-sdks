@@ -150,7 +150,7 @@ Constructor validates every input up front:
 - `api_key` must be a Lucairn key (`lcr_live_...`) or a legacy `dsa_...` key.
 - `base_url` must be `http://` or `https://`; defaults to
   `https://gateway.lucairn.eu`.
-- `timeout` must be a positive finite number of **seconds** (default `30.0`).
+- `timeout` must be a positive finite number of **seconds** (default `60.0`).
   TS SDK equivalent is `timeoutMs` (milliseconds) — Python uses seconds to
   match `httpx` / `requests` / `openai-python` / `anthropic-python`.
 

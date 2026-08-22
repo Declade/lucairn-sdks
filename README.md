@@ -71,8 +71,8 @@ Cross-provider BYOK shipped in `@lucairn/mcp-server@1.1.0` — set one or both k
 |----------------|-------------------------------------------|---------|-------------------------------------|
 | MCP server     | `@lucairn/mcp-server`                     | 1.2.7   | [mcp-server/README.md](mcp-server/README.md) |
 | TypeScript     | `@lucairn/sdk`                            | 1.1.1   | [ts/README.md](ts/README.md)        |
-| Python         | `lucairn`                                 | 1.1.1   | [python/README.md](python/README.md) |
-| Go             | `github.com/declade/lucairn-sdks/go`      | v1.1.1  | [go/README.md](go/README.md)        |
+| Python         | `lucairn`                                 | 1.4.1   | [python/README.md](python/README.md) |
+| Go             | `github.com/declade/lucairn-sdks/go`      | v1.3.1  | [go/README.md](go/README.md)        |
 
 All SDKs are at parity at the observable level. Cross-language byte-equivalence is locked via shared Go-assembler-generated fixtures, so a certificate signed via one SDK verifies identically via the other two.
 

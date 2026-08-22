@@ -98,7 +98,18 @@ class TestBaseUrl:
 class TestTimeout:
     def test_default_timeout(self) -> None:
         client = Lucairn(LucairnConfig(api_key=VALID_KEY))
-        assert client.timeout == 30.0
+        assert client.timeout == 60.0
+
+    def test_default_timeout_matches_ts_twin(self) -> None:
+        # Independent cross-SDK reference: ts/src/client.ts:41
+        # (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE the gateway's
+        # 30s sync-wait/202-receipt boundary. T-702: Python previously cited
+        # a dead TS constant ("DEFAULT_TIMEOUT_MS = 30_000") that no longer
+        # exists, and shipped 30.0s — a client that aborts exactly at the
+        # receipt handoff and loses the job_id.
+        ts_default_timeout_ms = 60_000  # mirrors ts/src/client.ts:41
+        client = Lucairn(LucairnConfig(api_key=VALID_KEY))
+        assert client.timeout == ts_default_timeout_ms / 1000.0
 
     def test_accepts_positive_int(self) -> None:
         client = Lucairn(LucairnConfig(api_key=VALID_KEY, timeout=5))

@@ -32,9 +32,15 @@ type Client struct {
 // self-hosters must pass WithBaseURL at New-time.
 const DefaultBaseURL = "https://gateway.lucairn.eu"
 
-// DefaultTimeout is the default per-call timeout. Matches the TS SDK's
-// DEFAULT_TIMEOUT_MS = 30_000.
-const DefaultTimeout = 30 * time.Second
+// DefaultTimeout is the default per-call timeout. 60s, matching the TS SDK's
+// DEFAULT_TIMEOUT_MS = 60_000 (ts/src/client.ts). Deliberately ABOVE the
+// gateway's 30s sync-wait boundary (after which it returns a 202 processing
+// receipt with a job_id) and BELOW the gateway's 120s proxyClientTimeout. A
+// 30s SDK default would abort exactly at the 202-receipt boundary, throwing
+// a timeout error and losing the job_id the caller needs to poll. See CON-07
+// in the 2026-05-28 hardening audit (fix f874f0a, TS-only at the time; this
+// SDK carried the stale 30s default and the dead-constant comment — T-702).
+const DefaultTimeout = 60 * time.Second
 
 // DefaultMaxResponseBytes caps the size of a response body the SDK will
 // buffer. 10 MiB — see WithMaxResponseBytes for rationale.

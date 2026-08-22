@@ -53,8 +53,15 @@ _API_KEY_PATTERN = re.compile(r"^(dsa_[0-9a-f]{32}|lcr_live_[A-Za-z0-9_\-]{20,})
 # Enterprise self-hosters must pass base_url explicitly.
 _DEFAULT_BASE_URL = "https://gateway.lucairn.eu"
 
-# 30 seconds, matching TS DEFAULT_TIMEOUT_MS = 30_000.
-_DEFAULT_TIMEOUT_S = 30.0
+# 60 seconds, matching the TS SDK's DEFAULT_TIMEOUT_MS = 60_000
+# (ts/src/client.ts). Deliberately ABOVE the gateway's 30s sync-wait boundary
+# (after which it returns a 202 processing receipt with a job_id) and BELOW
+# the gateway's 120s proxyClientTimeout. A 30s SDK default would abort
+# exactly at the 202-receipt boundary, raising a timeout error and losing
+# the job_id the caller needs to poll. See CON-07 in the 2026-05-28
+# hardening audit (fix f874f0a, TS-only at the time; this SDK carried the
+# stale 30s default and the dead-constant comment — T-702).
+_DEFAULT_TIMEOUT_S = 60.0
 
 # 10 MiB — deliberately generous; certificates are typically <50 KB and
 # messages responses rarely exceed 1 MB. The cap exists as a DoS backstop
