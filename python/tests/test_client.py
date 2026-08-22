@@ -101,13 +101,21 @@ class TestTimeout:
         assert client.timeout == 60.0
 
     def test_default_timeout_matches_ts_twin(self) -> None:
-        # Independent cross-SDK reference: ts/src/client.ts:41
-        # (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE the gateway's
-        # 30s sync-wait/202-receipt boundary. T-702: Python previously cited
-        # a dead TS constant ("DEFAULT_TIMEOUT_MS = 30_000") that no longer
-        # exists, and shipped 30.0s — a client that aborts exactly at the
-        # receipt handoff and loses the job_id.
-        ts_default_timeout_ms = 60_000  # mirrors ts/src/client.ts:41
+        # Pins the literal TS value as of this PR (not just self-reflection
+        # against _DEFAULT_TIMEOUT_S), so a lone edit to the Python constant
+        # fails this test. It does NOT detect cross-file drift: if
+        # ts/src/client.ts's constant changes, this paired local literal
+        # has to be updated by hand — the two sides are not read from a
+        # shared source.
+        # Independent cross-SDK reference: ts/src/client.ts:40
+        # (DEFAULT_TIMEOUT_MS = 60_000) — deliberately ABOVE 30s, the
+        # gateway's DEFAULT sync-wait timeout (configurable; hosted/pilot
+        # deployments run higher — see client.py's _DEFAULT_TIMEOUT_S doc
+        # comment). T-702: Python previously cited a dead TS constant
+        # ("DEFAULT_TIMEOUT_MS = 30_000") that no longer exists, and shipped
+        # 30.0s — a client that aborts exactly at the unconfigured
+        # gateway's receipt handoff and loses the job_id.
+        ts_default_timeout_ms = 60_000  # mirrors ts/src/client.ts:40
         client = Lucairn(LucairnConfig(api_key=VALID_KEY))
         assert client.timeout == ts_default_timeout_ms / 1000.0
 

@@ -54,13 +54,20 @@ _API_KEY_PATTERN = re.compile(r"^(dsa_[0-9a-f]{32}|lcr_live_[A-Za-z0-9_\-]{20,})
 _DEFAULT_BASE_URL = "https://gateway.lucairn.eu"
 
 # 60 seconds, matching the TS SDK's DEFAULT_TIMEOUT_MS = 60_000
-# (ts/src/client.ts). Deliberately ABOVE the gateway's 30s sync-wait boundary
-# (after which it returns a 202 processing receipt with a job_id) and BELOW
-# the gateway's 120s proxyClientTimeout. A 30s SDK default would abort
-# exactly at the 202-receipt boundary, raising a timeout error and losing
-# the job_id the caller needs to poll. See CON-07 in the 2026-05-28
-# hardening audit (fix f874f0a, TS-only at the time; this SDK carried the
-# stale 30s default and the dead-constant comment — T-702).
+# (ts/src/client.ts:40). Deliberately ABOVE 30s, the gateway's DEFAULT
+# sync-wait timeout (configurable via GATEWAY_WAIT_TIMEOUT; after it
+# elapses the gateway returns a 202 processing receipt with a job_id) —
+# both hosted compose files pin this to 120s, and the live pilot box
+# layers a wait-timeout override running 600s, so the deployed boundary
+# is usually much higher than the raw default. A 30s SDK default would
+# abort exactly at the unconfigured gateway's 202-receipt boundary,
+# raising a timeout error and losing the job_id the caller needs to poll.
+# This bump restores cross-SDK parity with TS and NARROWS that race; it
+# does not structurally close it against a gateway configured above 60s
+# — callers with long-running turns (e.g. L3) should pass an explicit
+# timeout at or above the gateway's configured wait. See CON-07 in the
+# 2026-05-28 hardening audit (fix f874f0a, TS-only at the time; this SDK
+# carried the stale 30s default and the dead-constant comment — T-702).
 _DEFAULT_TIMEOUT_S = 60.0
 
 # 10 MiB — deliberately generous; certificates are typically <50 KB and
