@@ -9,11 +9,13 @@ import type { VeilCertificate } from './types.js';
  * so callers see `null` (not `undefined`) on the wire when the witness
  * had no `client_id` to set.
  *
- * IMPORTANT: `client_id` is NOT part of the witness-signed canonical
- * bytes. Treat the returned value as unsigned metadata for client-side
- * correlation only. For tamper-evident proof of the issuing org, walk
- * the bridge claim's `canonical_payload` (which IS covered by the
- * witness signature via `claims`).
+ * IMPORTANT: `client_id` is NOT part of the v2 signable (7 keys,
+ * UNCHANGED). It IS part of the v3 signable (13 keys) — see
+ * `deriveWitnessSignedBytesV3` in `verify-certificate/signable.ts`. When
+ * verifying against the v2 signable, treat the returned value as unsigned
+ * metadata for client-side correlation only; tamper-evident proof of the
+ * issuing org flows via the bridge claim's `canonical_payload` (which IS
+ * covered by the witness signature via `claims`).
  *
  * @param cert A Veil Certificate (typically the result of
  *   `client.getCertificate(...)`).
