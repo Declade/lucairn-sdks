@@ -163,8 +163,8 @@ jobs:
 
           # pip install twine (NOT pip upgrade — per design note Section 3)
           # Failure contract per Section 5.0
-          python -m pip install 'twine==6.2.0' || {
-            echo "::error::Failed to install twine==6.2.0; see pip output above"
+          python -m pip install 'twine==7.0.0' || {
+            echo "::error::Failed to install twine==7.0.0; see pip output above"
             exit 1
           }
 
