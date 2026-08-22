@@ -193,7 +193,7 @@ Constructor validates every input up front:
 - `apiKey` must be a Lucairn key (`lcr_live_...`) or a legacy `dsa_...` key.
 - `WithBaseURL(url)` must be `http://` or `https://`; default is
   `https://gateway.lucairn.eu`.
-- `WithTimeout(d)` must be a positive `time.Duration`; default `30s`.
+- `WithTimeout(d)` must be a positive `time.Duration`; default `60s`.
 - `WithHTTPClient(c)` lets you substitute a custom `*http.Client` (for
   mTLS, corporate proxies, custom transports).
 
