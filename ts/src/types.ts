@@ -228,7 +228,26 @@ export interface VeilVerificationResult {
    * distinction is not preserved across languages.
    */
   byok_exempt?: boolean;
+  /**
+   * T-921 — the certificate's tier, as the witness derived it: `'full_chain'`
+   * (bridge → sanitizer → ai → audit) or `'input_shield'` (the sanitize-only
+   * route: sanitizer → gateway → vendor call, whose VERIFIED verdict covers
+   * that shorter chain). Proto field 15 on VerificationResult.
+   *
+   * OPTIONAL and UNSIGNED: absent (or `''`) on certificates sealed before the
+   * witness shipped tier-aware verdicts, and NOT part of either witness
+   * signable (v2 7-key / v3 13-key) — this SDK's verifier never reads it, and a
+   * tampered value still verifies. Treat anything other than the two documented
+   * values as legacy/unknown; it is surfaced verbatim and never an error.
+   */
+  cert_tier?: VeilCertTier;
 }
+
+/**
+ * Documented `verification.cert_tier` values. The `(string & {})` arm keeps
+ * the type open: an unknown future value parses as-is instead of failing.
+ */
+export type VeilCertTier = 'full_chain' | 'input_shield' | '' | (string & {});
 
 export interface VeilAnchorStatusInfo {
   status: VeilCertAnchorStatus;

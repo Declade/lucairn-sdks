@@ -338,6 +338,17 @@ class VeilVerificationResult(BaseModel):
     # over strict equality (``=== false``), since the absent/false
     # distinction is not preserved across languages.
     byok_exempt: bool = False
+    # T-921 — the certificate's tier, as the witness derived it: ``"full_chain"``
+    # (bridge -> sanitizer -> ai -> audit) or ``"input_shield"`` (the
+    # sanitize-only route: sanitizer -> gateway -> vendor call, whose VERIFIED
+    # verdict covers that shorter chain). Proto field 15 on VerificationResult.
+    #
+    # OPTIONAL and UNSIGNED: ``None`` (absent) or ``""`` on certificates sealed
+    # before the witness shipped tier-aware verdicts, and NOT part of either
+    # witness signable (v2 7-key / v3 13-key) -- this SDK's verifier never reads
+    # it, and a tampered value still verifies. A plain ``str`` on purpose: an
+    # unknown future value is surfaced verbatim, never a validation error.
+    cert_tier: str | None = None
 
 
 class VeilAnchorStatusInfo(BaseModel):
