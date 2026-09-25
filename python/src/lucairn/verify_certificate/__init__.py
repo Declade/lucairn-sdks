@@ -1,4 +1,9 @@
 from lucairn.verify_certificate.canonical_json import canonical_json
+from lucairn.verify_certificate.chain import (
+    CertificateChainKeys,
+    CertificateChainResult,
+    verify_certificate_chain,
+)
 from lucairn.verify_certificate.keys import normalize_ed25519_public_key
 from lucairn.verify_certificate.parse import parse_certificate
 from lucairn.verify_certificate.pipeline import (
@@ -13,6 +18,8 @@ from lucairn.verify_certificate.v3_signable import derive_v3_signed_bytes
 from lucairn.verify_certificate.signature import verify_ed25519
 
 __all__ = [
+    "CertificateChainKeys",
+    "CertificateChainResult",
     "SUPPORTED_PROTOCOL_VERSION",
     "canonical_json",
     "derive_v3_signed_bytes",
@@ -21,5 +28,6 @@ __all__ = [
     "normalize_issued_at",
     "parse_certificate",
     "verify_certificate",
+    "verify_certificate_chain",
     "verify_ed25519",
 ]

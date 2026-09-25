@@ -20,6 +20,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is in neither witness signable, no verifier path reads it, and an
   unknown value is surfaced verbatim, never an error. Types only: no
   verifier or signable change.
+- **Every claim checked, not only the witness signature (T-935 S3 / T-794).**
+  New `verifyCertificateChain` (TS, also `client.verifyCertificateChain`),
+  `verify_certificate_chain` (Python, also `client.verify_certificate_chain`)
+  and `VerifyCertificateChain` (Go, also `(*Client).VerifyCertificateChain`).
+  The existing witness-only verifier accepts a certificate whose claim body
+  was edited under the same claim id, because the witness signs the claim-id
+  list, not the claim contents. The new function runs the parity-corpus
+  recipe (Declade/dual-sandbox-architecture `tools/parity-corpus/README.md`;
+  its check table is vendored as `testdata/parity-corpus/recipe-table.md`):
+  each claim's signature against a caller-pinned per-service key, the canonical claim bytes rebuilt
+  from the outer fields, claim-id membership and uniqueness, the unsigned
+  typed copies against the signed payload, the signed upstream-request
+  hashes (`upstream_body_sha256`), the unsigned `cert_tier` against its
+  signed copies, and `user_unredacted` read from the signed sanitizer claim
+  only. It takes the raw certificate JSON and returns `verdict` (`FAILED` <
+  `PARTIAL` < `EGRESS_UNATTESTED` < `VERIFIED`), `reason`,
+  `egress_attestation`, `user_unredacted`, `signed_cert_tier`,
+  `signable_version`, `authenticated_fields`, `unauthenticated_fields`.
+  Entries of `unauthenticated_fields` MUST be shown as unverified and never
+  used for a decision. Policy via the existing minimum-signable-version
+  option (`v3` = strict).
+- **Shared parity corpus** `testdata/parity-corpus/` (54 cases, vendored
+  from dual-sandbox-architecture `4e6ae977`, re-sync with `sync.sh`). All
+  three SDKs run every case under both policies and must match every result
+  field; a test fails when the vendored copy drifts from `SOURCE.json`.
+- **Rules the corpus does not pin, fixed identically in all three SDKs**
+  (found by a cross-SDK fuzz harness; the upstream references still differ
+  on them): nesting deeper than 256 arrays/objects is malformed; an unpaired
+  UTF-16 surrogate escape reads as U+FFFD (as Go's `encoding/json`, i.e. the
+  witness); step 4's "blank" uses Go's `unicode.IsSpace` set; the qi-score
+  verdict is upper-cased ASCII-only; the v3 sanitizer-hash lookup uses the
+  same strict parser as every other read.
+
+### Unchanged
+- `verifyCertificate` / `verify_certificate` / `VerifyCertificate` and the
+  v2 / v3 witness signable reconstructions are byte-for-byte unchanged. The
+  new layer is additive.
 
 ## [Python 1.4.1] — 2026-08-22
 

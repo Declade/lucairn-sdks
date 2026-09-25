@@ -91,6 +91,8 @@ Every response through any SDK gets a signed Lucairn certificate. Two surfaces:
 - **HTML summary** — DPO-friendly, available on every tier including Developer (free). Use `getCertificateSummary` (TS) / `get_certificate_summary` (Python) / `GetCertificateSummary` (Go), or paste the certificate URL into [https://lucairn.eu/verify](https://lucairn.eu/verify).
 - **JSON certificate + local Ed25519 verify** — Pro tier and above. Use `getCertificate` + `verifyCertificate` (and language equivalents). The verifier is in-tree — see [`ts/src/verify-certificate/`](ts/src/verify-certificate/), [`python/src/lucairn/verify_certificate/`](python/src/lucairn/verify_certificate/), and the `internal/verify` package under [`go/`](go/).
 
+- **Every claim, not only the witness signature** — `verifyCertificateChain` / `verify_certificate_chain` / `VerifyCertificateChain` check each claim's own signature against per-service keys you pin, the claim bytes, the typed copies, the signed upstream-request hashes and the unsigned `cert_tier`. All three return identical results on the shared 54-case corpus in [`testdata/parity-corpus/`](testdata/parity-corpus/). Fields listed in `unauthenticated_fields` MUST be shown as unverified and never used for a decision.
+
 External RFC 3161 + Sigstore Rekor anchor verification is currently surfaced as pass-through metadata; full external anchor verification lands in a follow-up release.
 
 ## Status
