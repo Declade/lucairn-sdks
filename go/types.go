@@ -101,6 +101,18 @@ type VeilVerificationResult struct {
 	// over strict equality, since the absent/false distinction is not
 	// preserved across languages.
 	ByokExempt bool `json:"byok_exempt,omitempty"`
+	// CertTier (T-921) is the certificate's tier, as the witness derived
+	// it: "full_chain" (bridge -> sanitizer -> ai -> audit) or
+	// "input_shield" (the sanitize-only route: sanitizer -> gateway ->
+	// vendor call, whose VERIFIED verdict covers that shorter chain).
+	// Proto field 15 on VerificationResult.
+	//
+	// OPTIONAL and UNSIGNED: "" (absent) on certificates sealed before the
+	// witness shipped tier-aware verdicts, and NOT part of either witness
+	// signable (v2 7-key / v3 13-key) — this SDK's verifier never reads it,
+	// and a tampered value still verifies. A plain string on purpose: an
+	// unknown future value is surfaced verbatim, never a decode error.
+	CertTier string `json:"cert_tier,omitempty"`
 }
 
 // VeilAnchorStatusInfo is the anchor status sub-object. v1 surfaces

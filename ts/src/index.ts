@@ -34,6 +34,7 @@ export type {
   VeilCertAnchorStatus,
   VeilVerdict,
   VeilCompleteness,
+  VeilCertTier,
   VeilClaimType,
   VeilIsolationProbeStatus,
   VerifyCertificateKeys,
