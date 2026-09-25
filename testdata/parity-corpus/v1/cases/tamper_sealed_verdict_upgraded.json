@@ -1,0 +1,231 @@
+{
+  "format": "lucairn-parity-corpus/v1.1",
+  "id": "tamper_sealed_verdict_upgraded",
+  "class": "tamper",
+  "surface": "get_certificate",
+  "description": "verification.overall_verdict edited PARTIAL → VERIFIED on the user-unredacted certificate. overall_verdict is inside both witness signables.",
+  "construction": "post-seal edit of verification.overall_verdict",
+  "certificate": {
+    "anchor_status": null,
+    "api_key_id": "k_paritycorpus0001",
+    "attestation": {
+      "notary": {
+        "attested_at": null,
+        "checks_performed": [
+          "canonical_json_signing"
+        ],
+        "notary_public_key_id": "witness_parity_v1",
+        "notary_signature": "oCCyRi7BJ0kxdO407dTb6EaBWKqJfwkIshCED96WQiEx7zSF5joctNuhw4tkXaHjk9pnQEvdlxoqZOlJfv09CA==",
+        "provider": "dsa-veil-witness"
+      },
+      "qualified_timestamp": null,
+      "rails": [],
+      "timestamp": null,
+      "transparency_log": null
+    },
+    "audit_integrity": {
+      "inclusion_proof": null,
+      "log_proofs": [],
+      "merkle_root": "H460w/k/ZKJerSHSOFHc+TKxxxxmRkoBPGeGh43lheY=",
+      "tree_size": "7"
+    },
+    "certificate_id": "veil_0aa5ea15-8a1b-49e9-b47b-1672a7ed2610",
+    "claims": [
+      {
+        "bridge": {
+          "encryption_enabled": true,
+          "epoch": "0",
+          "token_hash": "xiy9xWcQEG9T/W9FnvJpHFqOsUb1KFQS1la4gLQ6Npg="
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9lZjU2YTJjZi0zY2NmLTQ5NTctOTk4MC0zNTA2NmVlODFmM2QiLCJjbGFpbV90eXBlIjoiVE9LRU5fR0VORVJBVEVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJjb250ZXh0IiwicHJvbXB0X3RlbXBsYXRlIiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwicGF5bG9hZCI6eyJhcGlfa2V5X2lkIjoia19wYXJpdHljb3JwdXMwMDAxIiwiY29udmVyc2F0aW9uX2lkIjoiIiwiY3VzdG9tZXJfaWQiOiJjdXN0X3Bhcml0eV9jb3JwdXMiLCJlcGhlbWVyYWwiOmZhbHNlLCJvcmdfaWQiOiJvcmdfcGFyaXR5X2NvcnB1cyIsInRva2VuX2hhc2giOiJjNjJjYmRjNTY3MTAxMDZmNTNmZDZmNDU5ZWYyNjkxYzVhOGViMTQ2ZjUyODU0MTJkNjU2Yjg4MGI0M2EzNjk4In0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX3VucmVkYWN0ZWQiLCJzZXJ2aWNlX2lkIjoiZHNhLWJyaWRnZSIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDQ6MDAuMVoifQ==",
+        "claim_id": "clm_ef56a2cf-3ccf-4957-9980-35066ee81f3d",
+        "claim_type": "CLAIM_TYPE_TOKEN_GENERATED",
+        "data_not_seen": [
+          "context",
+          "prompt_template",
+          "inference_result"
+        ],
+        "data_seen": [
+          "customer_id"
+        ],
+        "request_id": "req_parity_v1_unredacted",
+        "service_id": "dsa-bridge",
+        "signature": "tXRq3nMxDmqB4KeP7wMIk8Cy553xNJOuHb1FhodwFk0HPLmI4wtvvJuZH3ffuo2AFnv3SN+MbTUw0lR9BJLmAA==",
+        "timestamp": "2026-09-25T12:04:00.100Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9jMDk0YjQ5Zi04NDY2LTQxZmQtOGVhYi1jZGE3ZTM2M2Q0NTciLCJjbGFpbV90eXBlIjoiUElJX1NBTklUSVpFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJ0b2tlbiIsImluZmVyZW5jZV9yZXN1bHQiXSwiZGF0YV9zZWVuIjpbImNvbnRleHRfZmllbGRzIiwidXNlcl91bnJlZGFjdGVkX3Bhc3N0aHJvdWdoIl0sInBheWxvYWQiOnsiZW50aXR5X2NvdW50cyI6eyJQRVJTT04iOjF9LCJsYXllcnNfYWN0aXZlIjpbImtub3duX2VudGl0eV9tYXRjaGluZyIsInByZXNpZGlvX25lciIsImdsaW5lcl9uZXIiLCJsbG1fcGlpX3NjYW4iLCJ1c2VyX3VucmVkYWN0ZWRfc2VnbWVudCJdLCJwaWlfZW50aXRpZXNfZm91bmQiOjEsInByaXZhY3lfYnVkZ2V0IjpudWxsLCJxaV9zY29yZSI6bnVsbCwicmVkYWN0aW9uX21hbmlmZXN0X2hhc2giOiI2NTFmZTRiZjliMjIxNDIzY2EwNzRkMjRhMGI4YjdmNjM2OTg5ZGRmZDRmMzM3YmI0YTcxMjdiMmJlMjVkMzEyIiwic2FuaXRpemF0aW9uX3N1bW1hcnkiOiJadXNhbW1lbmZhc3N1bmcgZlx1MDBmY3IgdW5yZWRhY3RlZDogMSBFbnRpdFx1MDBlNHQoZW4pIGR1cmNoIFBsYXR6aGFsdGVyIGVyc2V0enQiLCJzYW5pdGl6ZWRfZmllbGRzX2hhc2giOiI3Y2FiM2IwZTFmMWU2YjUzNTA5MDVjMDQ5NThjNmFiZDlhYjk0YmI2ODE4MTgwZTQ4OWNmYWYyYWFjMjNhMDBmIiwidG1zX21hbmlmZXN0X2hhc2giOiJjNzE3MzNhMzc5MmJiNGU3NjViZTM3N2E5NDJlZWQxMDQ3ZTUzNTFhZWZmYjU2OTgyNmRiMGE0YWQ0OTE5ODQwIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX3VucmVkYWN0ZWQiLCJzZXJ2aWNlX2lkIjoiZHNhLXNhbml0aXplciIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDQ6MDAuMjUwMDAwWiJ9",
+        "claim_id": "clm_c094b49f-8466-41fd-8eab-cda7e363d457",
+        "claim_type": "CLAIM_TYPE_PII_SANITIZED",
+        "data_not_seen": [
+          "customer_id",
+          "token",
+          "inference_result"
+        ],
+        "data_seen": [
+          "context_fields",
+          "user_unredacted_passthrough"
+        ],
+        "request_id": "req_parity_v1_unredacted",
+        "sanitizer": {
+          "entity_counts": [],
+          "layers_active": [
+            "known_entity_matching",
+            "presidio_ner",
+            "gliner_ner",
+            "llm_pii_scan",
+            "user_unredacted_segment"
+          ],
+          "pii_entities_found": 1,
+          "qi_score": null,
+          "redaction_manifest_body": "",
+          "redaction_manifest_hash": "ZR/kv5siFCPKB00koLi39jaYnd/U8ze7SnEnsr4l0xI=",
+          "sanitization_summary": "",
+          "sanitized_fields_body": "",
+          "tms_manifest_body": ""
+        },
+        "service_id": "dsa-sanitizer",
+        "signature": "tURHCD3268vzyOPOeo6UZhUACyF9gHGL590cezx6tVpb9szt9NHDwbeNtzuaYO1WVKpaeeS8hjjU9NhOPwX4CA==",
+        "timestamp": "2026-09-25T12:04:00.250Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV82NWQxYzdkMi1iZmU1LTQ2MDYtOGU1NS02NDlhNjJhZjg5ZDciLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJyYXdfY29udGV4dCIsInBpaSJdLCJkYXRhX3NlZW4iOlsib3BhcXVlX3Rva2VuIiwic2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJpc29sYXRpb25fcHJvYmUiOiJWRVJJRklFRCIsIm1vZGVsX3VzZWQiOiJjbGF1ZGUtc29ubmV0LTQtNSIsInJlc3BvbnNlX2hhc2giOiIwNjIyYWFmOWQ0YmIzNjUxNWM0MTg0NDlhNTQ4YjU0NjY3NzcxYWY0M2ZiZWM4ZDU3OTIwMmU0ODMyOTUxNzFlIiwidXBzdHJlYW1fYXV0aF9tb2RlIjoibWFuYWdlZCIsInVwc3RyZWFtX2JvZHlfc2hhMjU2IjpbImZhOTQ3YTkyMWU5ZTViMjcxNDNkYTFjOTA0MDUxNDc2Y2MyOGM5ZThjOTY2MGExZDkzMWY2ZjQ3ZThkNzk2OTQiXX0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX3VucmVkYWN0ZWQiLCJzZXJ2aWNlX2lkIjoiZHNhLWFpIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowNDowMS41MDAwMDBaIn0=",
+        "claim_id": "clm_65d1c7d2-bfe5-4606-8e55-649a62af89d7",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "customer_id",
+          "raw_context",
+          "pii"
+        ],
+        "data_seen": [
+          "opaque_token",
+          "sanitized_context"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_VERIFIED",
+          "model_used": "claude-sonnet-4-5",
+          "response_hash": "BiKq+dS7NlFcQYRJpUi1Rmd3GvQ/vsjVeSAuSDKVFx4=",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_unredacted",
+        "service_id": "dsa-ai",
+        "signature": "gqgX8p6u9Ri8uKh/J2Ekq+0eLZ9eANls5naytd6PEhxAJr2WkC/5BMxPS84pxITn/1etwifZgQv119fVNjpQDQ==",
+        "timestamp": "2026-09-25T12:04:01.500Z"
+      },
+      {
+        "audit": {
+          "chain_head_hash": "H460w/k/ZKJerSHSOFHc+TKxxxxmRkoBPGeGh43lheY=",
+          "chain_length": "7",
+          "event_ids": [
+            "evt_parity_unredacted"
+          ],
+          "output_scan_body": "",
+          "output_scan_hash": "",
+          "previous_chain_hash": ""
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9lMTYzYjQ5NC05M2RjLTRkNTctOTgzNS04ZmQ5NTE4MTE0YjUiLCJjbGFpbV90eXBlIjoiRVZFTlRTX1JFQ09SREVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJwaWkiLCJjb250ZXh0IiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiZXZlbnRfaGFzaGVzIl0sInBheWxvYWQiOnsiZXZlbnRfaWQiOiJldnRfcGFyaXR5X3VucmVkYWN0ZWQiLCJtZXJrbGVfcm9vdCI6IjFmOGViNGMzZjkzZjY0YTI1ZWFkMjFkMjM4NTFkY2Y5MzJiMWM3MWM2NjQ2NGEwMTNjNjc4Njg3OGRlNTg1ZTYiLCJtZXJrbGVfdHJlZV9zaXplIjo3fSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfdW5yZWRhY3RlZCIsInNlcnZpY2VfaWQiOiJkc2EtYXVkaXQiLCJ0aW1lc3RhbXAiOiIyMDI2LTA5LTI1VDEyOjA0OjAyWiJ9",
+        "claim_id": "clm_e163b494-93dc-4d57-9835-8fd9518114b5",
+        "claim_type": "CLAIM_TYPE_EVENTS_RECORDED",
+        "data_not_seen": [
+          "pii",
+          "context",
+          "inference_result"
+        ],
+        "data_seen": [
+          "event_hashes"
+        ],
+        "request_id": "req_parity_v1_unredacted",
+        "service_id": "dsa-audit",
+        "signature": "xb6/BIF44P9SBMJqtlFvO9QR4xlIMUHlZOWO44AkMohXGmRPOHnuAXC9ngUMErrn8lGFXq9NFPbgFFwHMQIhAw==",
+        "timestamp": "2026-09-25T12:04:02Z"
+      }
+    ],
+    "client_id": "org_parity_corpus",
+    "decoder_expiry": null,
+    "formal_verification": null,
+    "issued_at": "2026-09-25T12:04:02.500Z",
+    "privacy_budget": null,
+    "protocol_version": 2,
+    "request_id": "req_parity_v1_unredacted",
+    "signable_protocol_version_emitted": 3,
+    "signable_v2_signature": "oCCyRi7BJ0kxdO407dTb6EaBWKqJfwkIshCED96WQiEx7zSF5joctNuhw4tkXaHjk9pnQEvdlxoqZOlJfv09CA==",
+    "signable_v3_signature": "DP7fdUMQJNvyB5haHpOHCvgwrxGS55j+bn7P9FM6EkJevYg8CJGSglgsn4Ya5lLwdpWzIfKzK6PZATEia6nZBA==",
+    "upstream_model": "claude-sonnet-4-5",
+    "verification": {
+      "anchor_verifications": [],
+      "byok_exempt": false,
+      "cert_tier": "full_chain",
+      "completeness": "COMPLETENESS_PARTIAL",
+      "data_visibility_consistent": true,
+      "isolation_verified": true,
+      "l3_coverage_evidence": {
+        "canaries_planted": 0,
+        "canaries_recovered": 0,
+        "composed_green": false,
+        "composed_reason": "scope_unavailable",
+        "derivation_version": "",
+        "drives_verdict": false,
+        "fields": [],
+        "fields_absent": 0,
+        "fields_failed": 0,
+        "fields_passed": 0,
+        "record_status": "absent",
+        "rollup": ""
+      },
+      "l3_coverage_scope": {
+        "covered": [],
+        "derivation_version": "",
+        "drives_claim": false,
+        "eligible_count": 0,
+        "eligible_not_covered": [],
+        "excluded": [],
+        "granted": false,
+        "reason": "",
+        "record_status": "absent"
+      },
+      "missing_services": [],
+      "overall_verdict": "VERDICT_VERIFIED",
+      "qi_score": null,
+      "signatures_valid": true,
+      "temporal_consistent": true,
+      "temporal_order_status": "valid",
+      "upstream_auth_mode": "managed"
+    },
+    "witness_key_id": "witness_parity_v1",
+    "witness_signature": "oCCyRi7BJ0kxdO407dTb6EaBWKqJfwkIshCED96WQiEx7zSF5joctNuhw4tkXaHjk9pnQEvdlxoqZOlJfv09CA=="
+  },
+  "expected": {
+    "default": {
+      "verdict": "FAILED",
+      "reason": "witness_signature_invalid",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "authenticated_fields": [],
+      "unauthenticated_fields": [
+        "api_key_id",
+        "byok_exempt",
+        "client_id"
+      ]
+    },
+    "minimum_v3": {
+      "verdict": "FAILED",
+      "reason": "witness_signature_invalid",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "authenticated_fields": [],
+      "unauthenticated_fields": [
+        "api_key_id",
+        "byok_exempt",
+        "client_id"
+      ]
+    }
+  },
+  "reference": {
+    "witness_reverify_verdict": "VERDICT_FAILED",
+    "witness_agrees": true
+  }
+}

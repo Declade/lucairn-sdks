@@ -36,6 +36,11 @@ from lucairn.types import (
     VerifyCertificateKeys,
     VerifyCertificateResult,
 )
+from lucairn.verify_certificate.chain import (
+    CertificateChainKeys,
+    CertificateChainResult,
+    verify_certificate_chain as _verify_certificate_chain_impl,
+)
 from lucairn.verify_certificate.pipeline import (
     verify_certificate as _verify_certificate_impl,
 )
@@ -252,6 +257,26 @@ class Lucairn:
         """
 
         return _verify_certificate_impl(cert, keys, minimum_signable_version=minimum_signable_version)
+
+    def verify_certificate_chain(
+        self,
+        certificate: bytes | str,
+        keys: CertificateChainKeys,
+        *,
+        minimum_signable_version: str | None = None,
+    ) -> CertificateChainResult:
+        """Verify a certificate AND every claim inside it (T-935 S3 / T-794).
+
+        Takes the RAW certificate JSON (``bytes`` / ``str``), never raises on
+        a bad certificate (verdict ``FAILED`` + reason). See
+        :func:`lucairn.verify_certificate.chain.verify_certificate_chain`.
+        ``unauthenticated_fields`` in the result MUST be shown as unverified
+        and never used for a decision.
+        """
+
+        return _verify_certificate_chain_impl(
+            certificate, keys, minimum_signable_version=minimum_signable_version
+        )
 
     def get_certificate(
         self,

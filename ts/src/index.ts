@@ -1,5 +1,12 @@
 export { Lucairn } from './client.js';
 export { getClientId } from './client-id.js';
+export { verifyCertificateChain } from './verify-chain/index.js';
+export type {
+  CertificateChainKeys,
+  CertificateChainResult,
+  CertificateChainVerdict,
+  CertificateChainReason,
+} from './verify-chain/index.js';
 export {
   LucairnError,
   LucairnConfigError,

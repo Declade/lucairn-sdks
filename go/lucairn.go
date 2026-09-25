@@ -469,6 +469,13 @@ func (c *Client) VerifyCertificate(cert any, keys VerifyCertificateKeys) (*Verif
 	return VerifyCertificate(cert, keys)
 }
 
+// VerifyCertificateChain is the method form of the package-level
+// VerifyCertificateChain function (every claim verified; raw certificate
+// JSON in, never an error for a bad certificate).
+func (c *Client) VerifyCertificateChain(certificate []byte, keys CertificateChainKeys) (*CertificateChainResult, error) {
+	return VerifyCertificateChain(certificate, keys)
+}
+
 // -- Transport primitive --------------------------------------------------
 
 // doBytes executes a single HTTP request and returns the raw response

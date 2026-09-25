@@ -7,6 +7,11 @@ from lucairn.errors import (
     LucairnResponseValidationError,
     LucairnTimeoutError,
 )
+from lucairn.verify_certificate.chain import (
+    CertificateChainKeys,
+    CertificateChainResult,
+    verify_certificate_chain,
+)
 from lucairn.types import (
     AuditEntry,
     AuditExportOptions,
@@ -49,6 +54,8 @@ def get_client_id(cert: VeilCertificate) -> str | None:
 
 __all__ = [
     "AuditEntry",
+    "CertificateChainKeys",
+    "CertificateChainResult",
     "AuditExportOptions",
     "AuditExportResponse",
     "MessagesOptions",
@@ -76,6 +83,7 @@ __all__ = [
     "VerifyCertificateKeys",
     "VerifyCertificateResult",
     "get_client_id",
+    "verify_certificate_chain",
 ]
 
 __version__ = "1.4.1"

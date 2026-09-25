@@ -1,0 +1,258 @@
+{
+  "format": "lucairn-parity-corpus/v1.1",
+  "id": "inference_cancelled",
+  "class": "honest",
+  "surface": "get_certificate",
+  "description": "The turn cancelled after the body left: sandbox-b signed inference_outcome \"cancelled\" and the attempt digest, no response_hash. The witness caps it at PARTIAL.",
+  "construction": "honest seal; dsa-ai claim from egress_capture.emit_failed_turn_claim",
+  "certificate": {
+    "anchor_status": null,
+    "api_key_id": "k_paritycorpus0001",
+    "attestation": {
+      "notary": {
+        "attested_at": null,
+        "checks_performed": [
+          "canonical_json_signing"
+        ],
+        "notary_public_key_id": "witness_parity_v1",
+        "notary_signature": "sKZ3rsTI8ENbVI+ePNdcZJSTJyLtMaLv86IdY82A/gMW83R2VpkC2NudaJnML00PEMQobinbar9fYzB5naD9Bw==",
+        "provider": "dsa-veil-witness"
+      },
+      "qualified_timestamp": null,
+      "rails": [],
+      "timestamp": null,
+      "transparency_log": null
+    },
+    "audit_integrity": {
+      "inclusion_proof": null,
+      "log_proofs": [],
+      "merkle_root": "9Oz3IOIeqmMsB96qAksDNoZ8sfCNueDgcGWGNEj38z8=",
+      "tree_size": "7"
+    },
+    "certificate_id": "veil_20ac4ba3-db4b-47b2-a5c1-c82133dc5876",
+    "claims": [
+      {
+        "bridge": {
+          "encryption_enabled": true,
+          "epoch": "0",
+          "token_hash": "Hb+WSZzwZDmmcVQDFGOyRcQF3QtlMRV+dyY9HLTIVjY="
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV8xMTFhMTY4MC0xZWZlLTRkZjQtYmNmZS1kZTBiOWE3NWNlOTEiLCJjbGFpbV90eXBlIjoiVE9LRU5fR0VORVJBVEVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJjb250ZXh0IiwicHJvbXB0X3RlbXBsYXRlIiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwicGF5bG9hZCI6eyJhcGlfa2V5X2lkIjoia19wYXJpdHljb3JwdXMwMDAxIiwiY29udmVyc2F0aW9uX2lkIjoiIiwiY3VzdG9tZXJfaWQiOiJjdXN0X3Bhcml0eV9jb3JwdXMiLCJlcGhlbWVyYWwiOmZhbHNlLCJvcmdfaWQiOiJvcmdfcGFyaXR5X2NvcnB1cyIsInRva2VuX2hhc2giOiIxZGJmOTY0OTljZjA2NDM5YTY3MTU0MDMxNDYzYjI0NWM0MDVkZDBiNjUzMTE1N2U3NzI2M2QxY2I0Yzg1NjM2In0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NhbmNlbGxlZCIsInNlcnZpY2VfaWQiOiJkc2EtYnJpZGdlIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowMzowMC4xWiJ9",
+        "claim_id": "clm_111a1680-1efe-4df4-bcfe-de0b9a75ce91",
+        "claim_type": "CLAIM_TYPE_TOKEN_GENERATED",
+        "data_not_seen": [
+          "context",
+          "prompt_template",
+          "inference_result"
+        ],
+        "data_seen": [
+          "customer_id"
+        ],
+        "request_id": "req_parity_v1_cancelled",
+        "service_id": "dsa-bridge",
+        "signature": "invIkxEpkxGOstZq1qmoAkL81xMEaMFQbk+IGnQQaCILskIrYSI4qSfscJhAitucqk4NI3DjwfMvAUn8iXx9Bw==",
+        "timestamp": "2026-09-25T12:03:00.100Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV8zMDczY2Q2NC1mNjRhLTQ2ZGYtYjA0Zi1jZGRjMzI4OTUxMjQiLCJjbGFpbV90eXBlIjoiUElJX1NBTklUSVpFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJ0b2tlbiIsImluZmVyZW5jZV9yZXN1bHQiXSwiZGF0YV9zZWVuIjpbImNvbnRleHRfZmllbGRzIl0sInBheWxvYWQiOnsiZW50aXR5X2NvdW50cyI6eyJQRVJTT04iOjF9LCJsYXllcnNfYWN0aXZlIjpbImtub3duX2VudGl0eV9tYXRjaGluZyIsInByZXNpZGlvX25lciIsImdsaW5lcl9uZXIiLCJsbG1fcGlpX3NjYW4iXSwicGlpX2VudGl0aWVzX2ZvdW5kIjoxLCJwcml2YWN5X2J1ZGdldCI6bnVsbCwicWlfc2NvcmUiOm51bGwsInJlZGFjdGlvbl9tYW5pZmVzdF9oYXNoIjoiNjUxZmU0YmY5YjIyMTQyM2NhMDc0ZDI0YTBiOGI3ZjYzNjk4OWRkZmQ0ZjMzN2JiNGE3MTI3YjJiZTI1ZDMxMiIsInNhbml0aXphdGlvbl9zdW1tYXJ5IjoiWnVzYW1tZW5mYXNzdW5nIGZcdTAwZmNyIGNhbmNlbGxlZDogMSBFbnRpdFx1MDBlNHQoZW4pIGR1cmNoIFBsYXR6aGFsdGVyIGVyc2V0enQiLCJzYW5pdGl6ZWRfZmllbGRzX2hhc2giOiI0NDcxM2M5YmQzMGFhNTU1MGJkZDBiNGM4NWE5ZTU0NjM3MzYwYTY1ODhhMzIyYzdmMzkxYjljNzQ5MGNkODI5IiwidG1zX21hbmlmZXN0X2hhc2giOiJkZjdjODQ3YjNiYzM5OTg0ZTQ1NjQwOWI1Y2FiNzUyMGY0MTZiZjU3ZTAyNjA0ZTIzMzNkN2EwYWRkNjY2MGEzIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NhbmNlbGxlZCIsInNlcnZpY2VfaWQiOiJkc2Etc2FuaXRpemVyIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowMzowMC4yNTAwMDBaIn0=",
+        "claim_id": "clm_3073cd64-f64a-46df-b04f-cddc32895124",
+        "claim_type": "CLAIM_TYPE_PII_SANITIZED",
+        "data_not_seen": [
+          "customer_id",
+          "token",
+          "inference_result"
+        ],
+        "data_seen": [
+          "context_fields"
+        ],
+        "request_id": "req_parity_v1_cancelled",
+        "sanitizer": {
+          "entity_counts": [],
+          "layers_active": [
+            "known_entity_matching",
+            "presidio_ner",
+            "gliner_ner",
+            "llm_pii_scan"
+          ],
+          "pii_entities_found": 1,
+          "qi_score": null,
+          "redaction_manifest_body": "",
+          "redaction_manifest_hash": "ZR/kv5siFCPKB00koLi39jaYnd/U8ze7SnEnsr4l0xI=",
+          "sanitization_summary": "",
+          "sanitized_fields_body": "",
+          "tms_manifest_body": ""
+        },
+        "service_id": "dsa-sanitizer",
+        "signature": "SuinjkH0axbapg3oJRpVLC7ehH3MpaxD1kXrnLVN1UBSOi6CSqktDOO+kDqYFUjX3Y5j/qloMpGfJVbf6BfZDg==",
+        "timestamp": "2026-09-25T12:03:00.250Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV83YmU1MDY2Yi01YzExLTRlMDgtOWQ2MC1kNWVhYWViN2RiZjIiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJyYXdfY29udGV4dCIsInBpaSJdLCJkYXRhX3NlZW4iOlsib3BhcXVlX3Rva2VuIiwic2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJpbmZlcmVuY2Vfb3V0Y29tZSI6ImNhbmNlbGxlZCIsImlzb2xhdGlvbl9wcm9iZSI6IlZFUklGSUVEIiwidXBzdHJlYW1fYXV0aF9tb2RlIjoibWFuYWdlZCIsInVwc3RyZWFtX2JvZHlfc2hhMjU2IjpbImZhOTQ3YTkyMWU5ZTViMjcxNDNkYTFjOTA0MDUxNDc2Y2MyOGM5ZThjOTY2MGExZDkzMWY2ZjQ3ZThkNzk2OTQiXX0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NhbmNlbGxlZCIsInNlcnZpY2VfaWQiOiJkc2EtYWkiLCJ0aW1lc3RhbXAiOiIyMDI2LTA5LTI1VDEyOjAzOjAxLjUwMDAwMFoifQ==",
+        "claim_id": "clm_7be5066b-5c11-4e08-9d60-d5eaaeb7dbf2",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "customer_id",
+          "raw_context",
+          "pii"
+        ],
+        "data_seen": [
+          "opaque_token",
+          "sanitized_context"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_VERIFIED",
+          "model_used": "",
+          "response_hash": "",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_cancelled",
+        "service_id": "dsa-ai",
+        "signature": "JWr3RMobDdlq7HSpBXPAWU/CxnwiqiBRd4qACLXKOkVFs39r36c2KSg6JNokw9OZxZAvCDWz+MXv91VblIldAA==",
+        "timestamp": "2026-09-25T12:03:01.500Z"
+      },
+      {
+        "audit": {
+          "chain_head_hash": "9Oz3IOIeqmMsB96qAksDNoZ8sfCNueDgcGWGNEj38z8=",
+          "chain_length": "7",
+          "event_ids": [
+            "evt_parity_cancelled"
+          ],
+          "output_scan_body": "",
+          "output_scan_hash": "",
+          "previous_chain_hash": ""
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9lNDZjOTEwZC1jMmU1LTQ0MzYtOWRjYS00ZjhjN2I3MjcxZDkiLCJjbGFpbV90eXBlIjoiRVZFTlRTX1JFQ09SREVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJwaWkiLCJjb250ZXh0IiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiZXZlbnRfaGFzaGVzIl0sInBheWxvYWQiOnsiZXZlbnRfaWQiOiJldnRfcGFyaXR5X2NhbmNlbGxlZCIsIm1lcmtsZV9yb290IjoiZjRlY2Y3MjBlMjFlYWE2MzJjMDdkZWFhMDI0YjAzMzY4NjdjYjFmMDhkYjllMGUwNzA2NTg2MzQ0OGY3ZjMzZiIsIm1lcmtsZV90cmVlX3NpemUiOjd9LCJyZXF1ZXN0X2lkIjoicmVxX3Bhcml0eV92MV9jYW5jZWxsZWQiLCJzZXJ2aWNlX2lkIjoiZHNhLWF1ZGl0IiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowMzowMloifQ==",
+        "claim_id": "clm_e46c910d-c2e5-4436-9dca-4f8c7b7271d9",
+        "claim_type": "CLAIM_TYPE_EVENTS_RECORDED",
+        "data_not_seen": [
+          "pii",
+          "context",
+          "inference_result"
+        ],
+        "data_seen": [
+          "event_hashes"
+        ],
+        "request_id": "req_parity_v1_cancelled",
+        "service_id": "dsa-audit",
+        "signature": "pvSbH4A5ZAHcJRChuZcak0drB0iQ98smnUkMaR9MBSZhQaCW7b4C7XjmpjXmwRBJYIuR5p2l6ZcPgHDaQ/QwAQ==",
+        "timestamp": "2026-09-25T12:03:02Z"
+      }
+    ],
+    "client_id": "org_parity_corpus",
+    "decoder_expiry": null,
+    "formal_verification": null,
+    "issued_at": "2026-09-25T12:03:02.500Z",
+    "privacy_budget": null,
+    "protocol_version": 2,
+    "request_id": "req_parity_v1_cancelled",
+    "signable_protocol_version_emitted": 3,
+    "signable_v2_signature": "sKZ3rsTI8ENbVI+ePNdcZJSTJyLtMaLv86IdY82A/gMW83R2VpkC2NudaJnML00PEMQobinbar9fYzB5naD9Bw==",
+    "signable_v3_signature": "+soy9rCVCoo4WXXjAihzVdTU+MpyChosVcgGZjauyX2Jncf1VvnFT9TLDh7kjwrmuS/3HQwG24v5biqQBGh6BQ==",
+    "verification": {
+      "anchor_verifications": [],
+      "byok_exempt": false,
+      "cert_tier": "full_chain",
+      "completeness": "COMPLETENESS_PARTIAL",
+      "data_visibility_consistent": true,
+      "isolation_verified": true,
+      "l3_coverage_evidence": {
+        "canaries_planted": 0,
+        "canaries_recovered": 0,
+        "composed_green": false,
+        "composed_reason": "scope_unavailable",
+        "derivation_version": "",
+        "drives_verdict": false,
+        "fields": [],
+        "fields_absent": 0,
+        "fields_failed": 0,
+        "fields_passed": 0,
+        "record_status": "absent",
+        "rollup": ""
+      },
+      "l3_coverage_scope": {
+        "covered": [],
+        "derivation_version": "",
+        "drives_claim": false,
+        "eligible_count": 0,
+        "eligible_not_covered": [],
+        "excluded": [],
+        "granted": false,
+        "reason": "",
+        "record_status": "absent"
+      },
+      "missing_services": [],
+      "overall_verdict": "VERDICT_PARTIAL",
+      "qi_score": null,
+      "signatures_valid": true,
+      "temporal_consistent": true,
+      "temporal_order_status": "valid",
+      "upstream_auth_mode": "managed"
+    },
+    "witness_key_id": "witness_parity_v1",
+    "witness_signature": "sKZ3rsTI8ENbVI+ePNdcZJSTJyLtMaLv86IdY82A/gMW83R2VpkC2NudaJnML00PEMQobinbar9fYzB5naD9Bw=="
+  },
+  "expected": {
+    "default": {
+      "verdict": "PARTIAL",
+      "reason": "inference_unfinished",
+      "egress_attestation": "signed_digests",
+      "user_unredacted": "false",
+      "signed_cert_tier": "absent",
+      "signable_version": "v3",
+      "authenticated_fields": [
+        "api_key_id",
+        "byok_exempt",
+        "certificate_id",
+        "claim_ids",
+        "client_id",
+        "issued_at",
+        "overall_verdict",
+        "protocol_version",
+        "redaction_manifest_hash",
+        "request_id",
+        "sanitized_fields_body_hash",
+        "tms_manifest_hash",
+        "witness_key_id"
+      ],
+      "unauthenticated_fields": [
+        "claims[0].bridge.encryption_enabled",
+        "claims[2].inference.model_used",
+        "claims[3].audit.chain_head_hash",
+        "claims[3].audit.chain_length"
+      ]
+    },
+    "minimum_v3": {
+      "verdict": "PARTIAL",
+      "reason": "inference_unfinished",
+      "egress_attestation": "signed_digests",
+      "user_unredacted": "false",
+      "signed_cert_tier": "absent",
+      "signable_version": "v3",
+      "authenticated_fields": [
+        "api_key_id",
+        "byok_exempt",
+        "certificate_id",
+        "claim_ids",
+        "client_id",
+        "issued_at",
+        "overall_verdict",
+        "protocol_version",
+        "redaction_manifest_hash",
+        "request_id",
+        "sanitized_fields_body_hash",
+        "tms_manifest_hash",
+        "witness_key_id"
+      ],
+      "unauthenticated_fields": [
+        "claims[0].bridge.encryption_enabled",
+        "claims[2].inference.model_used",
+        "claims[3].audit.chain_head_hash",
+        "claims[3].audit.chain_length"
+      ]
+    }
+  },
+  "reference": {
+    "witness_reverify_verdict": "VERDICT_PARTIAL",
+    "witness_agrees": true
+  }
+}

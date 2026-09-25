@@ -181,6 +181,67 @@ try {
 > // ...then pass witnessPublicKey to verifyCertificate({ witnessKeyId, witnessPublicKey })
 > ```
 
+### Check every claim: `verifyCertificateChain(certificate, keys, options?)`
+
+`verifyCertificate()` above checks the witness signatures only. The witness
+signs the LIST of claim ids, not the claim contents, so a certificate whose
+claim body was edited under the same claim id still passes it.
+`verifyCertificateChain()` (also `client.verifyCertificateChain()`) runs the
+full check: every claim's own signature against the key you pin for its
+service, the claim bytes rebuilt from the outer fields, claim-id membership,
+the unsigned typed copies against the signed payload, the signed
+upstream-request hashes, and the unsigned `cert_tier` against its signed
+copies. It is additive: `verifyCertificate()` is unchanged.
+
+It takes the **raw certificate JSON text** (string or UTF-8 bytes), not a
+`JSON.parse` result, because number lexemes and trailing bytes are part of
+the checks. It never throws on a bad certificate: it returns a result with a
+`verdict` and the `reason` of the check that decided. It throws `TypeError`
+only for programmer errors (a malformed key set).
+
+```ts
+import { verifyCertificateChain } from '@lucairn/sdk';
+
+const res = await fetch(`${gateway}/api/v1/veil/certificate/${requestId}`, { headers });
+const raw = await res.text(); // the raw body, not res.json()
+
+const result = await verifyCertificateChain(raw, {
+  witnessKeyId: 'witness_v1',
+  witnessPublicKey: witnessKeyBase64,
+  servicePublicKeys: {
+    // one key per claim-emitting service in your deployment;
+    // a claim from an unpinned service FAILS the certificate
+    'dsa-sanitizer': sanitizerKeyBase64,
+    'dsa-ai': aiKeyBase64,
+    'dsa-gateway': gatewayKeyBase64,
+    'dsa-bridge': bridgeKeyBase64,
+    'dsa-audit': auditKeyBase64,
+    'dsa-reid-guard': reidGuardKeyBase64, // where deployed
+  },
+}, { minimumSignableVersion: 'v3' }); // omit for the legacy-tolerant default
+
+if (result.verdict !== 'VERIFIED') console.warn(result.verdict, result.reason);
+if (result.user_unredacted === 'true') showSentUnredactedMark();
+for (const f of result.unauthenticated_fields) markUnverified(f);
+```
+
+**Which keys to pin.** Pin the per-service public keys your Lucairn operator publishes for your deployment, the same way you pin the witness key, and pin every service that emits claims there (including, where present, `dsa-reid-guard` and `dsa-sanitizer-streaming`): a claim from an unpinned service FAILS the certificate. A published key endpoint is planned; this release does not fetch keys.
+
+**What the result means.**
+
+| `verdict` | meaning |
+|---|---|
+| `VERIFIED` | every check passed, and exactly one claim signs a list of upstream-request SHA-256 hashes (one per request attempt the inference sandbox recorded) with the pinned `dsa-ai` key. The bytes Lucairn sent are signed and you can recompute them: the stored request bytes are served by the gateway's `/upstream-request` endpoint once the signed-hash producer change is deployed (this SDK does not fetch them), and a witness export that carries them inline has them checked against the signed hashes here. Certificates without signed hashes end at `EGRESS_UNATTESTED`. |
+| `EGRESS_UNATTESTED` | every check passed, but no signed upstream-request hash exists (older certificates, the input-shield lane today). Never treat it as green. |
+| `PARTIAL` | the signatures hold, but the certificate itself says something is missing, unfinished or opted out (`reason` says which, e.g. `user_sent_unredacted`). |
+| `FAILED` | an integrity, binding or policy check broke, or the witness itself sealed FAILED. |
+
+Only `VERIFIED` is green. The result also carries `signed_cert_tier` (show this, never the unsigned `verification.cert_tier`) and `user_unredacted`, a **string** (`"true"` / `"false"` / `"unknown"`) read from the signed sanitizer claim only. Compare it to `"true"`; `"false"` is a non-empty string.
+
+> **`unauthenticated_fields` MUST be shown as unverified and MUST NEVER drive a decision.** Every entry (for example `client_id`, `api_key_id`, `byok_exempt` on a certificate that only carries the older v2 witness signature, or `claims[1].inference.model_used` when no claim signs a model) is covered by no signature. Label it unverified wherever you display it, and never base a BYOK badge, a "sent unredacted" mark, a client or API-key attribution, or a model claim on it. Read the value from a signed source instead, or show nothing. Strict callers pass minimum signable version `v3`, which fails every certificate that only carries the v2 witness signature.
+
+Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (timestamp grammar, canonical JSON and base64, typed-field binding) are implemented in this SDK's source with comments. The 54-case test corpus and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies. The keys in that corpus are test keys; never pin them in a product.
+
 ## New helpers (1.0)
 
 ### `getCertificateSummary(requestId, options?): Promise<string>`
