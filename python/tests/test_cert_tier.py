@@ -1,7 +1,6 @@
-"""T-921 S3 — optional, UNSIGNED ``verification.cert_tier`` on the type.
+"""Optional, UNSIGNED ``verification.cert_tier`` on the type.
 
-PRD ``prd-2026-09-25-t921-input-shield-verified-verdict.md`` § Slice 3:
-types only, no verifier or signable change. The field parses when present,
+Types only, no verifier or signable change. The field parses when present,
 absent or unknown (never a validation error), and the offline verifier's
 outcome does not depend on it — the real production v3 certificate verifies
 identically with or without a tier, because neither witness signable

@@ -229,7 +229,7 @@ export interface VeilVerificationResult {
    */
   byok_exempt?: boolean;
   /**
-   * T-921 — the certificate's tier, as the witness derived it: `'full_chain'`
+   * The certificate's tier, as the witness derived it: `'full_chain'`
    * (bridge → sanitizer → ai → audit) or `'input_shield'` (the sanitize-only
    * route: sanitizer → gateway → vendor call, whose VERIFIED verdict covers
    * that shorter chain). Proto field 15 on VerificationResult.
