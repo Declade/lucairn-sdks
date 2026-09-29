@@ -17,10 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   derived for (`input_shield` = the sanitize-only route, whose VERIFIED
   verdict covers sanitizer → gateway → vendor call). The field is OPTIONAL
   (absent on certificates sealed before tier-aware verdicts) and UNSIGNED —
-  it is in neither witness signable, no verifier path reads it, and an
+  it is in neither witness signable, `verifyCertificate` never reads it, and an
   unknown value is surfaced verbatim, never an error. Types only: no
-  verifier or signable change.
-- **Every claim checked, not only the witness signature (T-935 S3 / T-794).**
+  signable change.
 - **Every claim checked, not only the witness signature.**
   New `verifyCertificateChain` (TS, also `client.verifyCertificateChain`),
   `verify_certificate_chain` (Python, also `client.verify_certificate_chain`)
