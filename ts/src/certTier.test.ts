@@ -42,7 +42,7 @@ describe('verification.cert_tier (optional, unsigned)', () => {
     expect(cert.verification.cert_tier).toBeUndefined();
   });
 
-  it.each(['full_chain', 'input_shield', '', 'input-shield', 'some_future_tier'])(
+  it.each(['full_chain', 'input_shield', 'input_shield_two_signer', '', 'input-shield', 'some_future_tier'])(
     'parses %j verbatim, never an error',
     (tier) => {
       const cert = parseCertificate(withTier(tier));
@@ -51,11 +51,11 @@ describe('verification.cert_tier (optional, unsigned)', () => {
   );
 
   it('accepts the documented values and an unknown string at the type level', () => {
-    const tiers: VeilCertTier[] = ['full_chain', 'input_shield', '', 'some_future_tier'];
+    const tiers: VeilCertTier[] = ['full_chain', 'input_shield', 'input_shield_two_signer', '', 'some_future_tier'];
     expect(tiers).toHaveLength(4);
   });
 
-  it.each([undefined, 'full_chain', 'input_shield', '', 'some_future_tier'])(
+  it.each([undefined, 'full_chain', 'input_shield', 'input_shield_two_signer', '', 'some_future_tier'])(
     'the verifier outcome does not depend on cert_tier=%j (outside both signables)',
     async (tier) => {
       const result = await verifyCertificate(withTier(tier), productionKeys());

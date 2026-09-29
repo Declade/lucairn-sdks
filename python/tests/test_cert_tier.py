@@ -44,13 +44,13 @@ def test_cert_tier_absent_parses_as_none(real_v3_cert: dict) -> None:
     assert VeilCertificate.model_validate(real_v3_cert).verification.cert_tier is None
 
 
-@pytest.mark.parametrize("tier", ["full_chain", "input_shield", "", "input-shield", "some_future_tier"])
+@pytest.mark.parametrize("tier", ["full_chain", "input_shield", "input_shield_two_signer", "", "input-shield", "some_future_tier"])
 def test_cert_tier_present_or_unknown_parses_verbatim(real_v3_cert: dict, tier: str) -> None:
     cert = VeilCertificate.model_validate(_with_tier(real_v3_cert, tier))
     assert cert.verification.cert_tier == tier
 
 
-@pytest.mark.parametrize("tier", [None, "full_chain", "input_shield", "", "some_future_tier"])
+@pytest.mark.parametrize("tier", [None, "full_chain", "input_shield", "input_shield_two_signer", "", "some_future_tier"])
 def test_verifier_outcome_does_not_depend_on_cert_tier(
     real_v3_cert: dict, production_keys: VerifyCertificateKeys, tier: object
 ) -> None:

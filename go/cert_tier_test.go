@@ -43,7 +43,7 @@ func withCertTier(t *testing.T, tier *string) []byte {
 
 func TestVeilVerificationResult_CertTier_OptionalAndVerbatim(t *testing.T) {
 	tiers := []*string{nil}
-	for _, s := range []string{"full_chain", "input_shield", "", "input-shield", "some_future_tier"} {
+	for _, s := range []string{"full_chain", "input_shield", "input_shield_two_signer", "", "input-shield", "some_future_tier"} {
 		s := s
 		tiers = append(tiers, &s)
 	}
