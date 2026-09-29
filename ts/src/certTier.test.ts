@@ -52,7 +52,7 @@ describe('verification.cert_tier (optional, unsigned)', () => {
 
   it('accepts the documented values and an unknown string at the type level', () => {
     const tiers: VeilCertTier[] = ['full_chain', 'input_shield', 'input_shield_two_signer', '', 'some_future_tier'];
-    expect(tiers).toHaveLength(4);
+    expect(tiers).toHaveLength(5);
   });
 
   it.each([undefined, 'full_chain', 'input_shield', 'input_shield_two_signer', '', 'some_future_tier'])(
