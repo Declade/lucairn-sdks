@@ -1,0 +1,133 @@
+{
+  "format": "lucairn-parity-corpus/v1.2.1",
+  "id": "tamper_cert_tier_two_signer_label_without_sanitizer",
+  "class": "tamper",
+  "surface": "get_certificate",
+  "description": "A gateway seal claim alone (no dsa-sanitizer claim, no dsa-ai claim) under the label input_shield_two_signer. The label needs at least one dsa-sanitizer claim.",
+  "construction": "the gateway seal claim only, sealed with the honest two-signer verification result; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs)",
+  "certificate": {
+    "anchor_status": null,
+    "attestation": {
+      "notary": {
+        "attested_at": null,
+        "checks_performed": [
+          "canonical_json_signing"
+        ],
+        "notary_public_key_id": "witness_parity_v1",
+        "notary_signature": "7aX1l1bM1JAcFaj0ZmmghXmpg5QWsg73U0xMw2wqZlHIBNu7j0Wkiff9twY+7rAXlHBWVBN3/OqisWs2+b3TDQ==",
+        "provider": "dsa-veil-witness"
+      },
+      "qualified_timestamp": null,
+      "rails": [],
+      "timestamp": null,
+      "transparency_log": null
+    },
+    "audit_integrity": null,
+    "certificate_id": "veil_00d96054-abde-4cba-bf8c-c1711c04dfa6",
+    "claims": [
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9kMWY0NjI0Yy03NTAwLTRjN2ItODZkZC04OTRkNmNkMGRjOTEiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsicmF3X3BpaSIsInZlbmRvcl9zZXNzaW9uX2Nvb2tpZSIsImlkZW50aXR5X2ZpZWxkcyJdLCJkYXRhX3NlZW4iOlsic2FuaXRpemVkX3Byb21wdF9oYXNoIiwidmVuZG9yX3Jlc3BvbnNlX2hhc2giLCJzYW5pdGl6ZXJfbWFuaWZlc3QiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJpbnB1dC1zaGllbGQiLCJjbGllbnRfaWQiOiIiLCJjdXN0b21lcl9pZCI6ImN1c3RfcGFyaXR5X2NvcnB1cyIsInJlcXVlc3RfaGFzaCI6ImVkYzE0NGY1MjUyN2E4MzUyNzFmNWE0YzY4ZjdkMWE4YTdjMWVkMDczYmUxNmEzM2EwMzA4MDg1MWVlZjhmOTYiLCJyZXNwb25zZV9oYXNoIjoiM2FjZTFhMGY5NTkzMmFkNzI3NGUyZjJlY2RjODFiMGE5OTRhYmJmYjI1NTg4MzZiYjI5NmRkNDRiNWI1YWQxNiIsInNhbml0aXplcl9tYW5pZmVzdCI6eyJjYXRlZ29yaWVzX3RyaWdnZXJlZCI6WyJDYXQgMSJdLCJsYXllcnNfYWN0aXZlIjpbImtub3duX2VudGl0eV9tYXRjaGluZyIsInByZXNpZGlvX25lciIsImxsbV9waWlfc2NhbiJdLCJyZWRhY3Rpb25fY291bnQiOnsiUEVSU09OIjoxfSwic2FuaXRpemVyX3ZlcnNpb24iOiJwYXJpdHktY29ycHVzLTEuMCJ9LCJzZWFsZWRfYXQiOiIyMDI2LTA5LTI1VDEyOjA1OjAxWiIsInRvb2xfbmFtZSI6IkNsYXVkZSBEZXNrdG9wIiwidmVuZG9yIjoiYW50aHJvcGljIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX3NoaWVsZCIsInNlcnZpY2VfaWQiOiJkc2EtZ2F0ZXdheSIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDU6MDFaIn0=",
+        "claim_id": "clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "raw_pii",
+          "vendor_session_cookie",
+          "identity_fields"
+        ],
+        "data_seen": [
+          "sanitized_prompt_hash",
+          "vendor_response_hash",
+          "sanitizer_manifest"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_UNKNOWN",
+          "model_used": "",
+          "response_hash": "Os4aD5WTKtcnTi8uzcgbCplKu/slWINrspbdRLW1rRY=",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_shield",
+        "service_id": "dsa-gateway",
+        "signature": "YbH+SOfyIhqs8ZVwZkdC37LQMfjO/gyyBMGslikQLlLliAb1EWORNxwLStQ+YiMs69GljyqzDhIheDkOPcuNBg==",
+        "timestamp": "2026-09-25T12:05:01Z"
+      }
+    ],
+    "decoder_expiry": null,
+    "formal_verification": null,
+    "issued_at": "2026-09-25T12:05:02.500Z",
+    "privacy_budget": null,
+    "protocol_version": 2,
+    "request_id": "req_parity_v1_shield",
+    "signable_protocol_version_emitted": 3,
+    "signable_v2_signature": "7aX1l1bM1JAcFaj0ZmmghXmpg5QWsg73U0xMw2wqZlHIBNu7j0Wkiff9twY+7rAXlHBWVBN3/OqisWs2+b3TDQ==",
+    "signable_v3_signature": "68sj2ybjPrzkCQ9AVkfISA6SRTCQrI6dDkrZVfftOyfy2nQTBPpr6Gqf6s6QqhhKlEal5kGhTUyE/l0JqbsDDw==",
+    "verification": {
+      "anchor_verifications": [],
+      "byok_exempt": false,
+      "cert_tier": "input_shield_two_signer",
+      "completeness": "COMPLETENESS_FULL",
+      "data_visibility_consistent": true,
+      "isolation_verified": false,
+      "l3_coverage_evidence": {
+        "canaries_planted": 0,
+        "canaries_recovered": 0,
+        "composed_green": false,
+        "composed_reason": "scope_unavailable",
+        "derivation_version": "",
+        "drives_verdict": false,
+        "fields": [],
+        "fields_absent": 0,
+        "fields_failed": 0,
+        "fields_passed": 0,
+        "record_status": "absent",
+        "rollup": ""
+      },
+      "l3_coverage_scope": {
+        "covered": [],
+        "derivation_version": "",
+        "drives_claim": false,
+        "eligible_count": 0,
+        "eligible_not_covered": [],
+        "excluded": [],
+        "granted": false,
+        "reason": "",
+        "record_status": "absent"
+      },
+      "missing_services": [],
+      "overall_verdict": "VERDICT_VERIFIED",
+      "qi_score": null,
+      "signatures_valid": true,
+      "temporal_consistent": true,
+      "temporal_order_status": "valid",
+      "upstream_auth_mode": ""
+    },
+    "witness_key_id": "witness_parity_v1",
+    "witness_signature": "7aX1l1bM1JAcFaj0ZmmghXmpg5QWsg73U0xMw2wqZlHIBNu7j0Wkiff9twY+7rAXlHBWVBN3/OqisWs2+b3TDQ=="
+  },
+  "expected": {
+    "default": {
+      "verdict": "FAILED",
+      "reason": "cert_tier_mismatch",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "request_binding": "not_evaluated",
+      "verified": null
+    },
+    "minimum_v3": {
+      "verdict": "FAILED",
+      "reason": "cert_tier_mismatch",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "request_binding": "not_evaluated",
+      "verified": null
+    }
+  },
+  "reference": {
+    "witness_reverify_verdict": "VERDICT_FAILED",
+    "witness_agrees": true,
+    "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+  }
+}

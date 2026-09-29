@@ -1,7 +1,7 @@
 package lucairn
 
 // Certificate verifier parity: VerifyCertificateChain against the vendored
-// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2, source
+// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2.1, source
 // commit in SOURCE.json). The TS (ts/src/verify-chain/parityCorpus.test.ts)
 // and Python (python/tests/test_parity_corpus.py) SDKs run the same cases
 // against the same expectations: every result field, `verified` compared as
@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	parityFormat        = "lucairn-parity-corpus/v1.2"
-	parityExpectedCases = 79
+	parityFormat        = "lucairn-parity-corpus/v1.2.1"
+	parityExpectedCases = 84
 )
 
 var parityRoot = filepath.Join("..", "testdata", "parity-corpus")
@@ -228,6 +228,7 @@ func TestParityCorpus_VendoredCopyMatchesRecordedHashes(t *testing.T) {
 		SourceCommit   string `json:"source_commit"`
 		ManifestSHA256 string `json:"manifest_sha256"`
 		KeysSHA256     string `json:"keys_sha256"`
+		PolicySHA256   string `json:"key_policy_sha256"`
 		TableSHA256    string `json:"recipe_table_sha256"`
 	}
 	if err := json.Unmarshal(parityRead(t, "SOURCE.json"), &src); err != nil {
@@ -237,7 +238,7 @@ func TestParityCorpus_VendoredCopyMatchesRecordedHashes(t *testing.T) {
 	if src.Format != parityFormat || m.Format != src.Format || !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(src.SourceCommit) {
 		t.Fatalf("SOURCE.json format %q / manifest %q / commit %q", src.Format, m.Format, src.SourceCommit)
 	}
-	for rel, want := range map[string]string{"v1/manifest.json": src.ManifestSHA256, "v1/keys.json": src.KeysSHA256, "recipe-table.md": src.TableSHA256} {
+	for rel, want := range map[string]string{"v1/manifest.json": src.ManifestSHA256, "v1/keys.json": src.KeysSHA256, "v1/key-policy.json": src.PolicySHA256, "recipe-table.md": src.TableSHA256} {
 		if got := paritySHA(parityRead(t, rel)); got != want {
 			t.Errorf("%s drifted (%s != %s): re-run testdata/parity-corpus/sync.sh", rel, got, want)
 		}
@@ -307,7 +308,7 @@ func TestParityCorpus_ManifestVocabularies(t *testing.T) {
 		Verdicts:         []string{"FAILED", "PARTIAL", "EGRESS_UNATTESTED", "VERIFIED"},
 		EgressStates:     []string{"signed_digests", "unattested", "not_evaluated"},
 		UserUnredacted:   []string{"true", "false", "unknown"},
-		SignedCertTiers:  []string{"absent", "input_shield", "inconsistent", "not_evaluated"},
+		SignedCertTiers:  []string{"absent", "input_shield", "input_shield_two_signer", "inconsistent", "not_evaluated"},
 		SignableVersions: []string{"v2", "v3", "none"},
 		RequestBindings:  []string{"matched", "not_checked", "not_evaluated"},
 		Classes:          []string{"honest", "tamper", "edge"},
@@ -940,8 +941,9 @@ func TestParityCorpus_BodiesHashToVerifiedDigests(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// SDK-local extension beyond corpus v1.2 (no vendored vector yet): the
-// two-signer input-shield chain. The witness writes the unsigned tier
+// Two-signer input-shield chain: corpus v1.2.1 vendors the honest and three
+// label-tamper vectors; this in-test matrix is kept ALONGSIDE them because it
+// covers the wider label x shape combinations (no duplicate of a vendored case). The witness writes the unsigned tier
 // `input_shield_two_signer` for an input-shield chain with only sanitizer +
 // gateway claims. Constructed here from honest_input_shield: the dsa-ai claim
 // is removed and the certificate re-sealed with the corpus witness TEST key

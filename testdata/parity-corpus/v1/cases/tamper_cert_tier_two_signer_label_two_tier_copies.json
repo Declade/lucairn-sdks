@@ -1,10 +1,10 @@
 {
   "format": "lucairn-parity-corpus/v1.2.1",
-  "id": "tamper_cert_tier_full_chain_on_input_shield",
+  "id": "tamper_cert_tier_two_signer_label_two_tier_copies",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "verification.cert_tier (unsigned) says full_chain on a VERIFIED certificate whose gateway + dsa-ai seal claims both carry the signed cert_tier input-shield.",
-  "construction": "post-seal edit of verification.cert_tier",
+  "description": "dsa-sanitizer plus TWO dsa-gateway seal claims, each signing cert_tier input-shield, under the label input_shield_two_signer. The label needs exactly ONE signed tier copy.",
+  "construction": "the sanitizer claim + two distinct gateway seal claims, sealed with the honest two-signer verification result; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs)",
   "certificate": {
     "anchor_status": null,
     "attestation": {
@@ -14,7 +14,7 @@
           "canonical_json_signing"
         ],
         "notary_public_key_id": "witness_parity_v1",
-        "notary_signature": "5stba2LbFHFKQ4JMqCRnNa7UAYfYBPHNXkdQNnTGVqO6sV/Qnnu/KT6N8ozfUY84gi7WGsYrrJFFVSe9wxauBw==",
+        "notary_signature": "Z2CrTcgH0rrkhzC+CtA4+DJqu4wB3ovdN2GD6rYUwcD9jCztaLfXsqXo9toR0dVrF4hUMFWWAZDHPNpQZTdPBw==",
         "provider": "dsa-veil-witness"
       },
       "qualified_timestamp": null,
@@ -83,14 +83,13 @@
         "timestamp": "2026-09-25T12:05:01Z"
       },
       {
-        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV85OGUwY2JhZi1iZWJjLTRiOTctYWMxZC05MzJlYTE1N2UzMzAiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsicmF3X3BpaSIsInZlbmRvcl9zZXNzaW9uX2Nvb2tpZSIsImlkZW50aXR5X2ZpZWxkcyIsInZlbmRvcl9yZXNwb25zZV90ZXh0Il0sImRhdGFfc2VlbiI6WyJzYW5pdGl6ZWRfcHJvbXB0X2hhc2giLCJ2ZW5kb3JfcmVzcG9uc2VfaGFzaCIsInNhbml0aXplcl9tYW5pZmVzdCJdLCJwYXlsb2FkIjp7ImNlcnRfdGllciI6ImlucHV0LXNoaWVsZCIsImNsaWVudF9pZCI6IiIsImN1c3RvbWVyX2lkIjoiY3VzdF9wYXJpdHlfY29ycHVzIiwiaXNvbGF0aW9uX3Byb2JlIjoiQllPS19FWEVNUFQiLCJyZXF1ZXN0X2hhc2giOiJlZGMxNDRmNTI1MjdhODM1MjcxZjVhNGM2OGY3ZDFhOGE3YzFlZDA3M2JlMTZhMzNhMDMwODA4NTFlZWY4Zjk2IiwicmVzcG9uc2VfaGFzaCI6IjNhY2UxYTBmOTU5MzJhZDcyNzRlMmYyZWNkYzgxYjBhOTk0YWJiZmIyNTU4ODM2YmIyOTZkZDQ0YjViNWFkMTYiLCJzYW5pdGl6ZXJfbWFuaWZlc3QiOnsiY2F0ZWdvcmllc190cmlnZ2VyZWQiOlsiQ2F0IDEiXSwibGF5ZXJzX2FjdGl2ZSI6WyJrbm93bl9lbnRpdHlfbWF0Y2hpbmciLCJwcmVzaWRpb19uZXIiLCJsbG1fcGlpX3NjYW4iXSwicmVkYWN0aW9uX2NvdW50Ijp7IlBFUlNPTiI6MX0sInNhbml0aXplcl92ZXJzaW9uIjoicGFyaXR5LWNvcnB1cy0xLjAifSwic2VhbGVkX2F0IjoiMjAyNi0wOS0yNVQxMjowNTowMVoiLCJ0b29sX25hbWUiOiJDbGF1ZGUgRGVza3RvcCIsInZlbmRvciI6ImFudGhyb3BpYyJ9LCJyZXF1ZXN0X2lkIjoicmVxX3Bhcml0eV92MV9zaGllbGQiLCJzZXJ2aWNlX2lkIjoiZHNhLWFpIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowNTowMS4xWiJ9",
-        "claim_id": "clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330",
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9jOTVmZDJkYi00Mjg5LTQ0YjYtYjgwZi0wN2I3YmUwZTI4ZjgiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsicmF3X3BpaSIsInZlbmRvcl9zZXNzaW9uX2Nvb2tpZSIsImlkZW50aXR5X2ZpZWxkcyJdLCJkYXRhX3NlZW4iOlsic2FuaXRpemVkX3Byb21wdF9oYXNoIiwidmVuZG9yX3Jlc3BvbnNlX2hhc2giLCJzYW5pdGl6ZXJfbWFuaWZlc3QiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJpbnB1dC1zaGllbGQiLCJjbGllbnRfaWQiOiIiLCJjdXN0b21lcl9pZCI6ImN1c3RfcGFyaXR5X2NvcnB1cyIsInJlcXVlc3RfaGFzaCI6ImVkYzE0NGY1MjUyN2E4MzUyNzFmNWE0YzY4ZjdkMWE4YTdjMWVkMDczYmUxNmEzM2EwMzA4MDg1MWVlZjhmOTYiLCJyZXNwb25zZV9oYXNoIjoiM2FjZTFhMGY5NTkzMmFkNzI3NGUyZjJlY2RjODFiMGE5OTRhYmJmYjI1NTg4MzZiYjI5NmRkNDRiNWI1YWQxNiIsInNhbml0aXplcl9tYW5pZmVzdCI6eyJjYXRlZ29yaWVzX3RyaWdnZXJlZCI6WyJDYXQgMSJdLCJsYXllcnNfYWN0aXZlIjpbImtub3duX2VudGl0eV9tYXRjaGluZyIsInByZXNpZGlvX25lciIsImxsbV9waWlfc2NhbiJdLCJyZWRhY3Rpb25fY291bnQiOnsiUEVSU09OIjoxfSwic2FuaXRpemVyX3ZlcnNpb24iOiJwYXJpdHktY29ycHVzLTEuMCJ9LCJzZWFsZWRfYXQiOiIyMDI2LTA5LTI1VDEyOjA1OjAxWiIsInRvb2xfbmFtZSI6IkNsYXVkZSBEZXNrdG9wIiwidmVuZG9yIjoiYW50aHJvcGljIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX3NoaWVsZCIsInNlcnZpY2VfaWQiOiJkc2EtZ2F0ZXdheSIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDU6MDFaIn0=",
+        "claim_id": "clm_c95fd2db-4289-44b6-b80f-07b7be0e28f8",
         "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
         "data_not_seen": [
           "raw_pii",
           "vendor_session_cookie",
-          "identity_fields",
-          "vendor_response_text"
+          "identity_fields"
         ],
         "data_seen": [
           "sanitized_prompt_hash",
@@ -98,15 +97,15 @@
           "sanitizer_manifest"
         ],
         "inference": {
-          "isolation_probe": "ISOLATION_PROBE_BYOK_EXEMPT",
+          "isolation_probe": "ISOLATION_PROBE_UNKNOWN",
           "model_used": "",
           "response_hash": "Os4aD5WTKtcnTi8uzcgbCplKu/slWINrspbdRLW1rRY=",
           "upstream_request_bodies": []
         },
         "request_id": "req_parity_v1_shield",
-        "service_id": "dsa-ai",
-        "signature": "5m8Tj0XH1mAsWZUQoTXJcRVtpDg4zcWIo8Mycxx9CejYTIh1auiYeAvBKdy/Zcyir1mkPLhayVhJyVqofnbtCg==",
-        "timestamp": "2026-09-25T12:05:01.100Z"
+        "service_id": "dsa-gateway",
+        "signature": "LtOhUm2wfqdpTo5X5CmWCnbNZ/MKoGepAbGU7E5ZqoqYiuwapcgFBuNxg0f99Xv7A8+ghB1H04yZjoSFvAEUDw==",
+        "timestamp": "2026-09-25T12:05:01Z"
       }
     ],
     "decoder_expiry": null,
@@ -116,15 +115,15 @@
     "protocol_version": 2,
     "request_id": "req_parity_v1_shield",
     "signable_protocol_version_emitted": 3,
-    "signable_v2_signature": "5stba2LbFHFKQ4JMqCRnNa7UAYfYBPHNXkdQNnTGVqO6sV/Qnnu/KT6N8ozfUY84gi7WGsYrrJFFVSe9wxauBw==",
-    "signable_v3_signature": "koJVJ2einzqtTQFspVYccM1vtyKAnsgoui65nnJpVrhg/G22Vqr3EcDCgSaZdf/y9VLuWJ76uLMF/sC/dlO7Dg==",
+    "signable_v2_signature": "Z2CrTcgH0rrkhzC+CtA4+DJqu4wB3ovdN2GD6rYUwcD9jCztaLfXsqXo9toR0dVrF4hUMFWWAZDHPNpQZTdPBw==",
+    "signable_v3_signature": "YfRZFuHKQn12SRLJmwhIF5DVJ7uxc2VHfkPNlkwrTTSAIbuYZeXweztrlLmN/v0BV52Cj1UhP04OyOWyMBhpDQ==",
     "verification": {
       "anchor_verifications": [],
-      "byok_exempt": true,
-      "cert_tier": "full_chain",
+      "byok_exempt": false,
+      "cert_tier": "input_shield_two_signer",
       "completeness": "COMPLETENESS_FULL",
       "data_visibility_consistent": true,
-      "isolation_verified": true,
+      "isolation_verified": false,
       "l3_coverage_evidence": {
         "canaries_planted": 0,
         "canaries_recovered": 0,
@@ -159,7 +158,7 @@
       "upstream_auth_mode": ""
     },
     "witness_key_id": "witness_parity_v1",
-    "witness_signature": "5stba2LbFHFKQ4JMqCRnNa7UAYfYBPHNXkdQNnTGVqO6sV/Qnnu/KT6N8ozfUY84gi7WGsYrrJFFVSe9wxauBw=="
+    "witness_signature": "Z2CrTcgH0rrkhzC+CtA4+DJqu4wB3ovdN2GD6rYUwcD9jCztaLfXsqXo9toR0dVrF4hUMFWWAZDHPNpQZTdPBw=="
   },
   "expected": {
     "default": {
@@ -184,8 +183,8 @@
     }
   },
   "reference": {
-    "witness_reverify_verdict": "VERDICT_VERIFIED",
-    "witness_agrees": false,
+    "witness_reverify_verdict": "VERDICT_FAILED",
+    "witness_agrees": true,
     "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
   }
 }

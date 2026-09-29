@@ -1,7 +1,7 @@
 """Parity: verify_certificate_chain against the vendored verifier parity corpus.
 
 The corpus (testdata/parity-corpus, vendored at the commit in SOURCE.json,
-format lucairn-parity-corpus/v1.2) carries, per case, the result every Lucairn
+format lucairn-parity-corpus/v1.2.1) carries, per case, the result every Lucairn
 verifier must return under every policy — every field, ``verified`` compared
 as canonical JSON — and the pinned-key policy vectors (key-policy.json). The
 TS (ts/src/verify-chain/parityCorpus.test.ts) and Go (go/parity_corpus_test.go)
@@ -41,11 +41,10 @@ MANIFEST = json.loads((CORPUS / "manifest.json").read_text())
 KEYS = json.loads((CORPUS / "keys.json").read_text())
 KEY_POLICY = json.loads((CORPUS / "key-policy.json").read_text())
 
-FORMAT = "lucairn-parity-corpus/v1.2"
-EXPECTED_CASES = 79
+FORMAT = "lucairn-parity-corpus/v1.2.1"
+EXPECTED_CASES = 84
 # SOURCE.json records no hash for key-policy.json; pin it here so a changed
 # vector file cannot pass silently.
-KEY_POLICY_SHA256 = "1cd07f27a8efb4c8e65dd95a9143a12d5ce3e53a2bc1ab8be60c9f9577a3436b"
 V2_SIGNABLE_KEYS = {
     "certificate_id", "claim_ids", "issued_at", "overall_verdict", "protocol_version", "request_id", "witness_key_id",
 }
@@ -119,7 +118,7 @@ def test_vendored_corpus_matches_recorded_hashes() -> None:
     assert _sha(CORPUS / "manifest.json") == SOURCE["manifest_sha256"], "manifest drifted: re-run testdata/parity-corpus/sync.sh"
     assert _sha(CORPUS / "keys.json") == SOURCE["keys_sha256"], "keys drifted: re-run testdata/parity-corpus/sync.sh"
     assert _sha(CORPUS_ROOT / "recipe-table.md") == SOURCE["recipe_table_sha256"], "recipe-table.md drifted: re-run testdata/parity-corpus/sync.sh"
-    assert _sha(CORPUS / "key-policy.json") == SOURCE.get("key_policy_sha256", KEY_POLICY_SHA256) == KEY_POLICY_SHA256, "key-policy.json drifted"
+    assert _sha(CORPUS / "key-policy.json") == SOURCE["key_policy_sha256"], "key-policy.json drifted"
     assert (MANIFEST["keys"], MANIFEST["key_policy"]) == ("keys.json", "key-policy.json")
     assert sorted(p.name for p in CORPUS.iterdir()) == ["cases", "key-policy.json", "keys.json", "manifest.json"]
     on_disk = sorted(p.name for p in (CORPUS / "cases").iterdir())
@@ -694,11 +693,11 @@ def test_input_size_bound() -> None:
 
 # --- SDK-local: the two-signer input-shield tier (NOT a corpus vector) -----------
 #
-# Corpus v1.2 has no vector for the unsigned label `input_shield_two_signer`
-# (an input-shield chain sealed with only the sanitizer and gateway claims, no
-# dsa-ai claim). These certificates are constructed here from
-# honest_input_shield and re-sealed with the corpus TEST witness key; they are
-# not vendored files. The corpus results above stay identical.
+# Corpus v1.2.1 vendors the honest and three label-tamper vectors for the
+# unsigned label `input_shield_two_signer` (an input-shield chain sealed with
+# only the sanitizer and gateway claims, no dsa-ai claim). This wider label x
+# shape matrix is kept alongside them; its certificates are constructed here
+# from honest_input_shield and re-sealed with the corpus TEST witness key.
 
 TWO_SIGNER = "input_shield_two_signer"
 
