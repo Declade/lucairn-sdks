@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unknown value is surfaced verbatim, never an error. Types only: no
   verifier or signable change.
 - **Every claim checked, not only the witness signature (T-935 S3 / T-794).**
+- **Every claim checked, not only the witness signature.**
   New `verifyCertificateChain` (TS, also `client.verifyCertificateChain`),
   `verify_certificate_chain` (Python, also `client.verify_certificate_chain`)
   and `VerifyCertificateChain` (Go, also `(*Client).VerifyCertificateChain`).
@@ -37,12 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only. It takes the raw certificate JSON and returns `verdict` (`FAILED` <
   `PARTIAL` < `EGRESS_UNATTESTED` < `VERIFIED`), `reason`,
   `egress_attestation`, `user_unredacted`, `signed_cert_tier`,
-  `signable_version`, `authenticated_fields`, `unauthenticated_fields`.
-  Entries of `unauthenticated_fields` MUST be shown as unverified and never
-  used for a decision. Policy via the existing minimum-signable-version
+  `signable_version`, `request_binding` and `verified` (each verified claim's
+  signed canonical bytes plus named values extracted from them). Render and
+  decide ONLY from `verified`; nothing else in the certificate is
+  authenticated. Pass the expected request id (`expectedRequestId` /
+  `expected_request_id` / `ExpectedRequestID`) so a genuine certificate of
+  another turn is refused (`request_mismatch`). Pinned keys are checked
+  strictly (one encoding, small-order points refused, the public corpus test
+  keys refused unless `allowTestKeys`); a refused key raises `PinnedKeyError`
+  (Go: `KeyPolicyError`). Policy via the existing minimum-signable-version
   option (`v3` = strict).
-- **Shared parity corpus** `testdata/parity-corpus/` (54 cases, vendored
-  from dual-sandbox-architecture `4e6ae977`, re-sync with `sync.sh`). All
+- The unsigned `cert_tier` value `input_shield_two_signer` (sanitizer and
+  gateway claims, no ai claim) is accepted only beside exactly that signed
+  shape and never reaches VERIFIED (EGRESS_UNATTESTED at best).
+- **Shared parity corpus** `testdata/parity-corpus/` (79 cases, format v1.2,
+  vendored from dual-sandbox-architecture `babc12bf`, re-sync with `sync.sh`). All
   three SDKs run every case under both policies and must match every result
   field; a test fails when the vendored copy drifts from `SOURCE.json`.
 - **Rules the corpus does not pin, fixed identically in all three SDKs**

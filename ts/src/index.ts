@@ -1,11 +1,17 @@
 export { Lucairn } from './client.js';
 export { getClientId } from './client-id.js';
-export { verifyCertificateChain } from './verify-chain/index.js';
+export { verifyCertificateChain, canonicalVerifiedJson, PinnedKeyError } from './verify-chain/index.js';
 export type {
   CertificateChainKeys,
   CertificateChainResult,
   CertificateChainVerdict,
   CertificateChainReason,
+  CertificateChainVerified,
+  PinnedKeyErrorCode,
+  VerifiedCertificate,
+  VerifiedClaim,
+  VerifiedValue,
+  VerifyCertificateChainOptions,
 } from './verify-chain/index.js';
 export {
   LucairnError,

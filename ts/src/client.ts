@@ -24,6 +24,7 @@ import {
   verifyCertificateChain as verifyCertificateChainImpl,
   type CertificateChainKeys,
   type CertificateChainResult,
+  type VerifyCertificateChainOptions,
 } from './verify-chain/index.js';
 
 // Stage 3: gateway accepts both `dsa_<32hex>` (legacy customer keys) and
@@ -427,18 +428,19 @@ export class Lucairn {
     return verifyCertificateImpl(cert, keys, options);
   }
 
-  // Verify a certificate AND every claim inside it (T-935 S3 / T-794): each
-  // claim signature against its pinned service key, the canonical-bytes
-  // rebuild, claim-id membership, the typed-field binding, the signed egress
-  // digests, cert_tier against its signed copies. Takes the RAW certificate
-  // JSON text (not a parsed VeilCertificate). Never throws on a bad
-  // certificate: returns verdict FAILED with a reason. See
-  // ./verify-chain/index.ts. `unauthenticated_fields` in the result MUST be
-  // shown as unverified and never used for a decision.
+  // Verify a certificate AND every claim inside it: each claim signature
+  // against its pinned service key, the canonical-bytes rebuild, claim-id
+  // membership, the typed-field binding, the signed egress digests, cert_tier
+  // against its signed copies, and the optional request binding. Takes the
+  // RAW certificate JSON bytes/text (not a parsed VeilCertificate). Never
+  // throws on a bad certificate: returns verdict FAILED with a reason. See
+  // ./verify-chain/index.ts. Render and decide ONLY from `verified` and the
+  // result's own fields, never from the raw certificate; pass
+  // `expectedRequestId` for the turn you show.
   async verifyCertificateChain(
     certificate: string | Uint8Array,
     keys: CertificateChainKeys,
-    options?: VerifyCertificateOptions,
+    options?: VerifyCertificateChainOptions,
   ): Promise<CertificateChainResult> {
     return verifyCertificateChainImpl(certificate, keys, options);
   }

@@ -1,6 +1,6 @@
 package verify
 
-// Certificate chain verification (T-935 S3 / T-794) — every inner claim.
+// Certificate chain verification — every inner claim.
 //
 // Run (pipeline.go) checks the witness signatures only: a certificate whose
 // claim body was edited while its claim id stayed the same still passes it,
@@ -9,15 +9,15 @@ package verify
 // per-service key, the canonical bytes rebuilt from the outer fields,
 // claim-id membership in the witness-signed list, the typed (unsigned)
 // mirrors against the signed payload, the signed egress digests, the unsigned
-// cert_tier against its signed copies, and the user_unredacted_segment token
-// read from the SIGNED sanitizer payload only.
+// cert_tier against its signed copies, the optional request binding, and the
+// user_unredacted_segment token read from the SIGNED sanitizer payload only.
+// Its result carries `verified`: the values the signatures cover, and nothing
+// else.
 //
-// The specification is the parity corpus README (Declade/dual-sandbox-
-// architecture tools/parity-corpus/README.md; its ordered check table is
-// vendored at testdata/parity-corpus/recipe-table.md) § Verification recipe; this is a port of its
-// Go reference (services/veil-witness/internal/paritycorpus/reference_test.go).
-// The TS and Python SDKs implement the same table; all three are held to the
-// same corpus under both policies.
+// The specification is the Lucairn certificate verifier parity corpus
+// (format lucairn-parity-corpus/v1.2, vendored at testdata/parity-corpus: its
+// ordered check table is recipe-table.md). The TS and Python SDKs implement
+// the same table; all three are held to the same corpus under both policies.
 
 import (
 	"bytes"
@@ -26,16 +26,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"math"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 // ChainStep is one row of the recipe table: the step id, and the verdict +
@@ -44,8 +41,8 @@ type ChainStep struct {
 	ID, Verdict, Reason string
 }
 
-// ChainSteps — THE ordered check list (README § Verification recipe,
-// recipe-table). parity_corpus_test.go asserts it equals the vendored recipe-table.md.
+// ChainSteps — THE ordered check list. parity_corpus_test.go asserts it
+// equals the vendored recipe-table.md.
 var ChainSteps = []ChainStep{
 	{"1", "FAILED", "malformed"},
 	{"2", "FAILED", "unsupported_protocol_version"},
@@ -55,6 +52,7 @@ var ChainSteps = []ChainStep{
 	{"5b", "FAILED", "witness_signature_invalid"},
 	{"5c", "FAILED", "witness_signature_invalid"},
 	{"5d", "FAILED", "signable_version_insufficient"},
+	{"5e", "FAILED", "request_mismatch"},
 	{"6a", "FAILED", "sealed_failed"},
 	{"6b", "FAILED", "malformed"},
 	{"6c", "FAILED", "duplicate_claim_id"},
@@ -78,41 +76,63 @@ var ChainSteps = []ChainStep{
 	{"9e", "VERIFIED", "ok"},
 }
 
-// ChainKeys are the pinned trust roots, already normalized to raw Ed25519 keys.
+// ChainKeys are the pinned trust roots, already through PinnedChainKey.
 type ChainKeys struct {
 	WitnessKeyID string
 	Witness      ed25519.PublicKey
 	Services     map[string]ed25519.PublicKey
 }
 
-// ChainResult — README § Result.
+// ChainInputs is the optional request binding (step 5e). nil = not
+// supplied; a pointer to "" is a supplied (empty) value.
+type ChainInputs struct {
+	ExpectedRequestID     *string
+	ExpectedCertificateID *string
+}
+
+// ChainVerified is `verified`: built ONLY from signed bytes.
+type ChainVerified struct {
+	// Certificate is the witness signable map whose signature verified, key
+	// for key (7 keys under v2, 13 under v3). Values: string, bool,
+	// json.Number (protocol_version), []any of strings (claim_ids), nil.
+	Certificate map[string]any
+	// Claims: one entry per claim, keyed "<index>:<service_id>:<claim_type>".
+	Claims map[string]ChainVerifiedClaim
+}
+
+// ChainVerifiedClaim is one verified claim: its signed canonical bytes as a
+// string, and every string / boolean / integer-token (json.Number) leaf of
+// the signed document by RFC 6901 JSON Pointer.
+type ChainVerifiedClaim struct {
+	Canonical string
+	Values    map[string]any
+}
+
+// ChainResult — the parity corpus result.
 type ChainResult struct {
-	Verdict               string
-	Reason                string
-	EgressAttestation     string
-	UserUnredacted        string
-	SignedCertTier        string
-	SignableVersion       string
-	AuthenticatedFields   []string
-	UnauthenticatedFields []string
+	Verdict           string
+	Reason            string
+	EgressAttestation string
+	UserUnredacted    string
+	SignedCertTier    string
+	SignableVersion   string
+	RequestBinding    string
+	Verified          *ChainVerified // nil on every FAILED result
 }
 
 var (
-	chainV2Fields          = []string{"certificate_id", "claim_ids", "issued_at", "overall_verdict", "protocol_version", "request_id", "witness_key_id"}
-	chainV3Only            = []string{"api_key_id", "byok_exempt", "client_id", "redaction_manifest_hash", "sanitized_fields_body_hash", "tms_manifest_hash"}
-	chainDisplayedV3Only   = []string{"api_key_id", "byok_exempt", "client_id"}
 	chainLowerHex64        = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	chainIntegerToken      = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
 	chainTimestampGrammar  = regexp.MustCompile(`^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{1,9}))?(Z|([+-])(\d\d):(\d\d))$`)
 	chainUserUnredactedTok = "user_unredacted_segment"
 )
 
-// MaxChainDepth bounds nesting (arrays/objects; brackets inside strings do not
-// count). The TS and Python SDKs enforce the same bound, so all three decide
-// deep documents alike; real certificates nest fewer than 10 levels.
-const MaxChainDepth = 256
+// ChainTierInputShieldTwoSigner is both the unsigned verification.cert_tier
+// label and the reported signed_cert_tier of a two-signer input-shield chain
+// (step 8d; not yet in the corpus vocabulary).
+const ChainTierInputShieldTwoSigner = "input_shield_two_signer"
 
-// chainIntegerMaxDigits = len("18446744073709551615"): a longer token is out
+// chainIntegerMaxDigits =len("18446744073709551615"): a longer token is out
 // of range before any conversion.
 const chainIntegerMaxDigits = 20
 
@@ -126,8 +146,8 @@ func chainStep(id string) ChainStep {
 }
 
 type chainPass struct {
-	egress, sv, userUnredacted, tier string
-	typedUnauth                      []string
+	egress, sv, userUnredacted, tier, binding string
+	verified                                  *ChainVerified
 }
 
 func chainDecide(id string, st chainPass) ChainResult {
@@ -136,60 +156,21 @@ func chainDecide(id string, st chainPass) ChainResult {
 		return ChainResult{
 			Verdict: "FAILED", Reason: s.Reason, EgressAttestation: "not_evaluated",
 			UserUnredacted: "unknown", SignedCertTier: "not_evaluated", SignableVersion: "none",
-			AuthenticatedFields:   []string{},
-			UnauthenticatedFields: append([]string{}, chainDisplayedV3Only...),
+			RequestBinding: "not_evaluated",
 		}
 	}
-	var auth, unauth []string
-	if st.sv == "v3" {
-		auth = append(append([]string{}, chainV2Fields...), chainV3Only...)
-		sort.Strings(auth)
-		unauth = []string{}
-	} else {
-		auth = append([]string{}, chainV2Fields...)
-		unauth = append([]string{}, chainDisplayedV3Only...)
-	}
-	unauth = append(unauth, st.typedUnauth...)
-	sort.Strings(unauth)
 	return ChainResult{
 		Verdict: s.Verdict, Reason: s.Reason, EgressAttestation: st.egress,
 		UserUnredacted: st.userUnredacted, SignedCertTier: st.tier, SignableVersion: st.sv,
-		AuthenticatedFields: auth, UnauthenticatedFields: unauth,
+		RequestBinding: st.binding, Verified: st.verified,
 	}
 }
 
 var chainNo = chainPass{}
 
-// DecodeDocument parses README § Input document: valid UTF-8 (Go's decoder
-// would otherwise replace invalid bytes with U+FFFD), at most MaxChainDepth
-// levels, exactly one JSON value with number lexemes kept (json.Number), then
-// only whitespace up to EOF. dec.More() is NOT enough: it reports false
-// before a stray ']' or '}'. An escaped UTF-16 surrogate that is not part of
-// a pair decodes as U+FFFD (encoding/json); the TS and Python SDKs do the same.
-func DecodeDocument(b []byte) (any, error) {
-	if !utf8.Valid(b) {
-		return nil, fmt.Errorf("not UTF-8")
-	}
-	if !depthOK(b) {
-		return nil, fmt.Errorf("nesting deeper than %d", MaxChainDepth)
-	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return nil, err
-	}
-	var extra any
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("trailing data after the document")
-	}
-	return v, nil
-}
-
 // CanonicalLexeme encodes v as Python json.dumps(sort_keys=True,
-// separators=(",", ":"), ensure_ascii=True) with json.Number lexemes kept
-// (README § Canonical JSON). Types: nil, bool, string, json.Number, []any,
-// []string, map[string]any.
+// separators=(",", ":"), ensure_ascii=True) with json.Number lexemes kept.
+// Types: nil, bool, string, json.Number, []any, []string, map[string]any.
 func CanonicalLexeme(v any) ([]byte, error) {
 	return appendLexeme(nil, v)
 }
@@ -250,35 +231,6 @@ func appendLexeme(dst []byte, v any) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("canonical: unsupported type %T", v)
 	}
-}
-
-// depthOK reports whether b nests at most MaxChainDepth arrays/objects,
-// skipping brackets inside strings.
-func depthOK(b []byte) bool {
-	depth := 0
-	inStr, esc := false, false
-	for _, c := range b {
-		switch {
-		case inStr:
-			if esc {
-				esc = false
-			} else if c == '\\' {
-				esc = true
-			} else if c == '"' {
-				inStr = false
-			}
-		case c == '"':
-			inStr = true
-		case c == '[' || c == '{':
-			depth++
-			if depth > MaxChainDepth {
-				return false
-			}
-		case c == ']' || c == '}':
-			depth--
-		}
-	}
-	return true
 }
 
 func chainStrList(v any) ([]string, bool) {
@@ -375,7 +327,7 @@ func ChainFloat32(v any, zeroIfAbsent bool) (float32, bool) {
 	return g, true
 }
 
-// ChainIssuedAt applies README step 5a (the ONE timestamp grammar) and returns
+// ChainIssuedAt applies step 5a (the ONE timestamp grammar) and returns
 // the UTC RFC3339Nano form.
 func ChainIssuedAt(s string) (string, bool) {
 	m := chainTimestampGrammar.FindStringSubmatch(s)
@@ -414,20 +366,75 @@ var chainClaimTypeNames = map[string]string{
 	"CLAIM_TYPE_EVENTS_RECORDED":     "EVENTS_RECORDED",
 }
 
-func chainVerifySig(pub ed25519.PublicKey, msg, sig []byte) bool {
-	return len(pub) == ed25519.PublicKeySize && len(sig) == ed25519.SignatureSize && ed25519.Verify(pub, msg, sig)
-}
-
 func chainVerifyCanonical(pub ed25519.PublicKey, m map[string]any, sig []byte) bool {
 	b, err := CanonicalLexeme(m)
-	return err == nil && chainVerifySig(pub, b, sig)
+	return err == nil && chainStrictVerify(pub, b, sig)
 }
 
-// RunChain implements README § Verification recipe. Certificate problems are
-// a FAILED result, never an error.
-func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
+// chainPointerEscape is RFC 6901: "~" → "~0", "/" → "~1".
+func chainPointerEscape(k string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(k, "~", "~0"), "/", "~1")
+}
+
+// chainValuesBytes is the UTF-8 byte total of the pointers chainFlatten
+// would write for v (each ptrLen bytes so far). It stops once the total
+// passes budget, so a document built to blow up is never flattened.
+func chainValuesBytes(v any, ptrLen, budget int) int {
+	n := 0
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			n += chainValuesBytes(e, ptrLen+1+len(chainPointerEscape(k)), budget-n)
+			if n > budget {
+				return n
+			}
+		}
+	case []any:
+		for i, e := range x {
+			n += chainValuesBytes(e, ptrLen+1+len(strconv.Itoa(i)), budget-n)
+			if n > budget {
+				return n
+			}
+		}
+	case string, bool:
+		n = ptrLen
+	case json.Number:
+		if _, ok := chainUintToken(x.String(), math.MaxUint64); ok {
+			n = ptrLen
+		}
+	}
+	return n
+}
+
+// chainFlatten collects every string / boolean / integer-token leaf of a
+// signed document under its JSON Pointer. null, numbers that are not integer
+// tokens (floats, negatives, exponents) and empty containers contribute
+// nothing: such a value is still in the signed canonical bytes.
+func chainFlatten(v any, path string, out map[string]any) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			chainFlatten(e, path+"/"+chainPointerEscape(k), out)
+		}
+	case []any:
+		for i, e := range x {
+			chainFlatten(e, path+"/"+strconv.Itoa(i), out)
+		}
+	case string, bool:
+		out[path] = x
+	case json.Number:
+		if _, ok := chainUintToken(x.String(), math.MaxUint64); ok {
+			out[path] = x
+		}
+	}
+}
+
+// RunChain implements the verification recipe under a policy (minV3 =
+// minimum_v3) and the optional request binding. Certificate problems are a
+// FAILED result, never an error.
+func RunChain(certJSON []byte, keys ChainKeys, minV3 bool, in ChainInputs) ChainResult {
 	// 1. Shape.
-	root, err := DecodeDocument(certJSON)
+	root, err := DecodeCertificate(certJSON)
 	if err != nil {
 		return chainDecide("1", chainNo)
 	}
@@ -490,7 +497,7 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 		return chainDecide("3", chainNo)
 	}
 	// 4. Signable-version tri-state.
-	v3present := strings.TrimSpace(v3sig) != ""
+	v3present := ChainTrimSpace(v3sig) != ""
 	if (emitted >= 3) != v3present {
 		return chainDecide("4", chainNo)
 	}
@@ -509,6 +516,7 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 	if !ok || len(wsig) == 0 || !chainVerifyCanonical(keys.Witness, v2, wsig) {
 		return chainDecide("5b", chainNo)
 	}
+	signable := v2
 	// 5c. v3 witness signature.
 	sv := "v2"
 	if v3present {
@@ -527,10 +535,20 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 			return chainDecide("5c", chainNo)
 		}
 		sv = "v3"
+		signable = v3
 	}
 	// 5d. Policy.
 	if minV3 && sv != "v3" {
 		return chainDecide("5d", chainNo)
+	}
+	// 5e. Request binding, against the WITNESS-SIGNED values.
+	binding := "not_checked"
+	if in.ExpectedRequestID != nil || in.ExpectedCertificateID != nil {
+		if (in.ExpectedRequestID != nil && *in.ExpectedRequestID != reqID) ||
+			(in.ExpectedCertificateID != nil && *in.ExpectedCertificateID != certID) {
+			return chainDecide("5e", chainNo)
+		}
+		binding = "matched"
 	}
 	// 6. Sealed verdict + claim-id uniqueness.
 	if sealed == "VERDICT_FAILED" {
@@ -548,7 +566,8 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 	}
 	// 7. Every claim, in array order.
 	canon := make([]map[string]any, len(claims))
-	typedUnauth := []string{}
+	verifiedClaims := make(map[string]ChainVerifiedClaim, len(claims))
+	valuesBytes := 0
 	for i, c := range claims {
 		svc := c["service_id"].(string)
 		// 7a.
@@ -563,19 +582,24 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 			return chainDecide("7b", chainNo)
 		}
 		// 7c / 7d.
-		own := chainVerifySig(pub, cp, sig)
+		own := chainStrictVerify(pub, cp, sig)
 		if !own {
 			for other, k := range keys.Services {
-				if other != svc && chainVerifySig(k, cp, sig) {
+				if other != svc && chainStrictVerify(k, cp, sig) {
 					return chainDecide("7c", chainNo)
 				}
 			}
 			return chainDecide("7d", chainNo)
 		}
-		// 7e.
+		// 7e. One strict document, the case-variant key rule, and the
+		// running `values` bound (counted before any pointer is built).
 		parsed, err := DecodeDocument(cp)
 		cm, isObj := parsed.(map[string]any)
-		if err != nil || !isObj {
+		if err != nil || !isObj || CaseVariantKey(cm) {
+			return chainDecide("7e", chainNo)
+		}
+		valuesBytes += chainValuesBytes(cm, 0, MaxChainValuesPointerBytes-valuesBytes+1)
+		if valuesBytes > MaxChainValuesPointerBytes {
 			return chainDecide("7e", chainNo)
 		}
 		// 7f.
@@ -608,8 +632,12 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 		if !chainTypedBound(c, chainClaimTypeNames[ct], p) {
 			return chainDecide("7i", chainNo)
 		}
-		typedUnauth = append(typedUnauth, chainTypedUnbound(i, c, p)...)
 		canon[i] = p
+		values := map[string]any{}
+		chainFlatten(cm, "", values)
+		verifiedClaims[fmt.Sprintf("%d:%s:%s", i, svc, chainClaimTypeNames[ct])] = ChainVerifiedClaim{
+			Canonical: string(cp), Values: values,
+		}
 	}
 	// 8a. Signed digest lists.
 	digestClaim := -1
@@ -687,7 +715,10 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 			}
 		}
 	}
-	st := chainPass{egress: egress, sv: sv, userUnredacted: userUnredacted, tier: signedTier, typedUnauth: typedUnauth}
+	st := chainPass{
+		egress: egress, sv: sv, userUnredacted: userUnredacted, tier: signedTier, binding: binding,
+		verified: &ChainVerified{Certificate: signable, Claims: verifiedClaims},
+	}
 	for i := range claims {
 		// Key PRESENCE: a signed null counts.
 		if _, has := canon[i]["inference_outcome"]; has {
@@ -706,7 +737,7 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool) ChainResult {
 	return chainDecide("9e", st)
 }
 
-// chainCertTier — README step 8d. Returns the signed tier, whether the
+// chainCertTier — step 8d. Returns the signed tier, whether the
 // unsigned label passes, and whether the result is capped at
 // EGRESS_UNATTESTED (fix A).
 func chainCertTier(claims []map[string]any, canon []map[string]any, unsigned, sealed string) (string, bool, bool) {
@@ -727,6 +758,32 @@ func chainCertTier(claims []map[string]any, canon []map[string]any, unsigned, se
 		carriers["dsa-gateway"][0] == "input-shield" && carriers["dsa-ai"][0] == "input-shield":
 		signed = "input_shield"
 	}
+	// Two-signer input-shield chain (SDK extension beyond corpus v1.2; the
+	// witness writes this unsigned label for an input-shield chain that has
+	// only sanitizer + gateway claims). It pairs ONLY with exactly one signed
+	// tier copy, from the dsa-gateway claim, valued "input-shield", at least
+	// one claim whose service_id is exactly "dsa-sanitizer" (a
+	// dsa-sanitizer-streaming claim does not count; every claim here already
+	// passed step 7, so it is valid), and no dsa-ai claim in the chain.
+	// Gated on the unsigned label, so every other input decides exactly as
+	// the corpus recipe does (which fails this label as an unknown one). No
+	// dsa-ai claim means no signed egress digests, so such a result is capped
+	// at EGRESS_UNATTESTED (9d).
+	if unsigned == ChainTierInputShieldTwoSigner {
+		anyAI, sanitizer := false, false
+		for _, c := range claims {
+			switch {
+			case c["service_id"] == "dsa-ai":
+				anyAI = true
+			case c["service_id"] == "dsa-sanitizer":
+				sanitizer = true
+			}
+		}
+		if n == 1 && !anyAI && sanitizer && len(carriers["dsa-gateway"]) == 1 && carriers["dsa-gateway"][0] == "input-shield" {
+			return ChainTierInputShieldTwoSigner, true, false
+		}
+		return signed, false, false
+	}
 	if unsigned != "" && unsigned != "full_chain" && unsigned != "input_shield" {
 		return signed, false, false
 	}
@@ -740,43 +797,11 @@ func chainCertTier(claims []map[string]any, canon []map[string]any, unsigned, se
 	return signed, sealed == "VERDICT_PARTIAL", false
 }
 
-// chainConditionalTyped — step 7i rows that bind a typed field only while its
-// signed key carries the compared JSON type.
-var chainConditionalTyped = []struct{ kind, field, signedType string }{
-	{"inference", "isolation_probe", "string"},
-	{"inference", "model_used", "string"},
-	{"sanitizer", "pii_entities_found", "number"},
-	{"bridge", "token_hash", "string"},
-	{"bridge", "encryption_enabled", "boolean"},
-	{"audit", "chain_head_hash", "string"},
-	{"audit", "chain_length", "number"},
-}
-
-func chainTypedUnbound(i int, c map[string]any, p map[string]any) []string {
-	var out []string
-	for _, r := range chainConditionalTyped {
-		if _, isObj := c[r.kind].(map[string]any); !isObj {
-			continue
-		}
-		var bound bool
-		switch p[r.field].(type) {
-		case string:
-			bound = r.signedType == "string"
-		case json.Number:
-			bound = r.signedType == "number"
-		case bool:
-			bound = r.signedType == "boolean"
-		}
-		if !bound {
-			out = append(out, fmt.Sprintf("claims[%d].%s.%s", i, r.kind, r.field))
-		}
-	}
-	return out
-}
-
-// chainSanitizerHash: the FIRST dsa-sanitizer claim's canonical
-// payload.payload[key] as a non-empty string, else nil (witness
-// sanitizerPayloadString).
+// chainSanitizerHash — step 5c: the FIRST dsa-sanitizer claim's canonical
+// payload.payload[key] as a non-empty string, else nil. Read from the raw
+// bytes (step 7 authenticates them afterwards) with the SAME strict document
+// parser as every other read; bytes it refuses give nil (a lenient,
+// last-duplicate-wins lookup would decide such bytes at a different step).
 func chainSanitizerHash(claims []map[string]any, key string) any {
 	for _, c := range claims {
 		if c["service_id"] != "dsa-sanitizer" {
@@ -818,8 +843,8 @@ var chainProbeEnum = map[string]string{
 	"LOCKED": "ISOLATION_PROBE_LOCKED", "BYOK_EXEMPT": "ISOLATION_PROBE_BYOK_EXEMPT",
 }
 
-// chainASCIIUpper upper-cases a-z only (the TS and Python SDKs do the same;
-// Unicode case mapping differs between the three languages).
+// chainASCIIUpper upper-cases a-z only, never a Unicode mapping (the TS and
+// Python SDKs do the same; Unicode case mapping differs between languages).
 func chainASCIIUpper(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' {
@@ -830,7 +855,7 @@ func chainASCIIUpper(s string) string {
 }
 
 func chainQiVerdict(s string) string {
-	switch chainASCIIUpper(strings.Trim(s, " \t\n\r\f\v")) {
+	switch chainASCIIUpper(ChainTrimSpace(s)) {
 	case "PASS":
 		return "QI_VERDICT_PASS"
 	case "GENERALIZED":
@@ -853,7 +878,7 @@ func chainSameStrings(a, b []string) bool {
 	return true
 }
 
-// chainTypedBound — README step 7i.
+// chainTypedBound — step 7i.
 func chainTypedBound(c map[string]any, claimType string, p map[string]any) bool {
 	present := ""
 	for _, k := range []string{"bridge", "sanitizer", "inference", "audit"} {

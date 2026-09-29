@@ -10,6 +10,7 @@ from lucairn.errors import (
 from lucairn.verify_certificate.chain import (
     CertificateChainKeys,
     CertificateChainResult,
+    PinnedKeyError,
     verify_certificate_chain,
 )
 from lucairn.types import (
@@ -59,6 +60,7 @@ __all__ = [
     "AuditExportOptions",
     "AuditExportResponse",
     "MessagesOptions",
+    "PinnedKeyError",
     "ProxyAcceptedResponse",
     "ProxyMessagesRequest",
     "ProxyPIIAnnotation",

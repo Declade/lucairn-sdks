@@ -264,18 +264,25 @@ class Lucairn:
         keys: CertificateChainKeys,
         *,
         minimum_signable_version: str | None = None,
+        expected_request_id: str | None = None,
+        expected_certificate_id: str | None = None,
     ) -> CertificateChainResult:
-        """Verify a certificate AND every claim inside it (T-935 S3 / T-794).
+        """Verify a certificate AND every claim inside it.
 
         Takes the RAW certificate JSON (``bytes`` / ``str``), never raises on
         a bad certificate (verdict ``FAILED`` + reason). See
         :func:`lucairn.verify_certificate.chain.verify_certificate_chain`.
-        ``unauthenticated_fields`` in the result MUST be shown as unverified
-        and never used for a decision.
+        Pass ``expected_request_id`` for the turn you are showing. Render and
+        decide only from ``result.verified`` and the result's own fields —
+        never from the raw certificate.
         """
 
         return _verify_certificate_chain_impl(
-            certificate, keys, minimum_signable_version=minimum_signable_version
+            certificate,
+            keys,
+            minimum_signable_version=minimum_signable_version,
+            expected_request_id=expected_request_id,
+            expected_certificate_id=expected_certificate_id,
         )
 
     def get_certificate(

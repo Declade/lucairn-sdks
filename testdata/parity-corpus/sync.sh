@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-sync the vendored T-935 S3 verifier parity corpus from
+# Re-sync the vendored verifier parity corpus from
 # Declade/dual-sandbox-architecture (tools/parity-corpus) at a pinned commit.
 #
 #   testdata/parity-corpus/sync.sh <path-to-dual-sandbox-architecture-clone> <commit>
