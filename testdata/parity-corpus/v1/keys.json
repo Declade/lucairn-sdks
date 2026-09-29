@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2",
+  "format": "lucairn-parity-corpus/v1.2.1",
   "not_pinned": {
     "dsa-unpinned": {
       "public_key_hex": "fde45e479656b3ce1831c9c9924ee536bd6239eb696574da3c8cbf1044638a8d",

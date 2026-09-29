@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2",
+  "format": "lucairn-parity-corpus/v1.2.1",
   "id": "edge_cert_tier_full_chain_on_partial_input_shield",
   "class": "edge",
   "surface": "get_certificate",

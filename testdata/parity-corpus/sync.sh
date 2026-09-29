@@ -4,10 +4,10 @@
 #
 #   testdata/parity-corpus/sync.sh <path-to-dual-sandbox-architecture-clone> <commit>
 #
-# Copies corpus/v1 (manifest.json, keys.json, cases/*.json) byte for byte,
+# Copies corpus/v1 (manifest.json, keys.json, key-policy.json, cases/*.json) byte for byte,
 # extracts the ordered check table of the corpus README (between its
 # recipe-table markers) into recipe-table.md, and records the source commit,
-# the sha256 of the upstream README and of every vendored top-level file in
+# the sha256 of the upstream README and of every vendored top-level file (incl. key-policy.json) in
 # SOURCE.json. The full README stays in the source repository (it carries
 # internal build and replay notes); this repository carries only the table
 # the three verifiers are tested against. The parity tests of all three SDKs
@@ -48,6 +48,7 @@ cat > "$here/SOURCE.json" <<JSON
   "format": "$format",
   "manifest_sha256": "$(sha "$here/v1/manifest.json")",
   "keys_sha256": "$(sha "$here/v1/keys.json")",
+  "key_policy_sha256": "$(sha "$here/v1/key-policy.json")",
   "upstream_readme_sha256": "$(sha "$readme")",
   "recipe_table_sha256": "$(sha "$here/recipe-table.md")"
 }

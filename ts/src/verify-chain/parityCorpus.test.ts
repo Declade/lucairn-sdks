@@ -1,7 +1,7 @@
 // Parity: verifyCertificateChain against the vendored corpus
 // (testdata/parity-corpus, vendored from Declade/dual-sandbox-architecture
 // tools/parity-corpus at the commit in SOURCE.json, format
-// lucairn-parity-corpus/v1.2). The Python (python/tests/test_parity_corpus.py)
+// lucairn-parity-corpus/v1.2.1). The Python (python/tests/test_parity_corpus.py)
 // and Go (go/parity_corpus_test.go) SDKs run the same cases against the same
 // expectations: every result field, `verified` compared as canonical JSON,
 // under both policies, with each case's request-binding inputs.
@@ -37,8 +37,8 @@ import { JNum, MAX_DEPTH, canonical, parseDocument, parseLenient, type JObj, typ
 
 const ROOT = join(__dirname, '..', '..', '..', 'testdata', 'parity-corpus');
 const CORPUS = join(ROOT, 'v1');
-const FORMAT = 'lucairn-parity-corpus/v1.2';
-const EXPECTED_CASES = 79;
+const FORMAT = 'lucairn-parity-corpus/v1.2.1';
+const EXPECTED_CASES = 84;
 
 type Summary = Omit<CertificateChainResult, 'verified'>;
 interface ManifestCase {
@@ -161,6 +161,7 @@ describe('parity corpus: vendored copy', () => {
     expect(MANIFEST.key_policy).toBe('key-policy.json');
     expect(sha(read('v1', 'manifest.json'))).toBe(SOURCE.manifest_sha256);
     expect(sha(read('v1', 'keys.json'))).toBe(SOURCE.keys_sha256);
+    expect(sha(read('v1', 'key-policy.json'))).toBe(SOURCE.key_policy_sha256);
     expect(sha(read('recipe-table.md'))).toBe(SOURCE.recipe_table_sha256);
     const onDisk = readdirSync(join(CORPUS, 'cases')).sort();
     const listed = MANIFEST.cases.map((c) => c.file.split('/').pop()!).sort();
@@ -483,13 +484,14 @@ describe('store-cap export (the 32 MiB input bound)', () => {
   }, 60_000);
 });
 
-// SDK-local rule, NOT in corpus v1.2 (no vendored vector yet): the two-signer
+// Two-signer rule (corpus v1.2.1 vendors the honest + label-tamper vectors; this
+// wider label x shape matrix is kept alongside them): the two-signer
 // input-shield chain — a sanitizer claim present, the gateway alone signs
 // `cert_tier: "input-shield"`, no dsa-ai claim — pairs with the unsigned label
 // `input_shield_two_signer` (and only that label reports that tier). The certificates below are built in-test
 // from `honest_input_shield`: drop the dsa-ai claim, set the unsigned label,
 // re-seal both witness signatures with the corpus TEST witness key.
-describe('two-signer input-shield chain (SDK-local, pending a corpus vector)', () => {
+describe('two-signer input-shield chain (label x shape matrix)', () => {
   const seedKey = (label: string) =>
     createPrivateKey({
       key: Buffer.concat([

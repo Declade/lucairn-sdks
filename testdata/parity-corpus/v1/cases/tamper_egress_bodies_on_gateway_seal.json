@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2",
+  "format": "lucairn-parity-corpus/v1.2.1",
   "id": "tamper_egress_bodies_on_gateway_seal",
   "class": "tamper",
   "surface": "witness_export",

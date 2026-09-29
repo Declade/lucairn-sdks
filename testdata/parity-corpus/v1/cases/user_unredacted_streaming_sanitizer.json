@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2",
+  "format": "lucairn-parity-corpus/v1.2.1",
   "id": "user_unredacted_streaming_sanitizer",
   "class": "honest",
   "surface": "get_certificate",
