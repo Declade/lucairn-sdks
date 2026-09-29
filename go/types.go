@@ -101,7 +101,7 @@ type VeilVerificationResult struct {
 	// over strict equality, since the absent/false distinction is not
 	// preserved across languages.
 	ByokExempt bool `json:"byok_exempt,omitempty"`
-	// CertTier (T-921) is the certificate's tier, as the witness derived
+	// CertTier is the certificate's tier, as the witness derived
 	// it: "full_chain" (bridge -> sanitizer -> ai -> audit) or
 	// "input_shield" (the sanitize-only route: sanitizer -> gateway ->
 	// vendor call, whose VERIFIED verdict covers that shorter chain).

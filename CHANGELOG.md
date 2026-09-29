@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Optional `cert_tier` on the certificate's verification result (T-921 S3).**
+- **Optional `cert_tier` on the certificate's verification result.**
   TS `VeilVerificationResult.cert_tier?: VeilCertTier` (new exported type:
   `'full_chain' | 'input_shield' | ''` plus any string), Python
   `VeilVerificationResult.cert_tier: str | None = None`, Go

@@ -1,8 +1,7 @@
 /**
- * T-921 S3 — optional, UNSIGNED `verification.cert_tier` on the type.
+ * Optional, UNSIGNED `verification.cert_tier` on the type.
  *
- * PRD `prd-2026-09-25-t921-input-shield-verified-verdict.md` § Slice 3:
- * types only, no verifier or signable change. The field parses when present,
+ * Types only, no verifier or signable change. The field parses when present,
  * absent or unknown (never an error), and the offline verifier's outcome does
  * not depend on it — the real production v3 certificate verifies identically
  * with or without a tier, because neither witness signable carries it.
@@ -36,8 +35,8 @@ function withTier(tier: string | undefined): VeilCertificate {
   return cert;
 }
 
-describe('T-921 S3 — verification.cert_tier (optional, unsigned)', () => {
-  it('is absent on the pre-T-921 production fixture and parses as undefined', () => {
+describe('verification.cert_tier (optional, unsigned)', () => {
+  it('is absent on the pre-tier production fixture and parses as undefined', () => {
     const cert = parseCertificate(realCert());
     expect('cert_tier' in cert.verification).toBe(false);
     expect(cert.verification.cert_tier).toBeUndefined();

@@ -1,7 +1,6 @@
 package lucairn
 
-// T-921 S3 — optional, UNSIGNED verification.cert_tier on the type (PRD
-// prd-2026-09-25-t921-input-shield-verified-verdict.md § Slice 3). Types
+// Optional, UNSIGNED verification.cert_tier on the type. Types
 // only: the field decodes when present, absent or unknown (never an error),
 // and the offline verifier's outcome does not depend on it, because neither
 // witness signable carries it.
