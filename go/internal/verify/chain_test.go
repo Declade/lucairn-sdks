@@ -85,3 +85,14 @@ func TestChain_StrictSignatureRule(t *testing.T) {
 		t.Error("63-byte signature accepted")
 	}
 }
+
+// Corpus v1.2.1: the two-signer label is not capped by step 8d itself (the
+// EGRESS_UNATTESTED ceiling comes from the absent dsa-ai digests).
+func TestChain_TwoSignerTierNotCapped(t *testing.T) {
+	claims := []map[string]any{{"service_id": "dsa-sanitizer"}, {"service_id": "dsa-gateway"}}
+	canon := []map[string]any{{}, {"cert_tier": "input-shield"}}
+	tier, ok, capped := chainCertTier(claims, canon, ChainTierInputShieldTwoSigner, "VERDICT_VERIFIED")
+	if tier != ChainTierInputShieldTwoSigner || !ok || capped {
+		t.Errorf("got %q %v %v", tier, ok, capped)
+	}
+}

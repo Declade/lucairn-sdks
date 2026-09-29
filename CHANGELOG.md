@@ -50,17 +50,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The unsigned `cert_tier` value `input_shield_two_signer` (sanitizer and
   gateway claims, no ai claim) is accepted only beside exactly that signed
   shape and never reaches VERIFIED (EGRESS_UNATTESTED at best).
-- **Shared parity corpus** `testdata/parity-corpus/` (79 cases, format v1.2,
-  vendored from dual-sandbox-architecture `babc12bf`, re-sync with `sync.sh`). All
+- **Shared parity corpus** `testdata/parity-corpus/` (84 cases, format v1.2.1,
+  re-sync with `sync.sh`). All
   three SDKs run every case under both policies and must match every result
   field; a test fails when the vendored copy drifts from `SOURCE.json`.
 - **Rules the corpus does not pin, fixed identically in all three SDKs**
-  (found by a cross-SDK fuzz harness; the upstream references still differ
-  on them): nesting deeper than 256 arrays/objects is malformed; an unpaired
-  UTF-16 surrogate escape reads as U+FFFD (as Go's `encoding/json`, i.e. the
-  witness); step 4's "blank" uses Go's `unicode.IsSpace` set; the qi-score
+  (found by a cross-SDK fuzz harness): nesting deeper than 256
+  arrays/objects is malformed; an unpaired UTF-16 surrogate escape is
+  refused as malformed (never read as U+FFFD; corpus v1.2 rule); step 4's "blank" uses Go's `unicode.IsSpace` set; the qi-score
   verdict is upper-cased ASCII-only; the v3 sanitizer-hash lookup uses the
   same strict parser as every other read.
+
+### Fixed
+- Python chain verifier: every walk over a signed document (canonical form,
+  case-variant keys, surrogate scan, value pointers) is iterative, so a
+  legal depth-256 document verifies the same at any caller stack depth (it
+  could fail when called from a deep stack). The two-signer tier no longer
+  reports the step-8d cap flag, matching TS and Go (no result changes).
 
 ### Unchanged
 - `verifyCertificate` / `verify_certificate` / `VerifyCertificate` and the

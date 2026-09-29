@@ -244,6 +244,12 @@ errors: `PinnedKeyError` (a `ValueError`) when a pinned key is refused, and
 `TypeError` / `ValueError` for a malformed key set, an unknown policy or a
 non-string expected id.
 
+**Input size.** The 32 MiB limit is a format limit, not a memory budget: a
+pathological document (for example millions of tiny values) can take many times
+its size in memory while it is parsed. If you verify certificates from an
+untrusted relay or upload, cap the input yourself before calling the verifier
+(8 MiB is ample for a real certificate) and treat anything larger as unverified.
+
 ```python
 from lucairn import CertificateChainKeys, verify_certificate_chain
 
@@ -308,7 +314,7 @@ Everything else in the certificate is unverified, and a list of it could never b
 
 **Showing an upstream request body.** The stored request bodies are not signed and not copied into `verified`. Before you display one, hash its exact bytes with SHA-256 and require the lowercase hex digest to equal the verified value at `/payload/upstream_body_sha256/<i>` of the egress claim, `i` being the body's position.
 
-Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (input grammar, timestamp grammar, canonical JSON and base64, Ed25519 acceptance, typed-field binding) are implemented in this SDK's source with comments. The 79-case test corpus, the pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
+Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (input grammar, timestamp grammar, canonical JSON and base64, Ed25519 acceptance, typed-field binding) are implemented in this SDK's source with comments. The 84-case test corpus, the pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
 
 ### `lucairn.get_client_id(cert)`
 

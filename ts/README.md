@@ -204,6 +204,12 @@ with a `verdict` and the `reason` of the check that decided. It throws a
 `TypeError` only for programmer errors: a malformed key set or option, or a
 pinned key the key policy refuses (a `PinnedKeyError` with a `code`, below; the Go SDK's equivalent is `KeyPolicyError`).
 
+**Input size.** The 32 MiB limit is a format limit, not a memory budget: a
+pathological document (for example millions of tiny values) can take many times
+its size in memory while it is parsed (in this SDK, up to several gigabytes). If you verify certificates from an
+untrusted relay or upload, cap the input yourself before calling the verifier
+(8 MiB is ample for a real certificate) and treat anything larger as unverified.
+
 ```ts
 import { verifyCertificateChain } from '@lucairn/sdk';
 
@@ -250,7 +256,8 @@ bytes; it is `null` on every FAILED result:
   `canonical` is the claim's signed bytes as a string, exactly, and `values`
   maps each string, boolean and integer leaf of the signed document to its
   JSON Pointer (`/payload/model_used`, `/data_seen/0`). Integers are
-  `bigint` (they can exceed 2^53). A path missing from `values` (a float,
+  `bigint` (they can exceed 2^53), so `JSON.stringify(result.verified)` throws;
+  serialize with `canonicalVerifiedJson`. A path missing from `values` (a float,
   `null`) may still be in `canonical`. Order claims by the parsed index,
   never by key order.
 
@@ -293,7 +300,7 @@ turn's genuine certificate.
 
 Only `VERIFIED` is green. Show `signed_cert_tier`, never the unsigned `verification.cert_tier`. `signed_cert_tier` is `absent`, `input_shield`, `input_shield_two_signer` (the certificate is labelled `input_shield_two_signer`, only the gateway signs an input-shield tier, and the chain has a `dsa-sanitizer` claim and no `dsa-ai` claim; it never reaches `VERIFIED`), `inconsistent`, or `not_evaluated` on a FAILED result. `user_unredacted` is a **string** (`"true"` / `"false"` / `"unknown"`) read from the signed sanitizer claim only: compare it to `"true"`; `"false"` is a non-empty string. The default policy accepts certificates that carry only the older v2 witness signature; that is safe only because you render from `verified`, where their v3 values are absent. Strict callers pass `minimumSignableVersion: 'v3'`, which FAILS every such certificate.
 
-Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (timestamp grammar, canonical JSON and base64, typed-field binding, key policy) are implemented in this SDK's source with comments. The 79-case test corpus, its key-policy vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
+Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (timestamp grammar, canonical JSON and base64, typed-field binding, key policy) are implemented in this SDK's source with comments. The 84-case test corpus, its key-policy vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
 
 ## New helpers (1.0)
 
