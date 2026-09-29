@@ -1,16 +1,16 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "not_pinned": {
-    "dsa-sanitizer-streaming": {
-      "public_key_hex": "5c5e116b2150b60fe4f8d90c9ec4a796b03f98482feb7bd1ce2e862ab4924336",
-      "public_key_base64": "XF4RayFQtg/k+NkMnsSnlrA/mEgv63vRzi6GKrSSQzY="
+    "dsa-unpinned": {
+      "public_key_hex": "fde45e479656b3ce1831c9c9924ee536bd6239eb696574da3c8cbf1044638a8d",
+      "public_key_base64": "/eReR5ZWs84YMcnJkk7lNr1iOetpZXTaPIy/EERjio0="
     },
     "rogue": {
       "public_key_hex": "f6818c747607739fda57332361990b35d5ea2ac351d40e5a369f1b99275dd40c",
       "public_key_base64": "9oGMdHYHc5/aVzMjYZkLNdXqKsNR1A5aNp8bmSdd1Aw="
     }
   },
-  "note": "Synthetic TEST keys derived from the corpus seed (sha256(\"lucairn-parity-corpus|<seed>|<label>\") = Ed25519 seed). Pin exactly these; never a production key. `not_pinned` keys sign tamper cases and must NOT be pinned.",
+  "note": "Synthetic TEST keys derived from the corpus seed (sha256(\"lucairn-parity-corpus|<seed>|<label>\") = Ed25519 seed). Every key in this file is a test key: a verifier refuses it (key_test_key, see key-policy.json) unless the caller sets allow_test_keys, which only a parity harness does. Pin the witness key and the `services` keys; `not_pinned` keys sign tamper cases and must NOT be pinned.",
   "services": {
     "dsa-ai": {
       "public_key_hex": "08460e2b68e534616afaa3b7e0bb2fd49ebcdc3ea8d313fbff387c084c5210fc",
@@ -35,6 +35,10 @@
     "dsa-sanitizer": {
       "public_key_hex": "b52fac7fed788b51ffa892c972b36f22f83607988943628c5d0862ac22ac28bb",
       "public_key_base64": "tS+sf+14i1H/qJLJcrNvIvg2B5iJQ2KMXQhirCKsKLs="
+    },
+    "dsa-sanitizer-streaming": {
+      "public_key_hex": "5c5e116b2150b60fe4f8d90c9ec4a796b03f98482feb7bd1ce2e862ab4924336",
+      "public_key_base64": "XF4RayFQtg/k+NkMnsSnlrA/mEgv63vRzi6GKrSSQzY="
     }
   },
   "witness": {

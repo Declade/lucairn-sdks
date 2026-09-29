@@ -1,9 +1,9 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_user_unredacted_token_stripped",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "astra T-928 S2 r2 HIGH-1: user_unredacted_segment removed from the TYPED roster (claims[dsa-sanitizer].sanitizer.layers_active) while the signed canonical payload still carries it. Never \"sanitised as usual\".",
+  "description": "user_unredacted_segment removed from the TYPED roster (claims[dsa-sanitizer].sanitizer.layers_active) while the signed canonical payload still carries it. Never \"sanitised as usual\".",
   "construction": "post-seal edit of the typed layers_active",
   "certificate": {
     "anchor_status": null,
@@ -201,12 +201,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -215,12 +211,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {

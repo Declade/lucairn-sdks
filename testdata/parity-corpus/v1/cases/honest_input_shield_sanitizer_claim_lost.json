@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "honest_input_shield_sanitizer_claim_lost",
   "class": "honest",
   "surface": "get_certificate",
@@ -141,26 +141,91 @@
       "user_unredacted": "false",
       "signed_cert_tier": "input_shield",
       "signable_version": "v3",
-      "authenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "certificate_id",
-        "claim_ids",
-        "client_id",
-        "issued_at",
-        "overall_verdict",
-        "protocol_version",
-        "redaction_manifest_hash",
-        "request_id",
-        "sanitized_fields_body_hash",
-        "tms_manifest_hash",
-        "witness_key_id"
-      ],
-      "unauthenticated_fields": [
-        "claims[0].inference.isolation_probe",
-        "claims[0].inference.model_used",
-        "claims[1].inference.model_used"
-      ]
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": null,
+          "byok_exempt": true,
+          "certificate_id": "veil_00d96054-abde-4cba-bf8c-c1711c04dfa6",
+          "claim_ids": [
+            "clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91",
+            "clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330"
+          ],
+          "client_id": null,
+          "issued_at": "2026-09-25T12:05:02.5Z",
+          "overall_verdict": "PARTIAL",
+          "protocol_version": 2,
+          "redaction_manifest_hash": null,
+          "request_id": "req_parity_v1_shield",
+          "sanitized_fields_body_hash": null,
+          "tms_manifest_hash": null,
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-gateway:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"raw_pii\",\"vendor_session_cookie\",\"identity_fields\"],\"data_seen\":[\"sanitized_prompt_hash\",\"vendor_response_hash\",\"sanitizer_manifest\"],\"payload\":{\"cert_tier\":\"input-shield\",\"client_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"request_hash\":\"edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96\",\"response_hash\":\"3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16\",\"sanitizer_manifest\":{\"categories_triggered\":[\"Cat 1\"],\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"llm_pii_scan\"],\"redaction_count\":{\"PERSON\":1},\"sanitizer_version\":\"parity-corpus-1.0\"},\"sealed_at\":\"2026-09-25T12:05:01Z\",\"tool_name\":\"Claude Desktop\",\"vendor\":\"anthropic\"},\"request_id\":\"req_parity_v1_shield\",\"service_id\":\"dsa-gateway\",\"timestamp\":\"2026-09-25T12:05:01Z\"}",
+            "values": {
+              "/claim_id": "clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "raw_pii",
+              "/data_not_seen/1": "vendor_session_cookie",
+              "/data_not_seen/2": "identity_fields",
+              "/data_seen/0": "sanitized_prompt_hash",
+              "/data_seen/1": "vendor_response_hash",
+              "/data_seen/2": "sanitizer_manifest",
+              "/payload/cert_tier": "input-shield",
+              "/payload/client_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/request_hash": "edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96",
+              "/payload/response_hash": "3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16",
+              "/payload/sanitizer_manifest/categories_triggered/0": "Cat 1",
+              "/payload/sanitizer_manifest/layers_active/0": "known_entity_matching",
+              "/payload/sanitizer_manifest/layers_active/1": "presidio_ner",
+              "/payload/sanitizer_manifest/layers_active/2": "llm_pii_scan",
+              "/payload/sanitizer_manifest/redaction_count/PERSON": 1,
+              "/payload/sanitizer_manifest/sanitizer_version": "parity-corpus-1.0",
+              "/payload/sealed_at": "2026-09-25T12:05:01Z",
+              "/payload/tool_name": "Claude Desktop",
+              "/payload/vendor": "anthropic",
+              "/request_id": "req_parity_v1_shield",
+              "/service_id": "dsa-gateway",
+              "/timestamp": "2026-09-25T12:05:01Z"
+            }
+          },
+          "1:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"raw_pii\",\"vendor_session_cookie\",\"identity_fields\",\"vendor_response_text\"],\"data_seen\":[\"sanitized_prompt_hash\",\"vendor_response_hash\",\"sanitizer_manifest\"],\"payload\":{\"cert_tier\":\"input-shield\",\"client_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"isolation_probe\":\"BYOK_EXEMPT\",\"request_hash\":\"edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96\",\"response_hash\":\"3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16\",\"sanitizer_manifest\":{\"categories_triggered\":[\"Cat 1\"],\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"llm_pii_scan\"],\"redaction_count\":{\"PERSON\":1},\"sanitizer_version\":\"parity-corpus-1.0\"},\"sealed_at\":\"2026-09-25T12:05:01Z\",\"tool_name\":\"Claude Desktop\",\"vendor\":\"anthropic\"},\"request_id\":\"req_parity_v1_shield\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:05:01.1Z\"}",
+            "values": {
+              "/claim_id": "clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "raw_pii",
+              "/data_not_seen/1": "vendor_session_cookie",
+              "/data_not_seen/2": "identity_fields",
+              "/data_not_seen/3": "vendor_response_text",
+              "/data_seen/0": "sanitized_prompt_hash",
+              "/data_seen/1": "vendor_response_hash",
+              "/data_seen/2": "sanitizer_manifest",
+              "/payload/cert_tier": "input-shield",
+              "/payload/client_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/isolation_probe": "BYOK_EXEMPT",
+              "/payload/request_hash": "edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96",
+              "/payload/response_hash": "3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16",
+              "/payload/sanitizer_manifest/categories_triggered/0": "Cat 1",
+              "/payload/sanitizer_manifest/layers_active/0": "known_entity_matching",
+              "/payload/sanitizer_manifest/layers_active/1": "presidio_ner",
+              "/payload/sanitizer_manifest/layers_active/2": "llm_pii_scan",
+              "/payload/sanitizer_manifest/redaction_count/PERSON": 1,
+              "/payload/sanitizer_manifest/sanitizer_version": "parity-corpus-1.0",
+              "/payload/sealed_at": "2026-09-25T12:05:01Z",
+              "/payload/tool_name": "Claude Desktop",
+              "/payload/vendor": "anthropic",
+              "/request_id": "req_parity_v1_shield",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:05:01.1Z"
+            }
+          }
+        }
+      }
     },
     "minimum_v3": {
       "verdict": "PARTIAL",
@@ -169,26 +234,91 @@
       "user_unredacted": "false",
       "signed_cert_tier": "input_shield",
       "signable_version": "v3",
-      "authenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "certificate_id",
-        "claim_ids",
-        "client_id",
-        "issued_at",
-        "overall_verdict",
-        "protocol_version",
-        "redaction_manifest_hash",
-        "request_id",
-        "sanitized_fields_body_hash",
-        "tms_manifest_hash",
-        "witness_key_id"
-      ],
-      "unauthenticated_fields": [
-        "claims[0].inference.isolation_probe",
-        "claims[0].inference.model_used",
-        "claims[1].inference.model_used"
-      ]
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": null,
+          "byok_exempt": true,
+          "certificate_id": "veil_00d96054-abde-4cba-bf8c-c1711c04dfa6",
+          "claim_ids": [
+            "clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91",
+            "clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330"
+          ],
+          "client_id": null,
+          "issued_at": "2026-09-25T12:05:02.5Z",
+          "overall_verdict": "PARTIAL",
+          "protocol_version": 2,
+          "redaction_manifest_hash": null,
+          "request_id": "req_parity_v1_shield",
+          "sanitized_fields_body_hash": null,
+          "tms_manifest_hash": null,
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-gateway:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"raw_pii\",\"vendor_session_cookie\",\"identity_fields\"],\"data_seen\":[\"sanitized_prompt_hash\",\"vendor_response_hash\",\"sanitizer_manifest\"],\"payload\":{\"cert_tier\":\"input-shield\",\"client_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"request_hash\":\"edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96\",\"response_hash\":\"3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16\",\"sanitizer_manifest\":{\"categories_triggered\":[\"Cat 1\"],\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"llm_pii_scan\"],\"redaction_count\":{\"PERSON\":1},\"sanitizer_version\":\"parity-corpus-1.0\"},\"sealed_at\":\"2026-09-25T12:05:01Z\",\"tool_name\":\"Claude Desktop\",\"vendor\":\"anthropic\"},\"request_id\":\"req_parity_v1_shield\",\"service_id\":\"dsa-gateway\",\"timestamp\":\"2026-09-25T12:05:01Z\"}",
+            "values": {
+              "/claim_id": "clm_d1f4624c-7500-4c7b-86dd-894d6cd0dc91",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "raw_pii",
+              "/data_not_seen/1": "vendor_session_cookie",
+              "/data_not_seen/2": "identity_fields",
+              "/data_seen/0": "sanitized_prompt_hash",
+              "/data_seen/1": "vendor_response_hash",
+              "/data_seen/2": "sanitizer_manifest",
+              "/payload/cert_tier": "input-shield",
+              "/payload/client_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/request_hash": "edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96",
+              "/payload/response_hash": "3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16",
+              "/payload/sanitizer_manifest/categories_triggered/0": "Cat 1",
+              "/payload/sanitizer_manifest/layers_active/0": "known_entity_matching",
+              "/payload/sanitizer_manifest/layers_active/1": "presidio_ner",
+              "/payload/sanitizer_manifest/layers_active/2": "llm_pii_scan",
+              "/payload/sanitizer_manifest/redaction_count/PERSON": 1,
+              "/payload/sanitizer_manifest/sanitizer_version": "parity-corpus-1.0",
+              "/payload/sealed_at": "2026-09-25T12:05:01Z",
+              "/payload/tool_name": "Claude Desktop",
+              "/payload/vendor": "anthropic",
+              "/request_id": "req_parity_v1_shield",
+              "/service_id": "dsa-gateway",
+              "/timestamp": "2026-09-25T12:05:01Z"
+            }
+          },
+          "1:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"raw_pii\",\"vendor_session_cookie\",\"identity_fields\",\"vendor_response_text\"],\"data_seen\":[\"sanitized_prompt_hash\",\"vendor_response_hash\",\"sanitizer_manifest\"],\"payload\":{\"cert_tier\":\"input-shield\",\"client_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"isolation_probe\":\"BYOK_EXEMPT\",\"request_hash\":\"edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96\",\"response_hash\":\"3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16\",\"sanitizer_manifest\":{\"categories_triggered\":[\"Cat 1\"],\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"llm_pii_scan\"],\"redaction_count\":{\"PERSON\":1},\"sanitizer_version\":\"parity-corpus-1.0\"},\"sealed_at\":\"2026-09-25T12:05:01Z\",\"tool_name\":\"Claude Desktop\",\"vendor\":\"anthropic\"},\"request_id\":\"req_parity_v1_shield\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:05:01.1Z\"}",
+            "values": {
+              "/claim_id": "clm_98e0cbaf-bebc-4b97-ac1d-932ea157e330",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "raw_pii",
+              "/data_not_seen/1": "vendor_session_cookie",
+              "/data_not_seen/2": "identity_fields",
+              "/data_not_seen/3": "vendor_response_text",
+              "/data_seen/0": "sanitized_prompt_hash",
+              "/data_seen/1": "vendor_response_hash",
+              "/data_seen/2": "sanitizer_manifest",
+              "/payload/cert_tier": "input-shield",
+              "/payload/client_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/isolation_probe": "BYOK_EXEMPT",
+              "/payload/request_hash": "edc144f52527a835271f5a4c68f7d1a8a7c1ed073be16a33a03080851eef8f96",
+              "/payload/response_hash": "3ace1a0f95932ad7274e2f2ecdc81b0a994abbfb2558836bb296dd44b5b5ad16",
+              "/payload/sanitizer_manifest/categories_triggered/0": "Cat 1",
+              "/payload/sanitizer_manifest/layers_active/0": "known_entity_matching",
+              "/payload/sanitizer_manifest/layers_active/1": "presidio_ner",
+              "/payload/sanitizer_manifest/layers_active/2": "llm_pii_scan",
+              "/payload/sanitizer_manifest/redaction_count/PERSON": 1,
+              "/payload/sanitizer_manifest/sanitizer_version": "parity-corpus-1.0",
+              "/payload/sealed_at": "2026-09-25T12:05:01Z",
+              "/payload/tool_name": "Claude Desktop",
+              "/payload/vendor": "anthropic",
+              "/request_id": "req_parity_v1_shield",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:05:01.1Z"
+            }
+          }
+        }
+      }
     }
   },
   "reference": {

@@ -1,10 +1,10 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_egress_digest_null",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "The dsa-ai claim signs upstream_body_sha256: null. Absent means \"no egress attestation\" (EGRESS_UNATTESTED); a signed null is a PRESENT key that is not a digest list, so step 8a fails it. Null is not absent here (README § Verification recipe, the null list).",
-  "construction": "full chain with a dsa-ai claim built by pkg/veil (the dsa-ai key) whose signed payload carries upstream_body_sha256 null; sealed by verifier.Verify + assembler.Assemble",
+  "description": "The dsa-ai claim signs upstream_body_sha256: null. Absent means \"no egress attestation\" (EGRESS_UNATTESTED); a signed null is a PRESENT key that is not a digest list, so step 8a fails it. Null is not absent here.",
+  "construction": "full chain with a dsa-ai claim built by the Go claim emitter (the dsa-ai key) whose signed payload carries upstream_body_sha256 null; sealed by verifier.Verify + assembler.Assemble",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -214,12 +214,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -228,12 +224,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {

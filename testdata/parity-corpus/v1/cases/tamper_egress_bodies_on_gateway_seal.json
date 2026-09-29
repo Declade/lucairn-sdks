@@ -1,9 +1,9 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_egress_bodies_on_gateway_seal",
   "class": "tamper",
   "surface": "witness_export",
-  "description": "Upstream bodies attached to the dsa-gateway seal claim. Only a dsa-ai INFERENCE_COMPLETED claim that signs a digest list can anchor stored bodies (the witness intake strips bodies on any other claim, egress_intake.go:26-28).",
+  "description": "Upstream bodies attached to the dsa-gateway seal claim. Only a dsa-ai INFERENCE_COMPLETED claim that signs a digest list can anchor stored bodies (the witness intake strips bodies on any other claim).",
   "construction": "post-seal edit of claims[dsa-gateway].inference.upstream_request_bodies",
   "certificate": {
     "anchor_status": null,
@@ -171,12 +171,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -185,12 +181,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {
