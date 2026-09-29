@@ -222,7 +222,7 @@ Raises `LucairnCertificateError` with one of five reasons on failure:
 External RFC 3161 timestamp + Sigstore Rekor transparency-log verification
 are out of scope for this release (pending upstream gateway fixes).
 
-### `verify_certificate_chain(certificate, keys, *, minimum_signable_version=None)`
+### `verify_certificate_chain(certificate, keys, *, minimum_signable_version=None, expected_request_id=None, expected_certificate_id=None)`
 
 `verify_certificate()` above checks the witness signatures only. The witness
 signs the LIST of claim ids, not the claim contents, so a certificate whose
@@ -231,15 +231,18 @@ claim body was edited under the same claim id still passes it.
 runs the full check: every claim's own signature against the key you pin for
 its service, the claim bytes rebuilt from the outer fields, claim-id
 membership, the unsigned typed copies against the signed payload, the signed
-upstream-request hashes, and the unsigned `cert_tier` against its signed
-copies. It is additive: `verify_certificate()` is unchanged.
+upstream-request hashes, the unsigned `cert_tier` against its signed copies,
+and (when you pass it) the request the certificate belongs to. It is
+additive: `verify_certificate()` is unchanged.
 
-It takes the **raw certificate JSON** (`bytes` or `str`), not a parsed
-`dict`, because number lexemes and trailing bytes are part of the checks. It
-never raises on a bad certificate: it returns a `CertificateChainResult`
-with a `verdict` and the `reason` of the check that decided (`.to_dict()`
-gives the plain mapping). It raises `TypeError` / `ValueError` only for
-programmer errors (a malformed key set, an unknown policy).
+It takes the **raw certificate JSON** (`bytes` or `str`, at most 32 MiB), not
+a parsed `dict`, because number lexemes, duplicate keys and trailing bytes are
+part of the checks. It never raises on a bad certificate: it returns a
+`CertificateChainResult` with a `verdict` and the `reason` of the check that
+decided (`.to_dict()` gives the plain mapping). It raises only for programmer
+errors: `PinnedKeyError` (a `ValueError`) when a pinned key is refused, and
+`TypeError` / `ValueError` for a malformed key set, an unknown policy or a
+non-string expected id.
 
 ```python
 from lucairn import CertificateChainKeys, verify_certificate_chain
@@ -262,30 +265,50 @@ result = verify_certificate_chain(
             "dsa-reid-guard": reid_guard_key_b64,  # where deployed
         },
     ),
-    minimum_signable_version="v3",  # omit for the legacy-tolerant default
+    expected_request_id=request_id,  # always: the turn you are showing
+    minimum_signable_version="v3",   # omit for the legacy-tolerant default
 )
 if result.verdict != "VERIFIED":
     print(result.verdict, result.reason)
 if result.user_unredacted == "true":
     show_sent_unredacted_mark()
+if result.verified is not None:
+    cert = result.verified["certificate"]          # the witness-signed values
+    client = cert.get("client_id")                 # absent unless the v3 signature verified
+    for key, claim in result.verified["claims"].items():
+        index, rest = key.split(":", 1)
+        service_id, claim_type = rest.rsplit(":", 1)
+        model = claim["values"].get("/payload/model_used")  # signed value, or None
 ```
 
-**Which keys to pin.** Pin the per-service public keys your Lucairn operator publishes for your deployment, the same way you pin the witness key, and pin every service that emits claims there (including, where present, `dsa-reid-guard` and `dsa-sanitizer-streaming`): a claim from an unpinned service FAILS the certificate. A published key endpoint is planned; this release does not fetch keys.
+**Which keys to pin.** Pin the per-service public keys your Lucairn operator publishes for your deployment, the same way you pin the witness key, and pin every service that emits claims there (including, where present, `dsa-reid-guard` and `dsa-sanitizer-streaming`): a claim from an unpinned service FAILS the certificate. A published key endpoint is planned; this release does not fetch keys. Keys are raw 32 bytes or their canonical standard padded base64 (no hex, no URL-safe alphabet, no missing padding, no whitespace). Every key passes a pinned-key policy each time the key set is loaded, and `PinnedKeyError.code` says why one was refused: `key_malformed`, `key_small_order` (a small-order point would let one forged signature verify over many messages), `key_invalid_point`, or `key_test_key`. The TypeScript SDK raises the same `PinnedKeyError`; the Go SDK's equivalent is `KeyPolicyError`, with the same codes in its `Code` field.
+
+**Never pin the parity-corpus keys.** The keys in [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus) are test keys derived from a public seed, so anyone can sign with them. The verifier refuses them (`key_test_key`) unless `CertificateChainKeys(allow_test_keys=True)`; only a parity test harness sets that, never a product.
+
+**Always pass the expected request id.** When you show a certificate for a turn you know, pass that turn's `expected_request_id` (and, if you have it, `expected_certificate_id`). A supplied value must equal the witness-signed one exactly, or the result is `FAILED` / `request_mismatch`; an empty string counts as supplied. `request_binding` reports `matched`, `not_checked` (nothing supplied) or `not_evaluated` (every `FAILED` result). This stops a genuine certificate of ANOTHER turn being served for this one by a store, fetch path or relay. It does not stop a compromised gateway or local proxy: the gateway issues the request id, so it could hand out an earlier clean turn's id together with that turn's certificate.
 
 **What the result means.**
 
 | `verdict` | meaning |
 |---|---|
-| `VERIFIED` | every check passed, and exactly one claim signs a list of upstream-request SHA-256 hashes (one per request attempt the inference sandbox recorded) with the pinned `dsa-ai` key. The bytes Lucairn sent are signed and you can recompute them: the stored request bytes are served by the gateway's `/upstream-request` endpoint once the signed-hash producer change is deployed (this SDK does not fetch them), and a witness export that carries them inline has them checked against the signed hashes here. Certificates without signed hashes end at `EGRESS_UNATTESTED`. |
+| `VERIFIED` | every check passed, and exactly one claim signs a list of upstream-request SHA-256 hashes (one per request attempt the inference sandbox recorded) with the pinned `dsa-ai` key. |
 | `EGRESS_UNATTESTED` | every check passed, but no signed upstream-request hash exists (older certificates, the input-shield lane today). Never treat it as green. |
 | `PARTIAL` | the signatures hold, but the certificate itself says something is missing, unfinished or opted out (`reason` says which, e.g. `user_sent_unredacted`). |
 | `FAILED` | an integrity, binding or policy check broke, or the witness itself sealed FAILED. |
 
-Only `VERIFIED` is green. The result also carries `signed_cert_tier` (show this, never the unsigned `verification.cert_tier`) and `user_unredacted`, a **string** (`"true"` / `"false"` / `"unknown"`) read from the signed sanitizer claim only. Compare it to `"true"`; `"false"` is a non-empty string.
+Only `VERIFIED` is green, and the verdict to display is `result.verdict` — never `verified["certificate"]["overall_verdict"]`, which is only what the witness sealed (every legacy certificate says `VERIFIED` there and ends at `EGRESS_UNATTESTED` here). The result also carries `signed_cert_tier` (`absent`, `input_shield`, `inconsistent`, `input_shield_two_signer` for an input-shield chain sealed with only the sanitizer and gateway claims, or `not_evaluated`; show this, never the unsigned `verification.cert_tier`), `signable_version` (`v3` / `v2` / `none`) and `user_unredacted`, a **string** (`"true"` / `"false"` / `"unknown"`) read from the signed sanitizer claim only. Compare it to `"true"`; `"false"` is a non-empty string.
 
-> **`unauthenticated_fields` MUST be shown as unverified and MUST NEVER drive a decision.** Every entry (for example `client_id`, `api_key_id`, `byok_exempt` on a certificate that only carries the older v2 witness signature, or `claims[1].inference.model_used` when no claim signs a model) is covered by no signature. Label it unverified wherever you display it, and never base a BYOK badge, a "sent unredacted" mark, a client or API-key attribution, or a model claim on it. Read the value from a signed source instead, or show nothing. Strict callers pass minimum signable version `v3`, which fails every certificate that only carries the v2 witness signature.
+**Render and decide only from `verified`.** `result.verified` is `None` on every `FAILED` result; otherwise it is built only from signed bytes:
 
-Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (timestamp grammar, canonical JSON and base64, typed-field binding) are implemented in this SDK's source with comments. The 54-case test corpus and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies. The keys in that corpus are test keys; never pin them in a product.
+- `verified["certificate"]` is the witness signable map that verified: the 7 v2 keys (`certificate_id`, `claim_ids`, `issued_at`, `overall_verdict`, `protocol_version`, `request_id`, `witness_key_id`), plus `api_key_id`, `byok_exempt`, `client_id`, `redaction_manifest_hash`, `sanitized_fields_body_hash`, `tms_manifest_hash` only when the v3 witness signature verified. Under v2 those six keys are simply absent — never show them.
+- `verified["claims"]` has one entry per claim, keyed `"<index>:<service_id>:<claim_type>"` (the claim type is the SIGNED one and may be `""`; it never contains `:`, so split at the first and the last `:`, and order by the parsed index, not the key). Each entry has `canonical`, the claim's signed canonical JSON as an exact string, and `values`, every string, boolean and integer leaf of that signed document under its RFC 6901 JSON Pointer (`/payload/model_used`, `/data_seen/0`). `null`, non-integer numbers and empty containers have no `values` entry; read them from `canonical`.
+- More than one claim can share a service and type: pick the egress claim as the one whose `values` carry `/payload/upstream_body_sha256/0`.
+
+Everything else in the certificate is unverified, and a list of it could never be complete. Do not read the raw certificate, and do not parse it a second time (a second parser can read a field no signature covers: a case-insensitive decoder, a duplicate key, a typed copy, `upstream_model`, `verification.*`). A "sent unredacted" mark, a BYOK badge or policy, a client or API-key attribution, a model or encryption claim: if it is not in `verified` (or the result's own fields), do not show it. Strict callers pass `minimum_signable_version="v3"`, which fails every certificate that only carries the v2 witness signature.
+
+**Showing an upstream request body.** The stored request bodies are not signed and not copied into `verified`. Before you display one, hash its exact bytes with SHA-256 and require the lowercase hex digest to equal the verified value at `/payload/upstream_body_sha256/<i>` of the egress claim, `i` being the body's position.
+
+Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. The full rules (input grammar, timestamp grammar, canonical JSON and base64, Ed25519 acceptance, typed-field binding) are implemented in this SDK's source with comments. The 79-case test corpus, the pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
 
 ### `lucairn.get_client_id(cert)`
 

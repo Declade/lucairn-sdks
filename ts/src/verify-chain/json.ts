@@ -3,9 +3,10 @@
 // JSON (Declade/dual-sandbox-architecture tools/parity-corpus/README.md).
 //
 // JSON.parse cannot be used: it turns numbers into doubles (2.0000000000000001
-// becomes 2, 0.0 re-prints as 0, a 5,000-digit integer loses its digits), and
-// the recipe reads integer TOKENS and rebuilds signed bytes from the original
-// number text. Objects are Maps so a key like "__proto__" is plain data.
+// becomes 2, 0.0 re-prints as 0, a 5,000-digit integer loses its digits), it
+// lets a duplicate key win silently, and the recipe reads integer TOKENS and
+// rebuilds signed bytes from the original number text. Objects are Maps so a
+// key like "__proto__" is plain data.
 
 /** A JSON number kept as its source lexeme. */
 export class JNum {
@@ -15,27 +16,60 @@ export class JNum {
 export type JVal = null | boolean | string | JNum | JVal[] | JObj;
 export type JObj = Map<string, JVal>;
 
-// Nesting bound (arrays/objects). The Python and Go SDKs enforce the same
-// bound, so all three decide deep documents alike; real certificates nest
-// fewer than 10 levels.
+/**
+ * Nesting bound (arrays/objects): the top-level value is level 1, every array
+ * and object counts one, brackets inside strings do not count. The Python and
+ * Go SDKs enforce the same bound; real certificates nest fewer than 10 levels.
+ */
 export const MAX_DEPTH = 256;
 
-// An escaped UTF-16 surrogate that is not part of a pair reads as U+FFFD, as
-// Go's encoding/json (the witness) decodes it; the Python and Go SDKs agree.
-const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+// Nesting bound of the LENIENT parser (parity test fixtures only): deep
+// enough for a fixture that wraps an over-deep certificate, shallow enough
+// that the recursive descent never exhausts the stack.
+const LENIENT_MAX_DEPTH = 4096;
+
+// A UTF-16 surrogate that is not part of a high + low pair.
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
 export class JsonGrammarError extends Error {}
 
 const NUMBER_RE = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+const HEX4 = /^[0-9a-fA-F]{4}$/;
 
 /**
  * Parse exactly ONE RFC 8259 JSON value followed only by JSON whitespace
- * (space, tab, LF, CR). A byte-order mark, NaN / Infinity, a second value or
- * stray trailing bytes are errors. Bytes must be valid UTF-8.
+ * (space, tab, LF, CR) — the ONE strict document parser of the recipe:
+ *
+ * - bytes must be valid UTF-8; a byte-order mark is refused, not skipped;
+ * - NaN / Infinity, a second value or stray trailing bytes are errors;
+ * - at most {@link MAX_DEPTH} levels of nesting;
+ * - every `\u` escape of a UTF-16 surrogate must be a high immediately
+ *   followed by a low escape: an unpaired surrogate is refused, never
+ *   replaced or kept (a string input carrying a raw unpaired surrogate is
+ *   not valid UTF-8 text and is refused too);
+ * - no object repeats a key, compared AFTER escape decoding (so `"a"` and
+ *   `"a"` are the same key), code point for code point.
+ *
+ * Throws {@link JsonGrammarError}.
  */
 export function parseDocument(input: string | Uint8Array): JVal {
+  return parse(input, true);
+}
+
+/**
+ * @internal Plain JSON with number lexemes kept, WITHOUT the verifier-input
+ * rules (duplicate keys: last wins; surrogates kept; a generous depth bound).
+ * For loading parity-corpus fixture files only, which wrap inputs that break
+ * those rules on purpose. Never use it for a certificate or signed bytes.
+ */
+export function parseLenient(input: string | Uint8Array): JVal {
+  return parse(input, false);
+}
+
+function parse(input: string | Uint8Array, strict: boolean): JVal {
   let s: string;
   if (typeof input === 'string') {
+    if (strict && LONE_SURROGATE.test(input)) throw new JsonGrammarError('unpaired surrogate');
     s = input;
   } else {
     try {
@@ -46,7 +80,7 @@ export function parseDocument(input: string | Uint8Array): JVal {
       throw new JsonGrammarError('not UTF-8');
     }
   }
-  const p = new Parser(s);
+  const p = new Parser(s, strict);
   p.ws();
   const v = p.value(0);
   p.ws();
@@ -56,7 +90,13 @@ export function parseDocument(input: string | Uint8Array): JVal {
 
 class Parser {
   i = 0;
-  constructor(private readonly s: string) {}
+  private readonly maxDepth: number;
+  constructor(
+    private readonly s: string,
+    private readonly strict: boolean,
+  ) {
+    this.maxDepth = strict ? MAX_DEPTH : LENIENT_MAX_DEPTH;
+  }
 
   ws(): void {
     const s = this.s;
@@ -95,7 +135,7 @@ class Parser {
   }
 
   object(depth: number): JObj {
-    if (depth > MAX_DEPTH) throw new JsonGrammarError('nesting too deep');
+    if (depth > this.maxDepth) throw new JsonGrammarError('nesting too deep');
     const out: JObj = new Map();
     this.i++; // {
     this.ws();
@@ -106,12 +146,15 @@ class Parser {
     for (;;) {
       this.ws();
       if (this.s[this.i] !== '"') throw new JsonGrammarError(`expected a key at ${this.i}`);
+      // The key is escape-decoded and surrogate-checked by string() BEFORE
+      // the duplicate comparison below (the pinned order).
       const k = this.string();
+      if (this.strict && out.has(k)) throw new JsonGrammarError('duplicate key');
       this.ws();
       if (this.s[this.i] !== ':') throw new JsonGrammarError(`expected ':' at ${this.i}`);
       this.i++;
       this.ws();
-      out.set(k, this.value(depth)); // a duplicate key: the last one wins
+      out.set(k, this.value(depth));
       this.ws();
       const c = this.s[this.i];
       this.i++;
@@ -121,7 +164,7 @@ class Parser {
   }
 
   array(depth: number): JVal[] {
-    if (depth > MAX_DEPTH) throw new JsonGrammarError('nesting too deep');
+    if (depth > this.maxDepth) throw new JsonGrammarError('nesting too deep');
     const out: JVal[] = [];
     this.i++; // [
     this.ws();
@@ -151,7 +194,8 @@ class Parser {
       if (c === 0x22) {
         out += s.slice(start, this.i);
         this.i++;
-        return out.replace(LONE_SURROGATE, '\ufffd');
+        if (this.strict && LONE_SURROGATE.test(out)) throw new JsonGrammarError('unpaired surrogate escape');
+        return out;
       }
       if (c < 0x20) throw new JsonGrammarError(`control character in string at ${this.i}`);
       if (c !== 0x5c) {
@@ -187,7 +231,7 @@ class Parser {
           break;
         case 'u': {
           const hex = s.slice(this.i + 2, this.i + 6);
-          if (!/^[0-9a-fA-F]{4}$/.test(hex)) throw new JsonGrammarError(`bad \\u escape at ${this.i}`);
+          if (!HEX4.test(hex)) throw new JsonGrammarError(`bad \\u escape at ${this.i}`);
           out += String.fromCharCode(parseInt(hex, 16));
           this.i += 4;
           break;
@@ -223,7 +267,11 @@ function escapeString(s: string): string {
   return out + '"';
 }
 
-/** Code-point order (Python sorted() over str; Go's bytewise UTF-8 order). */
+/**
+ * Code-point order (Python sorted() over str; Go's bytewise UTF-8 order).
+ * NOT JavaScript's default sort, which compares UTF-16 code units and puts a
+ * supplementary-plane character before U+E000–U+FFFF.
+ */
 export function compareCodePoints(a: string, b: string): number {
   let i = 0;
   let j = 0;

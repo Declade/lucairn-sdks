@@ -1,4 +1,4 @@
-// Certificate chain verification (T-935 S3 / T-794) — every inner claim.
+// Certificate chain verification — every inner claim.
 //
 // verifyCertificate() checks the witness signatures only: a certificate whose
 // claim body was edited while its claim id stayed the same still passes it,
@@ -7,19 +7,24 @@
 // signature against a PINNED per-service key, the canonical bytes rebuilt
 // from the outer fields, claim-id membership in the witness-signed list, the
 // typed (unsigned) mirrors against the signed payload, the signed egress
-// digests, the unsigned cert_tier against its signed copies, and the
-// user_unredacted_segment token read from the SIGNED sanitizer payload only.
+// digests, the unsigned cert_tier against its signed copies, the optional
+// request binding, and the user_unredacted_segment token read from the SIGNED
+// sanitizer payload only. It returns `verified`: the signed bytes and the
+// values extracted from them — the ONLY source a caller renders or decides
+// from.
 //
 // The specification is the parity corpus README (Declade/dual-sandbox-
-// architecture tools/parity-corpus/README.md; its ordered check table is
-// vendored at testdata/parity-corpus/recipe-table.md) § Verification recipe. The Python and Go
-// SDKs implement the same table; all three are held to the same corpus under
-// both policies (parityCorpus.test.ts).
+// architecture tools/parity-corpus/README.md, format lucairn-parity-corpus/
+// v1.2; its ordered check table is vendored at
+// testdata/parity-corpus/recipe-table.md) § Verification recipe. The Python
+// and Go SDKs implement the same table; all three are held to the same corpus
+// under both policies (parityCorpus.test.ts).
 
-import { createHash, createPublicKey, verify as cryptoVerify, type KeyObject } from 'node:crypto';
-import { normalizeEd25519PublicKey } from '../verify-certificate/keys.js';
-import type { VerifyCertificateOptions } from '../types.js';
-import { JNum, type JObj, type JVal, canonicalBytes, parseDocument } from './json.js';
+import { createHash, type KeyObject } from 'node:crypto';
+import { canonicalBase64, ed25519Ok, keyObject, pinnedKey } from './ed25519.js';
+import { JNum, type JObj, type JVal, JsonGrammarError, canonical, canonicalBytes, parseDocument } from './json.js';
+
+export { PinnedKeyError, type PinnedKeyErrorCode } from './ed25519.js';
 
 // ---------------------------------------------------------------------------
 // Public types.
@@ -39,6 +44,7 @@ export type CertificateChainReason =
   | 'version_downgrade_detected'
   | 'witness_signature_invalid'
   | 'signable_version_insufficient'
+  | 'request_mismatch'
   | 'sealed_failed'
   | 'duplicate_claim_id'
   | 'unknown_service'
@@ -57,23 +63,103 @@ export type CertificateChainReason =
 export interface CertificateChainKeys {
   /** The witness `key_id` the certificate must name. */
   witnessKeyId: string;
-  /** Raw 32-byte Ed25519 key or its base64 string. */
+  /**
+   * The witness Ed25519 public key: canonical standard padded base64 text of
+   * exactly 32 bytes, or exactly 32 raw bytes. Hex, URL-safe base64, missing
+   * padding and surrounding whitespace are refused (`key_malformed`).
+   */
   witnessPublicKey: Uint8Array | string;
   /**
-   * One Ed25519 key (raw 32 bytes or base64) per claim-emitting `service_id`
-   * (e.g. `dsa-sanitizer`, `dsa-ai`, `dsa-gateway`, `dsa-bridge`, `dsa-audit`,
-   * `dsa-reid-guard`). A claim from a service with no pinned key FAILS the
-   * certificate (`unknown_service`); it is never skipped.
+   * One Ed25519 key (same encodings as `witnessPublicKey`) per claim-emitting
+   * `service_id` (e.g. `dsa-sanitizer`, `dsa-ai`, `dsa-gateway`, `dsa-bridge`,
+   * `dsa-audit`, `dsa-reid-guard`). A claim from a service with no pinned key
+   * FAILS the certificate (`unknown_service`); it is never skipped.
    */
   servicePublicKeys: Record<string, Uint8Array | string>;
+  /**
+   * Accept the published parity-corpus TEST keys. Default `false`. Their
+   * private keys follow from a public seed, so ONLY a parity test harness
+   * sets this; a product build never does.
+   */
+  allowTestKeys?: boolean;
+}
+
+/** Options of {@link verifyCertificateChain}. */
+export interface VerifyCertificateChainOptions {
+  /**
+   * `'v2'` / omitted = policy `default` (legacy-tolerant: a certificate that
+   * carries only the 7-key v2 witness signature verifies, and
+   * `verified.certificate` then holds only the v2 keys); `'v3'` = policy
+   * `minimum_v3` (such a certificate FAILS `signable_version_insufficient`).
+   */
+  minimumSignableVersion?: 'v2' | 'v3';
+  /**
+   * The request id of the turn this certificate is shown for. When supplied,
+   * it must equal the witness-signed `request_id` exactly, or the result is
+   * FAILED `request_mismatch`. Pass it whenever you know the turn: it stops a
+   * genuine certificate of ANOTHER turn being served for this one. An empty
+   * string is a supplied value.
+   */
+  expectedRequestId?: string;
+  /** Same, against the witness-signed `certificate_id`. */
+  expectedCertificateId?: string;
+}
+
+/** A value extracted from signed bytes: a string, a boolean, or an integer (kept exact as a bigint). */
+export type VerifiedValue = string | boolean | bigint;
+
+/** One verified claim: its signed bytes and the values extracted from them. */
+export interface VerifiedClaim {
+  /** The claim's signed canonical bytes, as a UTF-8 string, exactly. Everything the claim signs is in here. */
+  canonical: string;
+  /**
+   * Every string, boolean and integer-token leaf of the signed document under
+   * its RFC 6901 JSON Pointer (`/payload/model_used`, `/data_seen/0`).
+   * `null`, other numbers (floats, negatives, exponents) and empty arrays /
+   * objects contribute no entry: read those from `canonical`.
+   */
+  values: Record<string, VerifiedValue>;
+}
+
+/**
+ * The witness signable map whose signature verified, key for key. The v3-only
+ * keys are ABSENT when `signable_version` is `v2` — never show them then.
+ */
+export interface VerifiedCertificate {
+  certificate_id: string;
+  claim_ids: string[];
+  /** The UTC signable form of `issued_at`. */
+  issued_at: string;
+  /** What the WITNESS sealed, without `VERDICT_`. Not the verdict to show: that is `result.verdict`. */
+  overall_verdict: string;
+  protocol_version: bigint;
+  request_id: string;
+  witness_key_id: string;
+  api_key_id?: string | null;
+  byok_exempt?: boolean;
+  client_id?: string | null;
+  redaction_manifest_hash?: string | null;
+  sanitized_fields_body_hash?: string | null;
+  tms_manifest_hash?: string | null;
+}
+
+/** Everything the verifier authenticated, built only from signed bytes. */
+export interface CertificateChainVerified {
+  certificate: VerifiedCertificate;
+  /**
+   * One entry per claim, keyed `<index>:<service_id>:<claim_type>` (the
+   * SIGNED claim type, `""` for none, e.g. `2:dsa-reid-guard:`). Order
+   * claims by the parsed index, never by key order.
+   */
+  claims: Record<string, VerifiedClaim>;
 }
 
 /**
  * README § Result — field names and values are the parity corpus's, verbatim
- * (snake_case on purpose: all four Lucairn verifiers return the same object).
+ * (snake_case on purpose: every Lucairn verifier returns the same object).
  */
 export interface CertificateChainResult {
-  /** `FAILED` < `PARTIAL` < `EGRESS_UNATTESTED` < `VERIFIED`; only `VERIFIED` is green. */
+  /** `FAILED` < `PARTIAL` < `EGRESS_UNATTESTED` < `VERIFIED`; only `VERIFIED` is green. This is the verdict to display. */
   verdict: CertificateChainVerdict;
   /** The reason of the recipe step that decided. */
   reason: CertificateChainReason;
@@ -83,18 +169,28 @@ export interface CertificateChainResult {
    * only. Compare it to `'true'`, never by truthiness (`'false'` is truthy).
    */
   user_unredacted: 'true' | 'false' | 'unknown';
-  /** Show THIS tier, never the unsigned `verification.cert_tier`. */
-  signed_cert_tier: 'absent' | 'input_shield' | 'inconsistent' | 'not_evaluated';
-  signable_version: 'v3' | 'v2' | 'none';
-  /** The witness-signable keys that authenticated the certificate metadata (sorted). */
-  authenticated_fields: string[];
   /**
-   * Fields NO signature covers (sorted). Every entry MUST be labelled
-   * unverified wherever it is displayed and MUST NEVER be the basis of a
-   * decision (not a BYOK / "sent unredacted" mark, not a client or API-key
-   * attribution, not a model claim).
+   * Show THIS tier, never the unsigned `verification.cert_tier`.
+   * `input_shield_two_signer` = the unsigned label `input_shield_two_signer`
+   * beside its matching signed shape: the gateway alone signs an
+   * `input-shield` tier copy, the chain has a dsa-sanitizer claim and no
+   * dsa-ai claim (sanitizer + gateway). Such a chain has no signed egress digest, so it never
+   * reaches VERIFIED. The same shape under any other label reports
+   * `inconsistent`.
    */
-  unauthenticated_fields: string[];
+  signed_cert_tier: 'absent' | 'input_shield' | 'input_shield_two_signer' | 'inconsistent' | 'not_evaluated';
+  signable_version: 'v3' | 'v2' | 'none';
+  /**
+   * `matched` (an expected request / certificate id was supplied and every
+   * supplied one equals the witness-signed value), `not_checked` (none
+   * supplied), `not_evaluated` (every FAILED result).
+   */
+  request_binding: 'matched' | 'not_checked' | 'not_evaluated';
+  /**
+   * `null` on every FAILED result. Otherwise the ONLY values a caller may
+   * render or decide from: what is not in here is not verified.
+   */
+  verified: CertificateChainVerified | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +206,7 @@ export const CHAIN_STEPS: ReadonlyArray<readonly [string, CertificateChainVerdic
   ['5b', 'FAILED', 'witness_signature_invalid'],
   ['5c', 'FAILED', 'witness_signature_invalid'],
   ['5d', 'FAILED', 'signable_version_insufficient'],
+  ['5e', 'FAILED', 'request_mismatch'],
   ['6a', 'FAILED', 'sealed_failed'],
   ['6b', 'FAILED', 'malformed'],
   ['6c', 'FAILED', 'duplicate_claim_id'],
@@ -133,9 +230,11 @@ export const CHAIN_STEPS: ReadonlyArray<readonly [string, CertificateChainVerdic
   ['9e', 'VERIFIED', 'ok'],
 ];
 
-const V2_FIELDS = ['certificate_id', 'claim_ids', 'issued_at', 'overall_verdict', 'protocol_version', 'request_id', 'witness_key_id'];
-const V3_ONLY = ['api_key_id', 'byok_exempt', 'client_id', 'redaction_manifest_hash', 'sanitized_fields_body_hash', 'tms_manifest_hash'];
-const DISPLAYED_V3_ONLY = ['api_key_id', 'byok_exempt', 'client_id'];
+/** README § Input document: the certificate input bound, checked before any parsing (32 MiB). */
+export const MAX_INPUT_BYTES = 32 * 1024 * 1024;
+/** README § Result: the bound on the pointer bytes of all claims' `values` together (64 MiB). */
+export const MAX_VALUES_POINTER_BYTES = 64 * 1024 * 1024;
+
 const TOKEN = 'user_unredacted_segment';
 const CLAIM_TYPES: Record<string, string> = {
   CLAIM_TYPE_TOKEN_GENERATED: 'TOKEN_GENERATED',
@@ -155,24 +254,92 @@ const PROBE: Record<string, string> = {
   LOCKED: 'ISOLATION_PROBE_LOCKED',
   BYOK_EXEMPT: 'ISOLATION_PROBE_BYOK_EXEMPT',
 };
-const CONDITIONAL_TYPED: ReadonlyArray<readonly [string, string, 'string' | 'number' | 'boolean']> = [
-  ['inference', 'isolation_probe', 'string'],
-  ['inference', 'model_used', 'string'],
-  ['sanitizer', 'pii_entities_found', 'number'],
-  ['bridge', 'token_hash', 'string'],
-  ['bridge', 'encryption_enabled', 'boolean'],
-  ['audit', 'chain_head_hash', 'string'],
-  ['audit', 'chain_length', 'number'],
-];
 const HEX64 = /^[0-9a-f]{64}$/;
-const B64 = /^[A-Za-z0-9+/]*={0,2}$/;
 const INT_TOKEN = /^(?:0|[1-9][0-9]*)$/;
 const INT_MAX_DIGITS = 20;
 const TIMESTAMP = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{1,9}))?(Z|([+-])(\d\d):(\d\d))$/;
-const GO_SPACE = /[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/g;
+// README § Input document: the ONE whitespace set (Go's unicode.IsSpace) —
+// step 4 "non-blank" and the step 7i qi_score verdict trim. Nothing else:
+// not U+001C–U+001F, not U+200B, not U+FEFF.
+const SPACE_CLASS = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
+const EDGE_SPACE = new RegExp(`^[${SPACE_CLASS}]+|[${SPACE_CLASS}]+$`, 'g');
 const U32 = 2n ** 32n - 1n;
 const I31 = 2n ** 31n - 1n;
 const U64 = 2n ** 64n - 1n;
+
+// README § Input document, the case-variant rule: every key the recipe reads
+// anywhere in the certificate document or in the signed bytes.
+const SPEC_KEYS = new Set([
+  // certificate
+  'certificate_id', 'request_id', 'witness_key_id', 'issued_at', 'protocol_version', 'claims',
+  'verification', 'signable_protocol_version_emitted', 'witness_signature', 'signable_v3_signature',
+  'client_id', 'api_key_id',
+  // verification
+  'overall_verdict', 'cert_tier', 'byok_exempt',
+  // claims[]
+  'claim_id', 'service_id', 'claim_type', 'canonical_payload', 'signature', 'data_seen', 'data_not_seen',
+  'bridge', 'sanitizer', 'inference', 'audit',
+  // typed objects
+  'isolation_probe', 'model_used', 'response_hash', 'upstream_request_bodies',
+  'pii_entities_found', 'layers_active', 'qi_score',
+  'k_anonymity', 'l_diversity', 'risk_score', 'threshold', 'verdict', 'fields_generalized',
+  'token_hash', 'encryption_enabled', 'chain_head_hash', 'chain_length',
+  // signed bytes (steps 5c, 7e-7i, 8, 9)
+  'payload', 'timestamp', 'upstream_body_sha256', 'inference_outcome',
+  'redaction_manifest_hash', 'sanitized_fields_hash', 'tms_manifest_hash',
+]);
+
+/** ASCII A–Z → a–z, U+212A KELVIN SIGN → k, U+017F LATIN SMALL LETTER LONG S → s; nothing else. */
+function fold(k: string): string {
+  let out = '';
+  for (let i = 0; i < k.length; i++) {
+    const c = k.charCodeAt(i);
+    if (c >= 0x41 && c <= 0x5a) out += String.fromCharCode(c + 32);
+    else if (c === 0x212a) out += 'k';
+    else if (c === 0x017f) out += 's';
+    else out += k[i];
+  }
+  return out;
+}
+
+/** @internal The protojson JSON name protoc derives: every "_" dropped, the a–z letter after it upper-cased. */
+export function protoJsonName(name: string): string {
+  let out = '';
+  let under = false;
+  for (const c of name) {
+    if (c !== '_') out += under && c >= 'a' && c <= 'z' ? c.toUpperCase() : c;
+    under = c === '_';
+  }
+  return out;
+}
+
+const SPEC_FOLDED = new Set([...SPEC_KEYS].flatMap((k) => [fold(k), fold(protoJsonName(k))]));
+
+/** A key, at any depth, that is not a spec key but folds to a spec key or to a spec key's JSON name. */
+function hasCaseVariantKey(v: JVal): boolean {
+  if (v instanceof Map) {
+    for (const [k, x] of v) {
+      if (!SPEC_KEYS.has(k) && SPEC_FOLDED.has(fold(k))) return true;
+      if (hasCaseVariantKey(x)) return true;
+    }
+  } else if (Array.isArray(v)) {
+    return v.some(hasCaseVariantKey);
+  }
+  return false;
+}
+
+/**
+ * @internal Step 1's document rule: the size bound (before any parsing), the
+ * ONE strict document grammar, the case-variant key rule. Throws
+ * JsonGrammarError.
+ */
+export function parseCertificateDocument(input: string | Uint8Array): JVal {
+  const size = typeof input === 'string' ? Buffer.byteLength(input, 'utf8') : input.length;
+  if (size > MAX_INPUT_BYTES) throw new JsonGrammarError('input larger than the size bound');
+  const v = parseDocument(input);
+  if (hasCaseVariantKey(v)) throw new JsonGrammarError('a key is a case variant of a spec key');
+  return v;
+}
 
 // ---------------------------------------------------------------------------
 // Value helpers (absent and null are the same unless a step reads presence).
@@ -187,9 +354,8 @@ const get = (m: JObj, k: string): JVal => {
 /** @internal README step 7b — CANONICAL standard padded base64; null → empty. */
 export function b64(v: JVal): Uint8Array | null {
   if (v === null) return new Uint8Array(0);
-  if (typeof v !== 'string' || !B64.test(v) || v.length % 4 !== 0) return null;
-  const raw = Buffer.from(v, 'base64');
-  return raw.toString('base64') === v ? new Uint8Array(raw) : null;
+  if (typeof v !== 'string') return null;
+  return canonicalBase64(v);
 }
 
 function strList(v: JVal): string[] | null {
@@ -230,6 +396,11 @@ export function f32(v: JVal, zeroIfAbsent: boolean): number | null {
   return Number.isFinite(g) ? g : null;
 }
 
+/** @internal Trim the ONE whitespace set from both ends. */
+export function trimSpace(s: string): string {
+  return s.replace(EDGE_SPACE, '');
+}
+
 const pad = (n: number, w: number): string => String(n).padStart(w, '0');
 
 /** @internal README step 5a — the ONE timestamp grammar → UTC RFC3339Nano, or null. */
@@ -262,24 +433,86 @@ export function rfc3339NanoUtc(s: string): string | null {
 
 const hex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 
-// SPKI DER prefix for a raw Ed25519 public key (see verify-certificate/signature.ts).
-const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
-
-function keyObject(raw: Uint8Array): KeyObject {
-  return createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(raw)]), format: 'der', type: 'spki' });
-}
-
-function ed25519Ok(key: KeyObject, msg: Uint8Array, sig: Uint8Array): boolean {
-  if (sig.length !== 64) return false;
-  try {
-    return cryptoVerify(null, Buffer.from(msg), key, Buffer.from(sig));
-  } catch {
-    return false;
-  }
-}
-
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0;
+}
+
+// ---------------------------------------------------------------------------
+// `verified`: plain values out, canonical JSON back (the parity form).
+// ---------------------------------------------------------------------------
+
+/** A signed JSON value as a plain JS value: objects, arrays, strings, booleans, null, integers as bigint. */
+function toPlain(v: JVal): unknown {
+  if (v instanceof JNum) return BigInt(v.text); // only integer tokens reach here
+  if (Array.isArray(v)) return v.map(toPlain);
+  if (v instanceof Map) {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of v) out[k] = toPlain(x);
+    return out;
+  }
+  return v;
+}
+
+function fromPlain(v: unknown): JVal {
+  if (v === null || typeof v === 'string' || typeof v === 'boolean') return v;
+  if (typeof v === 'bigint') return new JNum(v.toString());
+  if (Array.isArray(v)) return v.map(fromPlain);
+  if (typeof v === 'object') {
+    const out: JObj = new Map();
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out.set(k, fromPlain(x));
+    return out;
+  }
+  throw new TypeError(`canonicalVerifiedJson: unsupported value of type ${typeof v}`);
+}
+
+/**
+ * The canonical JSON of a result's `verified` (`"null"` for a FAILED result):
+ * keys sorted by code point, no whitespace, non-ASCII escaped, integers
+ * written exactly. This is the form every Lucairn verifier is compared in.
+ */
+export function canonicalVerifiedJson(verified: CertificateChainVerified | null): string {
+  return canonical(fromPlain(verified));
+}
+
+/** RFC 6901 escaping of one reference token. */
+const pointerToken = (k: string): string => k.replace(/~/g, '~0').replace(/\//g, '~1');
+
+const isIntToken = (v: JVal): boolean => v instanceof JNum && uintToken(v.text, U64) !== null;
+
+/**
+ * @internal The UTF-8 byte total of the pointers flatten() would write for v
+ * (each already ptrLen bytes long); stops once the total passes budget, so a
+ * document built to blow up is never flattened.
+ */
+export function valuesBytes(v: JVal, ptrLen: number, budget: number): number {
+  let n = 0;
+  if (v instanceof Map) {
+    for (const [k, x] of v) {
+      n += valuesBytes(x, ptrLen + 1 + Buffer.byteLength(pointerToken(k), 'utf8'), budget - n);
+      if (n > budget) return n;
+    }
+  } else if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) {
+      n += valuesBytes(v[i], ptrLen + 1 + String(i).length, budget - n);
+      if (n > budget) return n;
+    }
+  } else if (typeof v === 'string' || typeof v === 'boolean' || isIntToken(v)) {
+    n = ptrLen;
+  }
+  return n;
+}
+
+/** README § Result `values`: the string / boolean / integer-token leaves by JSON Pointer. */
+function flatten(v: JVal, path: string, out: Record<string, VerifiedValue>): void {
+  if (v instanceof Map) {
+    for (const [k, x] of v) flatten(x, path + '/' + pointerToken(k), out);
+  } else if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) flatten(v[i], `${path}/${i}`, out);
+  } else if (typeof v === 'string' || typeof v === 'boolean') {
+    out[path] = v;
+  } else if (isIntToken(v)) {
+    out[path] = BigInt((v as JNum).text);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +526,8 @@ interface PassState {
   sv: 'v2' | 'v3';
   userUnredacted: 'true' | 'false';
   tier: CertificateChainResult['signed_cert_tier'];
-  typedUnauth: string[];
+  binding: 'matched' | 'not_checked';
+  verified: CertificateChainVerified;
 }
 
 const byteOrder = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -308,12 +542,10 @@ function outcome(step: string, st?: PassState): CertificateChainResult {
       user_unredacted: 'unknown',
       signed_cert_tier: 'not_evaluated',
       signable_version: 'none',
-      authenticated_fields: [],
-      unauthenticated_fields: [...DISPLAYED_V3_ONLY],
+      request_binding: 'not_evaluated',
+      verified: null,
     };
   }
-  const auth = st.sv === 'v3' ? [...V2_FIELDS, ...V3_ONLY].sort(byteOrder) : [...V2_FIELDS];
-  const unauth = [...(st.sv === 'v3' ? [] : DISPLAYED_V3_ONLY), ...st.typedUnauth].sort(byteOrder);
   return {
     verdict,
     reason,
@@ -321,12 +553,16 @@ function outcome(step: string, st?: PassState): CertificateChainResult {
     user_unredacted: st.userUnredacted,
     signed_cert_tier: st.tier,
     signable_version: st.sv,
-    authenticated_fields: auth,
-    unauthenticated_fields: unauth,
+    request_binding: st.binding,
+    verified: st.verified,
   };
 }
 
-/** The FIRST dsa-sanitizer claim's canonical payload.payload[key] as a non-empty string, else null. */
+/**
+ * Step 5c: the FIRST dsa-sanitizer claim's canonical payload.payload[key] as
+ * a non-empty string, else null — read with the SAME strict document parser
+ * as every other read (the case-variant rule is step 7e's, not this one's).
+ */
 function sanitizerHash(claims: JObj[], key: string): JVal {
   for (const c of claims) {
     if (get(c, 'service_id') !== 'dsa-sanitizer') continue;
@@ -347,9 +583,9 @@ function sanitizerHash(claims: JObj[], key: string): JVal {
   return null;
 }
 
-function qiVerdict(s: string): string {
-  // ASCII-only upper-casing (Unicode case mapping differs between languages).
-  const v = s.replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '').replace(/[a-z]/g, (ch) => ch.toUpperCase());
+/** @internal The step 7i qi_score verdict: ONE whitespace set trimmed, ASCII-only upper-casing. */
+export function qiVerdict(s: string): string {
+  const v = trimSpace(s).replace(/[a-z]/g, (ch) => ch.toUpperCase());
   return v === 'PASS' || v === 'GENERALIZED' || v === 'BLOCKED' ? `QI_VERDICT_${v}` : 'QI_VERDICT_UNKNOWN';
 }
 
@@ -387,7 +623,7 @@ function typedBound(c: JObj, claimType: string, p: JObj): boolean {
     if (!isObj(v) || present) return false;
     present = k;
   }
-  const kind = TYPED_KINDS[claimType];
+  const kind = Object.prototype.hasOwnProperty.call(TYPED_KINDS, claimType) ? TYPED_KINDS[claimType] : undefined;
   if (present && (kind === undefined || present !== kind[0])) return false;
   if (kind !== undefined && !present && kind[1].some((k) => p.has(k))) return false;
   const signedLayers = get(p, 'layers_active');
@@ -451,18 +687,6 @@ function typedBound(c: JObj, claimType: string, p: JObj): boolean {
   return true;
 }
 
-/** README step 7i: typed fields present while their signed key is absent, null or of another JSON type. */
-function typedUnbound(i: number, c: JObj, p: JObj): string[] {
-  const out: string[] = [];
-  for (const [kind, field, want] of CONDITIONAL_TYPED) {
-    if (!isObj(get(c, kind))) continue;
-    const v = get(p, field);
-    const got = typeof v === 'boolean' ? 'boolean' : typeof v === 'string' ? 'string' : v instanceof JNum ? 'number' : null;
-    if (got !== want) out.push(`claims[${i}].${kind}.${field}`);
-  }
-  return out;
-}
-
 /** README step 8d → [signed tier, the unsigned label passes, capped at EGRESS_UNATTESTED (fix A)]. */
 function certTierCheck(
   claims: JObj[],
@@ -488,6 +712,24 @@ function certTierCheck(
         ? 'input_shield'
         : 'inconsistent';
   }
+  // The two-signer input-shield chain (sanitizer + gateway only) — an
+  // SDK-local extension ahead of the corpus (no v1.2 vector yet). It applies
+  // ONLY to the unsigned label `input_shield_two_signer`, which passes beside
+  // exactly one signed copy, the gateway's "input-shield", in a chain that
+  // has a (verified) dsa-sanitizer claim and no dsa-ai claim at all; the
+  // result then reports that tier. Any other signed
+  // shape with that label FAILS, whatever the sealed verdict (like any label
+  // outside the rule-1 vocabulary). Every other label is decided as before.
+  if (unsigned === 'input_shield_two_signer') {
+    const twoSigner =
+      carriers.length === 1 &&
+      carriers[0][0] === 'dsa-gateway' &&
+      carriers[0][1] === 'input-shield' &&
+      // Every claim here already passed step 7, so a present sanitizer claim is a valid one.
+      claims.some((c) => get(c, 'service_id') === 'dsa-sanitizer') &&
+      !claims.some((c) => get(c, 'service_id') === 'dsa-ai');
+    return twoSigner ? ['input_shield_two_signer', true, false] : [signed, false, false];
+  }
   if (unsigned !== '' && unsigned !== 'full_chain' && unsigned !== 'input_shield') return [signed, false, false];
   if ((signed === 'absent' && (unsigned === '' || unsigned === 'full_chain')) || (signed === 'input_shield' && unsigned === 'input_shield')) {
     return [signed, true, false];
@@ -506,32 +748,41 @@ interface PinnedKeys {
   services: Map<string, KeyObject>;
 }
 
+interface Binding {
+  requestId?: string;
+  certificateId?: string;
+}
+
 /**
- * Verify a Lucairn certificate AND every claim inside it (T-935 S3 / T-794).
+ * Verify a Lucairn certificate AND every claim inside it.
  *
  * Runs the parity-corpus recipe (steps 1–9e) and returns a
  * {@link CertificateChainResult}. Certificate problems never throw: they are
  * a `FAILED` verdict with the deciding step's reason.
  *
+ * Render and decide ONLY from `verified` plus `verdict`, `reason`,
+ * `egress_attestation`, `signed_cert_tier`, `user_unredacted` and
+ * `request_binding` — never from the raw certificate or a second parse of it.
+ *
  * @param certificate - the certificate JSON exactly as received (the raw body
- *   of `GET /api/v1/veil/certificate/{id}`, or a witness export) as a string
- *   or UTF-8 bytes. Pass the raw text, NOT a `JSON.parse` result: integer
- *   tokens, float lexemes and trailing data are part of the checks, and
- *   `JSON.parse` loses them.
- * @param keys - the pinned witness key and per-service claim keys.
- * @param options.minimumSignableVersion - `'v2'` / omitted = policy `default`
- *   (legacy-tolerant: v2-only certificates verify, and their v3-only fields
- *   are listed in `unauthenticated_fields`); `'v3'` = policy `minimum_v3` (a
- *   certificate that authenticates only through the v2 signable FAILS with
- *   `signable_version_insufficient`).
- * @returns a promise that REJECTS with a TypeError for programmer errors only
- *   (a malformed key set, a non-string/bytes certificate, an unknown policy);
- *   a bad certificate resolves to a FAILED result.
+ *   of `GET /api/v1/veil/certificate/{id}`, or a witness export) as UTF-8
+ *   bytes (preferred) or a string, at most 32 MiB. Pass the raw bytes, NOT a
+ *   `JSON.parse` result: integer tokens, float lexemes, duplicate keys and
+ *   trailing data are part of the checks, and `JSON.parse` loses them.
+ * @param keys - the pinned witness key and per-service claim keys. Every key
+ *   passes the pinned-key policy when loaded, or the call throws a
+ *   {@link PinnedKeyError}.
+ * @param options - `minimumSignableVersion` (the policy) and the request
+ *   binding `expectedRequestId` / `expectedCertificateId`.
+ * @returns a promise that REJECTS with a TypeError (a {@link PinnedKeyError}
+ *   for a refused key) for programmer errors only (a malformed key set, a
+ *   non-string/bytes certificate, a bad option); a bad certificate resolves
+ *   to a FAILED result.
  */
 export async function verifyCertificateChain(
   certificate: string | Uint8Array,
   keys: CertificateChainKeys,
-  options?: VerifyCertificateOptions,
+  options?: VerifyCertificateChainOptions,
 ): Promise<CertificateChainResult> {
   if (typeof certificate !== 'string' && !(certificate instanceof Uint8Array)) {
     throw new TypeError('verifyCertificateChain: certificate must be the raw certificate JSON (string or Uint8Array)');
@@ -539,6 +790,16 @@ export async function verifyCertificateChain(
   const min = options?.minimumSignableVersion;
   if (min !== undefined && min !== 'v2' && min !== 'v3') {
     throw new TypeError(`verifyCertificateChain: minimumSignableVersion must be 'v2' or 'v3', got ${String(min)}`);
+  }
+  const binding: Binding = {};
+  for (const [opt, field] of [
+    ['expectedRequestId', 'requestId'],
+    ['expectedCertificateId', 'certificateId'],
+  ] as const) {
+    const v = options?.[opt];
+    if (v === undefined) continue;
+    if (typeof v !== 'string') throw new TypeError(`verifyCertificateChain: ${opt} must be a string when supplied`);
+    binding[field] = v;
   }
   if (keys === null || typeof keys !== 'object') throw new TypeError('verifyCertificateChain: keys argument is required');
   if (typeof keys.witnessKeyId !== 'string' || keys.witnessKeyId === '') {
@@ -552,24 +813,25 @@ export async function verifyCertificateChain(
   ) {
     throw new TypeError('verifyCertificateChain: keys.servicePublicKeys must be a { service_id: key } record');
   }
+  if (keys.allowTestKeys !== undefined && typeof keys.allowTestKeys !== 'boolean') {
+    throw new TypeError('verifyCertificateChain: keys.allowTestKeys must be a boolean when supplied');
+  }
+  const allowTestKeys = keys.allowTestKeys === true;
+  const witness = keyObject(pinnedKey(keys.witnessPublicKey, allowTestKeys, 'witnessPublicKey'));
   const services = new Map<string, KeyObject>();
   for (const [svc, k] of Object.entries(keys.servicePublicKeys)) {
     if (svc === '') throw new TypeError('verifyCertificateChain: empty service_id in servicePublicKeys');
-    services.set(svc, keyObject(normalizeEd25519PublicKey(k)));
+    services.set(svc, keyObject(pinnedKey(k, allowTestKeys, `servicePublicKeys[${JSON.stringify(svc)}]`)));
   }
-  const pinned: PinnedKeys = {
-    witnessKeyId: keys.witnessKeyId,
-    witness: keyObject(normalizeEd25519PublicKey(keys.witnessPublicKey)),
-    services,
-  };
-  return run(certificate, pinned, min === 'v3');
+  const pinned: PinnedKeys = { witnessKeyId: keys.witnessKeyId, witness, services };
+  return run(certificate, pinned, min === 'v3', binding);
 }
 
-function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): CertificateChainResult {
-  // 1. Shape.
+function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean, binding: Binding): CertificateChainResult {
+  // 1. Shape (after the size bound, the document grammar and the case-variant rule).
   let root: JVal;
   try {
-    root = parseDocument(certJson);
+    root = parseCertificateDocument(certJson);
   } catch {
     return outcome('1');
   }
@@ -609,10 +871,9 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
   if (pv !== 2n) return outcome('2');
   // 3. Witness identity.
   if (wkid !== keys.witnessKeyId) return outcome('3');
-  // 4. Signable-version tri-state ("non-blank" = not empty after trimming
-  // whitespace — Go's unicode.IsSpace set, as the witness; String.trim would
-  // also strip U+FEFF).
-  const v3present = v3sig.replace(GO_SPACE, '') !== '';
+  // 4. Signable-version tri-state ("non-blank" = not empty after trimming the
+  // ONE whitespace set; String.prototype.trim would also strip U+FEFF).
+  const v3present = trimSpace(v3sig) !== '';
   if (emitted >= 3n !== v3present) return outcome('4');
   // 5a. issued_at grammar.
   const issued = rfc3339NanoUtc(issuedAt);
@@ -629,6 +890,7 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
   ]);
   const wsig = b64(get(cert, 'witness_signature'));
   if (!wsig || wsig.length === 0 || !ed25519Ok(keys.witness, canonicalBytes(v2), wsig)) return outcome('5b');
+  let signable = v2;
   // 5c. v3 witness signature.
   let sv: 'v2' | 'v3' = 'v2';
   if (v3present) {
@@ -642,9 +904,21 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
     const sig = b64(v3sig);
     if (sig === null || !ed25519Ok(keys.witness, canonicalBytes(v3), sig)) return outcome('5c');
     sv = 'v3';
+    signable = v3;
   }
   // 5d. Policy.
   if (minV3 && sv !== 'v3') return outcome('5d');
+  // 5e. Request binding, against the witness-signed ids just verified.
+  let bound: PassState['binding'] = 'not_checked';
+  if (binding.requestId !== undefined || binding.certificateId !== undefined) {
+    if (
+      (binding.requestId !== undefined && binding.requestId !== reqId) ||
+      (binding.certificateId !== undefined && binding.certificateId !== certId)
+    ) {
+      return outcome('5e');
+    }
+    bound = 'matched';
+  }
   // 6. Sealed verdict + claim-id uniqueness.
   if (sealed === 'VERDICT_FAILED') return outcome('6a');
   if (sealed !== 'VERDICT_VERIFIED' && sealed !== 'VERDICT_PARTIAL') return outcome('6b');
@@ -653,7 +927,8 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
 
   // 7. Every claim, in array order.
   const canon: JObj[] = [];
-  const typedUnauth: string[] = [];
+  const verifiedClaims: Record<string, VerifiedClaim> = {};
+  let valuesTotal = 0;
   for (let i = 0; i < claims.length; i++) {
     const c = claims[i];
     const svc = get(c, 'service_id') as string;
@@ -672,14 +947,18 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
       }
       return outcome('7d');
     }
-    // 7e.
+    // 7e. One strict document, an object, no case-variant key, and the
+    // running `values` pointer total within its bound (counted BEFORE any
+    // pointer is built).
     let cm: JVal;
     try {
       cm = parseDocument(cp);
     } catch {
       return outcome('7e');
     }
-    if (!isObj(cm)) return outcome('7e');
+    if (!isObj(cm) || hasCaseVariantKey(cm)) return outcome('7e');
+    valuesTotal += valuesBytes(cm, 0, MAX_VALUES_POINTER_BYTES - valuesTotal + 1);
+    if (valuesTotal > MAX_VALUES_POINTER_BYTES) return outcome('7e');
     // 7f.
     const signedId = get(cm, 'claim_id');
     if (typeof signedId !== 'string' || !listed.has(signedId)) return outcome('7f');
@@ -709,8 +988,11 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
     const pRaw = get(cm, 'payload');
     const payload: JObj = isObj(pRaw) ? pRaw : new Map();
     if (!typedBound(c, claimType, payload)) return outcome('7i');
-    typedUnauth.push(...typedUnbound(i, c, payload));
     canon.push(payload);
+    const values: Record<string, VerifiedValue> = {};
+    flatten(cm, '', values);
+    // The rebuilt bytes equal the signed bytes, and canonical JSON is ASCII.
+    verifiedClaims[`${i}:${svc}:${claimType}`] = { canonical: Buffer.from(cp).toString('latin1'), values };
   }
 
   // 8a. Signed digest lists.
@@ -761,7 +1043,11 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean): C
   })
     ? 'true'
     : 'false';
-  const st: PassState = { egress, sv, userUnredacted, tier, typedUnauth };
+  const verified: CertificateChainVerified = {
+    certificate: toPlain(signable) as VerifiedCertificate,
+    claims: verifiedClaims,
+  };
+  const st: PassState = { egress, sv, userUnredacted, tier, binding: bound, verified };
 
   // 9. Ceilings (first match wins).
   if (canon.some((p) => p.has('inference_outcome'))) return outcome('9a', st); // key PRESENCE: a signed null counts
