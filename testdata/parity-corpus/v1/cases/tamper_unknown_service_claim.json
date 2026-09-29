@@ -1,10 +1,10 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_unknown_service_claim",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "The chain carries a correctly signed claim from dsa-sanitizer-streaming, a service the verifier pins no key for. Rule: a claim from an unpinned service FAILS the certificate, never skipped — the witness does the same (internal/verifier/verifier.go:480-485, no key → FAILED). A production pin set must cover every service that emits in that deployment.",
-  "construction": "full chain + a dsa-sanitizer-streaming claim signed with the not_pinned key; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse; README § How it is produced)",
+  "description": "The chain carries a correctly signed claim from dsa-unpinned, a service the verifier pins no key for (the pin set is incomplete). Rule: a claim from an unpinned service FAILS the certificate, never skipped — the witness does the same (no key → FAILED). A production pin set must cover every service that emits in that deployment.",
+  "construction": "full chain + a dsa-unpinned claim signed with its not_pinned key; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs)",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -15,7 +15,7 @@
           "canonical_json_signing"
         ],
         "notary_public_key_id": "witness_parity_v1",
-        "notary_signature": "R2CErwm/aZk1PXiBu1xVrSvgtIf3GS3kTCv6XwzFp48TS2s1jkjml8OS4AzVRvFQUCfp/3vtHTM89tfh09p+BA==",
+        "notary_signature": "+MQsc+Hsq9lf1Q9nJrNrb/g9qE2E7xRJpp7lxPhXpuBJ8o5FfujR6wDIRciPZ/WIpI//0w2E2OKAGhb70VPNCQ==",
         "provider": "dsa-veil-witness"
       },
       "qualified_timestamp": null,
@@ -94,8 +94,8 @@
         "timestamp": "2026-09-25T12:00:00.250Z"
       },
       {
-        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV8xOTkxNTgzNy1hZmZkLTQ2YjQtYTdkZC0xNTM5ZTAwYWEzYzUiLCJjbGFpbV90eXBlIjoiUElJX1NBTklUSVpFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJ0b2tlbiIsImluZmVyZW5jZV9yZXN1bHQiXSwiZGF0YV9zZWVuIjpbImNvbnRleHRfZmllbGRzIl0sInBheWxvYWQiOnsibGF5ZXJzX2FjdGl2ZSI6WyJrbm93bl9lbnRpdHlfbWF0Y2hpbmciXSwicGlpX2VudGl0aWVzX2ZvdW5kIjowfSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfZnVsbCIsInNlcnZpY2VfaWQiOiJkc2Etc2FuaXRpemVyLXN0cmVhbWluZyIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDA6MDAuOVoifQ==",
-        "claim_id": "clm_19915837-affd-46b4-a7dd-1539e00aa3c5",
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9iZDllZTkwMy00MDA5LTQxYWEtYTZjZi0zYzYxM2Y3NzhkZDUiLCJjbGFpbV90eXBlIjoiUElJX1NBTklUSVpFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiLCJ0b2tlbiIsImluZmVyZW5jZV9yZXN1bHQiXSwiZGF0YV9zZWVuIjpbImNvbnRleHRfZmllbGRzIl0sInBheWxvYWQiOnsibGF5ZXJzX2FjdGl2ZSI6WyJrbm93bl9lbnRpdHlfbWF0Y2hpbmciXSwicGlpX2VudGl0aWVzX2ZvdW5kIjowfSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfZnVsbCIsInNlcnZpY2VfaWQiOiJkc2EtdW5waW5uZWQiLCJ0aW1lc3RhbXAiOiIyMDI2LTA5LTI1VDEyOjAwOjAwLjlaIn0=",
+        "claim_id": "clm_bd9ee903-4009-41aa-a6cf-3c613f778dd5",
         "claim_type": "CLAIM_TYPE_PII_SANITIZED",
         "data_not_seen": [
           "customer_id",
@@ -119,8 +119,8 @@
           "sanitized_fields_body": "",
           "tms_manifest_body": ""
         },
-        "service_id": "dsa-sanitizer-streaming",
-        "signature": "SG0J4SMc253OsxC2j4j6M62NLAu/ua4Umk5afCAUl3HPKF1c6H42q1E/JGdtPRnSMAzODXaa6i6/JGt6HN1+DQ==",
+        "service_id": "dsa-unpinned",
+        "signature": "7tk0X/jkhrgzxFxZ2A3ivStPPulYNwFMRpeX4Dw5Yg3YeCPwb+tfwpjtjvDh1PHj55OdfyuOMNFaQJn1InWUAw==",
         "timestamp": "2026-09-25T12:00:00.900Z"
       },
       {
@@ -183,8 +183,8 @@
     "protocol_version": 2,
     "request_id": "req_parity_v1_full",
     "signable_protocol_version_emitted": 3,
-    "signable_v2_signature": "R2CErwm/aZk1PXiBu1xVrSvgtIf3GS3kTCv6XwzFp48TS2s1jkjml8OS4AzVRvFQUCfp/3vtHTM89tfh09p+BA==",
-    "signable_v3_signature": "KFoI27tdp9FGEgUf8x+l6gZ/ONCjd3RiCrBwksRR8gofsrf2XfiET4Q33VHhP92azOCAswzSz/KrksZoy698Aw==",
+    "signable_v2_signature": "+MQsc+Hsq9lf1Q9nJrNrb/g9qE2E7xRJpp7lxPhXpuBJ8o5FfujR6wDIRciPZ/WIpI//0w2E2OKAGhb70VPNCQ==",
+    "signable_v3_signature": "KWKzBGHAaCimx3jv5R3AvDnhk+B5/H7HH1p+dEU9UCvIBwAiC5KphELvGH0ZSJb3NSQ5nKDkeG7tNVXtZtY9Bg==",
     "upstream_model": "claude-sonnet-4-5",
     "verification": {
       "anchor_verifications": [],
@@ -234,7 +234,7 @@
       "upstream_auth_mode": "managed"
     },
     "witness_key_id": "witness_parity_v1",
-    "witness_signature": "R2CErwm/aZk1PXiBu1xVrSvgtIf3GS3kTCv6XwzFp48TS2s1jkjml8OS4AzVRvFQUCfp/3vtHTM89tfh09p+BA=="
+    "witness_signature": "+MQsc+Hsq9lf1Q9nJrNrb/g9qE2E7xRJpp7lxPhXpuBJ8o5FfujR6wDIRciPZ/WIpI//0w2E2OKAGhb70VPNCQ=="
   },
   "expected": {
     "default": {
@@ -244,12 +244,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -258,17 +254,13 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {
     "witness_reverify_verdict": "VERDICT_FAILED",
     "witness_agrees": true,
-    "note": "the corpus witness pins the same six service keys, so /verify also FAILS it (verifier.go:480-485)"
+    "note": "the corpus witness pins the same service keys, so /verify also FAILS it"
   }
 }

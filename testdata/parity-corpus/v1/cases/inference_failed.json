@@ -1,10 +1,10 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "inference_failed",
   "class": "honest",
   "surface": "get_certificate",
   "description": "The turn failed after the body left: sandbox-b signed inference_outcome \"failed\" and the attempt digest, no response_hash. The witness caps it at PARTIAL.",
-  "construction": "honest seal; dsa-ai claim from egress_capture.emit_failed_turn_claim",
+  "construction": "honest seal; dsa-ai claim from the sandbox-b failed-turn emitter",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -199,27 +199,111 @@
       "user_unredacted": "false",
       "signed_cert_tier": "absent",
       "signable_version": "v3",
-      "authenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "certificate_id",
-        "claim_ids",
-        "client_id",
-        "issued_at",
-        "overall_verdict",
-        "protocol_version",
-        "redaction_manifest_hash",
-        "request_id",
-        "sanitized_fields_body_hash",
-        "tms_manifest_hash",
-        "witness_key_id"
-      ],
-      "unauthenticated_fields": [
-        "claims[0].bridge.encryption_enabled",
-        "claims[2].inference.model_used",
-        "claims[3].audit.chain_head_hash",
-        "claims[3].audit.chain_length"
-      ]
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": "k_paritycorpus0001",
+          "byok_exempt": false,
+          "certificate_id": "veil_338e7056-aa34-42c8-ab25-2b8444a864a6",
+          "claim_ids": [
+            "clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5",
+            "clm_23212101-cf6b-4e1b-b979-289741d424a6",
+            "clm_a6c2df47-83f6-464f-a977-a07613d7a9ba",
+            "clm_d1f4f61d-1dde-49ac-babe-981a05ab512c"
+          ],
+          "client_id": "org_parity_corpus",
+          "issued_at": "2026-09-25T12:02:02.5Z",
+          "overall_verdict": "PARTIAL",
+          "protocol_version": 2,
+          "redaction_manifest_hash": "651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312",
+          "request_id": "req_parity_v1_failed",
+          "sanitized_fields_body_hash": "608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b",
+          "tms_manifest_hash": "df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3",
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-bridge:TOKEN_GENERATED": {
+            "canonical": "{\"claim_id\":\"clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5\",\"claim_type\":\"TOKEN_GENERATED\",\"data_not_seen\":[\"context\",\"prompt_template\",\"inference_result\"],\"data_seen\":[\"customer_id\"],\"payload\":{\"api_key_id\":\"k_paritycorpus0001\",\"conversation_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"ephemeral\":false,\"org_id\":\"org_parity_corpus\",\"token_hash\":\"6b65bc939039b87641d58ef40512b571440ad027f67181acf76adb4dfd2b5386\"},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-bridge\",\"timestamp\":\"2026-09-25T12:02:00.1Z\"}",
+            "values": {
+              "/claim_id": "clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5",
+              "/claim_type": "TOKEN_GENERATED",
+              "/data_not_seen/0": "context",
+              "/data_not_seen/1": "prompt_template",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "customer_id",
+              "/payload/api_key_id": "k_paritycorpus0001",
+              "/payload/conversation_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/ephemeral": false,
+              "/payload/org_id": "org_parity_corpus",
+              "/payload/token_hash": "6b65bc939039b87641d58ef40512b571440ad027f67181acf76adb4dfd2b5386",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-bridge",
+              "/timestamp": "2026-09-25T12:02:00.1Z"
+            }
+          },
+          "1:dsa-sanitizer:PII_SANITIZED": {
+            "canonical": "{\"claim_id\":\"clm_23212101-cf6b-4e1b-b979-289741d424a6\",\"claim_type\":\"PII_SANITIZED\",\"data_not_seen\":[\"customer_id\",\"token\",\"inference_result\"],\"data_seen\":[\"context_fields\"],\"payload\":{\"entity_counts\":{\"PERSON\":1},\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"gliner_ner\",\"llm_pii_scan\"],\"pii_entities_found\":1,\"privacy_budget\":null,\"qi_score\":null,\"redaction_manifest_hash\":\"651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312\",\"sanitization_summary\":\"Zusammenfassung f\\u00fcr failed: 1 Entit\\u00e4t(en) durch Platzhalter ersetzt\",\"sanitized_fields_hash\":\"608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b\",\"tms_manifest_hash\":\"df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3\"},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-sanitizer\",\"timestamp\":\"2026-09-25T12:02:00.250000Z\"}",
+            "values": {
+              "/claim_id": "clm_23212101-cf6b-4e1b-b979-289741d424a6",
+              "/claim_type": "PII_SANITIZED",
+              "/data_not_seen/0": "customer_id",
+              "/data_not_seen/1": "token",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "context_fields",
+              "/payload/entity_counts/PERSON": 1,
+              "/payload/layers_active/0": "known_entity_matching",
+              "/payload/layers_active/1": "presidio_ner",
+              "/payload/layers_active/2": "gliner_ner",
+              "/payload/layers_active/3": "llm_pii_scan",
+              "/payload/pii_entities_found": 1,
+              "/payload/redaction_manifest_hash": "651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312",
+              "/payload/sanitization_summary": "Zusammenfassung f\u00fcr failed: 1 Entit\u00e4t(en) durch Platzhalter ersetzt",
+              "/payload/sanitized_fields_hash": "608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b",
+              "/payload/tms_manifest_hash": "df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-sanitizer",
+              "/timestamp": "2026-09-25T12:02:00.250000Z"
+            }
+          },
+          "2:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_a6c2df47-83f6-464f-a977-a07613d7a9ba\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"customer_id\",\"raw_context\",\"pii\"],\"data_seen\":[\"opaque_token\",\"sanitized_context\"],\"payload\":{\"inference_outcome\":\"failed\",\"isolation_probe\":\"VERIFIED\",\"upstream_auth_mode\":\"managed\",\"upstream_body_sha256\":[\"fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694\"]},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:02:01.500000Z\"}",
+            "values": {
+              "/claim_id": "clm_a6c2df47-83f6-464f-a977-a07613d7a9ba",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "customer_id",
+              "/data_not_seen/1": "raw_context",
+              "/data_not_seen/2": "pii",
+              "/data_seen/0": "opaque_token",
+              "/data_seen/1": "sanitized_context",
+              "/payload/inference_outcome": "failed",
+              "/payload/isolation_probe": "VERIFIED",
+              "/payload/upstream_auth_mode": "managed",
+              "/payload/upstream_body_sha256/0": "fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:02:01.500000Z"
+            }
+          },
+          "3:dsa-audit:EVENTS_RECORDED": {
+            "canonical": "{\"claim_id\":\"clm_d1f4f61d-1dde-49ac-babe-981a05ab512c\",\"claim_type\":\"EVENTS_RECORDED\",\"data_not_seen\":[\"pii\",\"context\",\"inference_result\"],\"data_seen\":[\"event_hashes\"],\"payload\":{\"event_id\":\"evt_parity_failed\",\"merkle_root\":\"a697e498bb08bfc96b3c6cd0df9d92ac0c39d9b9bfd9521e48e39f17dab29e52\",\"merkle_tree_size\":7},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-audit\",\"timestamp\":\"2026-09-25T12:02:02Z\"}",
+            "values": {
+              "/claim_id": "clm_d1f4f61d-1dde-49ac-babe-981a05ab512c",
+              "/claim_type": "EVENTS_RECORDED",
+              "/data_not_seen/0": "pii",
+              "/data_not_seen/1": "context",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "event_hashes",
+              "/payload/event_id": "evt_parity_failed",
+              "/payload/merkle_root": "a697e498bb08bfc96b3c6cd0df9d92ac0c39d9b9bfd9521e48e39f17dab29e52",
+              "/payload/merkle_tree_size": 7,
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-audit",
+              "/timestamp": "2026-09-25T12:02:02Z"
+            }
+          }
+        }
+      }
     },
     "minimum_v3": {
       "verdict": "PARTIAL",
@@ -228,27 +312,111 @@
       "user_unredacted": "false",
       "signed_cert_tier": "absent",
       "signable_version": "v3",
-      "authenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "certificate_id",
-        "claim_ids",
-        "client_id",
-        "issued_at",
-        "overall_verdict",
-        "protocol_version",
-        "redaction_manifest_hash",
-        "request_id",
-        "sanitized_fields_body_hash",
-        "tms_manifest_hash",
-        "witness_key_id"
-      ],
-      "unauthenticated_fields": [
-        "claims[0].bridge.encryption_enabled",
-        "claims[2].inference.model_used",
-        "claims[3].audit.chain_head_hash",
-        "claims[3].audit.chain_length"
-      ]
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": "k_paritycorpus0001",
+          "byok_exempt": false,
+          "certificate_id": "veil_338e7056-aa34-42c8-ab25-2b8444a864a6",
+          "claim_ids": [
+            "clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5",
+            "clm_23212101-cf6b-4e1b-b979-289741d424a6",
+            "clm_a6c2df47-83f6-464f-a977-a07613d7a9ba",
+            "clm_d1f4f61d-1dde-49ac-babe-981a05ab512c"
+          ],
+          "client_id": "org_parity_corpus",
+          "issued_at": "2026-09-25T12:02:02.5Z",
+          "overall_verdict": "PARTIAL",
+          "protocol_version": 2,
+          "redaction_manifest_hash": "651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312",
+          "request_id": "req_parity_v1_failed",
+          "sanitized_fields_body_hash": "608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b",
+          "tms_manifest_hash": "df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3",
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-bridge:TOKEN_GENERATED": {
+            "canonical": "{\"claim_id\":\"clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5\",\"claim_type\":\"TOKEN_GENERATED\",\"data_not_seen\":[\"context\",\"prompt_template\",\"inference_result\"],\"data_seen\":[\"customer_id\"],\"payload\":{\"api_key_id\":\"k_paritycorpus0001\",\"conversation_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"ephemeral\":false,\"org_id\":\"org_parity_corpus\",\"token_hash\":\"6b65bc939039b87641d58ef40512b571440ad027f67181acf76adb4dfd2b5386\"},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-bridge\",\"timestamp\":\"2026-09-25T12:02:00.1Z\"}",
+            "values": {
+              "/claim_id": "clm_d2dd94f9-5937-4a6b-baba-3cf8247d09d5",
+              "/claim_type": "TOKEN_GENERATED",
+              "/data_not_seen/0": "context",
+              "/data_not_seen/1": "prompt_template",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "customer_id",
+              "/payload/api_key_id": "k_paritycorpus0001",
+              "/payload/conversation_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/ephemeral": false,
+              "/payload/org_id": "org_parity_corpus",
+              "/payload/token_hash": "6b65bc939039b87641d58ef40512b571440ad027f67181acf76adb4dfd2b5386",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-bridge",
+              "/timestamp": "2026-09-25T12:02:00.1Z"
+            }
+          },
+          "1:dsa-sanitizer:PII_SANITIZED": {
+            "canonical": "{\"claim_id\":\"clm_23212101-cf6b-4e1b-b979-289741d424a6\",\"claim_type\":\"PII_SANITIZED\",\"data_not_seen\":[\"customer_id\",\"token\",\"inference_result\"],\"data_seen\":[\"context_fields\"],\"payload\":{\"entity_counts\":{\"PERSON\":1},\"layers_active\":[\"known_entity_matching\",\"presidio_ner\",\"gliner_ner\",\"llm_pii_scan\"],\"pii_entities_found\":1,\"privacy_budget\":null,\"qi_score\":null,\"redaction_manifest_hash\":\"651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312\",\"sanitization_summary\":\"Zusammenfassung f\\u00fcr failed: 1 Entit\\u00e4t(en) durch Platzhalter ersetzt\",\"sanitized_fields_hash\":\"608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b\",\"tms_manifest_hash\":\"df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3\"},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-sanitizer\",\"timestamp\":\"2026-09-25T12:02:00.250000Z\"}",
+            "values": {
+              "/claim_id": "clm_23212101-cf6b-4e1b-b979-289741d424a6",
+              "/claim_type": "PII_SANITIZED",
+              "/data_not_seen/0": "customer_id",
+              "/data_not_seen/1": "token",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "context_fields",
+              "/payload/entity_counts/PERSON": 1,
+              "/payload/layers_active/0": "known_entity_matching",
+              "/payload/layers_active/1": "presidio_ner",
+              "/payload/layers_active/2": "gliner_ner",
+              "/payload/layers_active/3": "llm_pii_scan",
+              "/payload/pii_entities_found": 1,
+              "/payload/redaction_manifest_hash": "651fe4bf9b221423ca074d24a0b8b7f636989ddfd4f337bb4a7127b2be25d312",
+              "/payload/sanitization_summary": "Zusammenfassung f\u00fcr failed: 1 Entit\u00e4t(en) durch Platzhalter ersetzt",
+              "/payload/sanitized_fields_hash": "608b21979c3b722751d653ed8ebd5aaa333310de63da768017da1db2d3f4b87b",
+              "/payload/tms_manifest_hash": "df7c847b3bc39984e456409b5cab7520f416bf57e02604e2333d7a0add6660a3",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-sanitizer",
+              "/timestamp": "2026-09-25T12:02:00.250000Z"
+            }
+          },
+          "2:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_a6c2df47-83f6-464f-a977-a07613d7a9ba\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"customer_id\",\"raw_context\",\"pii\"],\"data_seen\":[\"opaque_token\",\"sanitized_context\"],\"payload\":{\"inference_outcome\":\"failed\",\"isolation_probe\":\"VERIFIED\",\"upstream_auth_mode\":\"managed\",\"upstream_body_sha256\":[\"fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694\"]},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:02:01.500000Z\"}",
+            "values": {
+              "/claim_id": "clm_a6c2df47-83f6-464f-a977-a07613d7a9ba",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "customer_id",
+              "/data_not_seen/1": "raw_context",
+              "/data_not_seen/2": "pii",
+              "/data_seen/0": "opaque_token",
+              "/data_seen/1": "sanitized_context",
+              "/payload/inference_outcome": "failed",
+              "/payload/isolation_probe": "VERIFIED",
+              "/payload/upstream_auth_mode": "managed",
+              "/payload/upstream_body_sha256/0": "fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694",
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:02:01.500000Z"
+            }
+          },
+          "3:dsa-audit:EVENTS_RECORDED": {
+            "canonical": "{\"claim_id\":\"clm_d1f4f61d-1dde-49ac-babe-981a05ab512c\",\"claim_type\":\"EVENTS_RECORDED\",\"data_not_seen\":[\"pii\",\"context\",\"inference_result\"],\"data_seen\":[\"event_hashes\"],\"payload\":{\"event_id\":\"evt_parity_failed\",\"merkle_root\":\"a697e498bb08bfc96b3c6cd0df9d92ac0c39d9b9bfd9521e48e39f17dab29e52\",\"merkle_tree_size\":7},\"request_id\":\"req_parity_v1_failed\",\"service_id\":\"dsa-audit\",\"timestamp\":\"2026-09-25T12:02:02Z\"}",
+            "values": {
+              "/claim_id": "clm_d1f4f61d-1dde-49ac-babe-981a05ab512c",
+              "/claim_type": "EVENTS_RECORDED",
+              "/data_not_seen/0": "pii",
+              "/data_not_seen/1": "context",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "event_hashes",
+              "/payload/event_id": "evt_parity_failed",
+              "/payload/merkle_root": "a697e498bb08bfc96b3c6cd0df9d92ac0c39d9b9bfd9521e48e39f17dab29e52",
+              "/payload/merkle_tree_size": 7,
+              "/request_id": "req_parity_v1_failed",
+              "/service_id": "dsa-audit",
+              "/timestamp": "2026-09-25T12:02:02Z"
+            }
+          }
+        }
+      }
     }
   },
   "reference": {

@@ -1,0 +1,319 @@
+{
+  "codes": [
+    "ok",
+    "key_malformed",
+    "key_small_order",
+    "key_invalid_point",
+    "key_test_key"
+  ],
+  "format": "lucairn-parity-corpus/v1.2",
+  "note": "Each vector is ONE pinned key given as text plus the allow_test_keys setting; expected is ok or the code the verifier raises when it loads that key (a key-set error, never a verdict). The checks, in order: key_malformed = not canonical standard padded base64 of exactly 32 bytes (decode, re-encode, compare: no hex, URL-safe alphabet, missing padding, whitespace or set trailing bits); key_small_order = the 32 bytes with the top bit of byte 31 cleared equal one of the seven small-order y values (0, 1, p-1, p, p+1 and the two order-8 values, little-endian; 14 encodings with the sign bit either way); key_invalid_point = not the canonical encoding of a curve point (y = the low 255 bits, little-endian, is >= p = 2^255-19, or no x satisfies -x^2 + y^2 = 1 + d*x^2*y^2 with d = -121665/121666 mod p); key_test_key = one of the public keys in keys.json while allow_test_keys is false (their private keys follow from the public corpus seed).",
+  "vectors": [
+    {
+      "id": "ok",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE=",
+      "allow_test_keys": false,
+      "expected": "ok"
+    },
+    {
+      "id": "ok_allow_test_keys",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "malformed_hex",
+      "public_key": "fbd13d5661913087fc60f44068cc6e216e7666085a848fbbfd6c7a6074517ae1",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_unpadded",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_url_safe_alphabet",
+      "public_key": "-9E9VmGRMIf8YPRAaMxuIW52ZghahI-7_Wx6YHRReuE=",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_trailing_bits",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuF=",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_trailing_newline",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE=\n",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_leading_space",
+      "public_key": " +9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE=",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_trailing_bang",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuE=!",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_31_bytes",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReg==",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_33_bytes",
+      "public_key": "+9E9VmGRMIf8YPRAaMxuIW52ZghahI+7/Wx6YHRReuEA",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "malformed_empty",
+      "public_key": "",
+      "allow_test_keys": false,
+      "expected": "key_malformed"
+    },
+    {
+      "id": "small_order_00_00000000",
+      "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_01_00000000",
+      "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_02_01000000",
+      "public_key": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_03_01000000",
+      "public_key": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_04_26e8958f",
+      "public_key": "JuiVj8KyJ7BFw/SJ8u+Y8NXfrAXTxjM5sTgCiG1T/AU=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_05_26e8958f",
+      "public_key": "JuiVj8KyJ7BFw/SJ8u+Y8NXfrAXTxjM5sTgCiG1T/IU=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_06_c7176a70",
+      "public_key": "xxdqcD1N2E+6PAt2DRBnDyogU/osOczGTsf9d5KsA3o=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_07_c7176a70",
+      "public_key": "xxdqcD1N2E+6PAt2DRBnDyogU/osOczGTsf9d5KsA/o=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_08_ecffffff",
+      "public_key": "7P///////////////////////////////////////38=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_09_ecffffff",
+      "public_key": "7P////////////////////////////////////////8=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_10_edffffff",
+      "public_key": "7f///////////////////////////////////////38=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_11_edffffff",
+      "public_key": "7f////////////////////////////////////////8=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_12_eeffffff",
+      "public_key": "7v///////////////////////////////////////38=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_13_eeffffff",
+      "public_key": "7v////////////////////////////////////////8=",
+      "allow_test_keys": false,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "small_order_allow_test_keys",
+      "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "allow_test_keys": true,
+      "expected": "key_small_order"
+    },
+    {
+      "id": "invalid_point_off_curve",
+      "public_key": "AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "allow_test_keys": false,
+      "expected": "key_invalid_point"
+    },
+    {
+      "id": "invalid_point_off_curve_allow_test_keys",
+      "public_key": "AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "allow_test_keys": true,
+      "expected": "key_invalid_point"
+    },
+    {
+      "id": "invalid_point_noncanonical_y",
+      "public_key": "8P///////////////////////////////////////38=",
+      "allow_test_keys": false,
+      "expected": "key_invalid_point"
+    },
+    {
+      "id": "invalid_point_noncanonical_y_max",
+      "public_key": "/////////////////////////////////////////38=",
+      "allow_test_keys": false,
+      "expected": "key_invalid_point"
+    },
+    {
+      "id": "test_key_witness",
+      "public_key": "DADdf3OIOXxhBl2VQ5k1Kk8VgCTNBVhrWolquUvskSc=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_witness_allowed",
+      "public_key": "DADdf3OIOXxhBl2VQ5k1Kk8VgCTNBVhrWolquUvskSc=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-audit",
+      "public_key": "g34bEFHw7VjKYrRbblIGfjR7vktJDyqrf5xJfLHTyJE=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-audit_allowed",
+      "public_key": "g34bEFHw7VjKYrRbblIGfjR7vktJDyqrf5xJfLHTyJE=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-ai",
+      "public_key": "CEYOK2jlNGFq+qO34Lsv1J683D6o0xP7/zh8CExSEPw=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-ai_allowed",
+      "public_key": "CEYOK2jlNGFq+qO34Lsv1J683D6o0xP7/zh8CExSEPw=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-bridge",
+      "public_key": "l4pxgBHACNYoETbJISAgKf2GFv32LsF44RZ+5CXsbmk=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-bridge_allowed",
+      "public_key": "l4pxgBHACNYoETbJISAgKf2GFv32LsF44RZ+5CXsbmk=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-gateway",
+      "public_key": "QfwIjbzb5aYQsBsrp+1dhyh5XeO/wRokwWcQxfgvSc8=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-gateway_allowed",
+      "public_key": "QfwIjbzb5aYQsBsrp+1dhyh5XeO/wRokwWcQxfgvSc8=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-reid-guard",
+      "public_key": "ufi3DjW9XlboFkOiQiDHRFZpDFpvPgxZCw516lNr7Kg=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-reid-guard_allowed",
+      "public_key": "ufi3DjW9XlboFkOiQiDHRFZpDFpvPgxZCw516lNr7Kg=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-sanitizer",
+      "public_key": "tS+sf+14i1H/qJLJcrNvIvg2B5iJQ2KMXQhirCKsKLs=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-sanitizer_allowed",
+      "public_key": "tS+sf+14i1H/qJLJcrNvIvg2B5iJQ2KMXQhirCKsKLs=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-sanitizer-streaming",
+      "public_key": "XF4RayFQtg/k+NkMnsSnlrA/mEgv63vRzi6GKrSSQzY=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-sanitizer-streaming_allowed",
+      "public_key": "XF4RayFQtg/k+NkMnsSnlrA/mEgv63vRzi6GKrSSQzY=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_rogue",
+      "public_key": "9oGMdHYHc5/aVzMjYZkLNdXqKsNR1A5aNp8bmSdd1Aw=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_rogue_allowed",
+      "public_key": "9oGMdHYHc5/aVzMjYZkLNdXqKsNR1A5aNp8bmSdd1Aw=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    },
+    {
+      "id": "test_key_dsa-unpinned",
+      "public_key": "/eReR5ZWs84YMcnJkk7lNr1iOetpZXTaPIy/EERjio0=",
+      "allow_test_keys": false,
+      "expected": "key_test_key"
+    },
+    {
+      "id": "test_key_dsa-unpinned_allowed",
+      "public_key": "/eReR5ZWs84YMcnJkk7lNr1iOetpZXTaPIy/EERjio0=",
+      "allow_test_keys": true,
+      "expected": "ok"
+    }
+  ]
+}

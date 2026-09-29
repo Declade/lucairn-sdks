@@ -1,10 +1,10 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_duplicate_audit_claim",
   "class": "tamper",
   "surface": "get_certificate",
   "description": "The genuine audit claim appears twice; the witness-signed claim_ids list names its id twice. Every single claim verifies — only the uniqueness rule refuses it.",
-  "construction": "full chain + a second copy of the audit claim; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse; README § How it is produced) (claim_ids re-signed with the duplicate)",
+  "construction": "full chain + a second copy of the audit claim; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs) (claim_ids re-signed with the duplicate)",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -241,12 +241,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -255,12 +251,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {

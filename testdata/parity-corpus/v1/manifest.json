@@ -3,7 +3,7 @@
     {
       "id": "edge_cert_tier_full_chain_on_partial_input_shield",
       "file": "cases/edge_cert_tier_full_chain_on_partial_input_shield.json",
-      "sha256": "aff9ade4d346733ac58489e677773daa444d339a81f0f989584eb6454aef8f78",
+      "sha256": "d2d26b957ee7e82ab7fcb547d893828b8cdadebfb6bf8b9f2a2850505b23443c",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -14,26 +14,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -42,26 +23,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -72,7 +34,7 @@
     {
       "id": "edge_inference_outcome_null",
       "file": "cases/edge_inference_outcome_null.json",
-      "sha256": "15f39092ef2aa51d352fd1a4398edfa4b61d501cbfa968199e38f80eef7f7ced",
+      "sha256": "f6d9b141b4b7986f8339ac3d93a377beb080eee730a37e16561aa21fb158fa34",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -83,26 +45,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -111,26 +54,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -139,9 +63,73 @@
       }
     },
     {
+      "id": "edge_values_integer_above_2_53",
+      "file": "cases/edge_values_integer_above_2_53.json",
+      "sha256": "8b85231843fb8c79ad643483673a1874c182862a65ea33c1d4aee44161220c0b",
+      "class": "edge",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "EGRESS_UNATTESTED",
+          "reason": "egress_unattested",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "EGRESS_UNATTESTED",
+          "reason": "egress_unattested",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness has no egress rule: it re-verifies VERIFIED"
+      }
+    },
+    {
+      "id": "edge_values_key_order_above_u_e000",
+      "file": "cases/edge_values_key_order_above_u_e000.json",
+      "sha256": "0c7a5aaa923e2acbe548a715ab3fe9865e08c8c0865607486b7ddb977e50a1c4",
+      "class": "edge",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "EGRESS_UNATTESTED",
+          "reason": "egress_unattested",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "EGRESS_UNATTESTED",
+          "reason": "egress_unattested",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness has no egress rule: it re-verifies VERIFIED"
+      }
+    },
+    {
       "id": "honest_full_chain_egress",
       "file": "cases/honest_full_chain_egress.json",
-      "sha256": "c8efbbd8b20b70ceeb959ae73af96da7c10f18e701f68ac0a0235dd5353002c2",
+      "sha256": "1ec768370f0ded93d903be51f7e563f8fbdb9dc3193562b093c2b64870c92ed2",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -152,26 +140,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "VERIFIED",
@@ -180,26 +149,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -210,7 +160,7 @@
     {
       "id": "honest_full_chain_egress_export",
       "file": "cases/honest_full_chain_egress_export.json",
-      "sha256": "6933d6f72571e8047acbf690c2c9515e284b2fd055126da953c5dec6613835b9",
+      "sha256": "c30a5c5d87c39fc5f49c111d1af13dcaf9372e44dd5f975b38a413a418847181",
       "class": "honest",
       "surface": "witness_export",
       "expected": {
@@ -221,26 +171,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "VERIFIED",
@@ -249,26 +180,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -279,7 +191,7 @@
     {
       "id": "honest_full_chain_reid_guard",
       "file": "cases/honest_full_chain_reid_guard.json",
-      "sha256": "6b0dea1f819f2d9f5f918f0d8f0db14beb4f23bad0d42a682108da2fe7ff0a94",
+      "sha256": "1b1216d96b45b2f6fbe1b794aedac54a86545663e7d2b32f75f889d810b4a50d",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -290,26 +202,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[4].audit.chain_head_hash",
-            "claims[4].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "VERIFIED",
@@ -318,26 +211,42 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[4].audit.chain_head_hash",
-            "claims[4].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "honest_full_chain_request_bound",
+      "file": "cases/honest_full_chain_request_bound.json",
+      "sha256": "c4faa55597b99e13bfd1353ad74d17bd148384752e2ccee8941b1cd8769f5f69",
+      "class": "honest",
+      "surface": "get_certificate",
+      "inputs": {
+        "expected_request_id": "req_parity_v1_full",
+        "expected_certificate_id": "veil_8f665b2f-1b07-4727-b192-93f5e3eae008"
+      },
+      "expected": {
+        "default": {
+          "verdict": "VERIFIED",
+          "reason": "ok",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "matched"
+        },
+        "minimum_v3": {
+          "verdict": "VERIFIED",
+          "reason": "ok",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "matched"
         }
       },
       "reference": {
@@ -348,7 +257,7 @@
     {
       "id": "honest_input_shield",
       "file": "cases/honest_input_shield.json",
-      "sha256": "4eef83d68ee9f04c3ccfc29d197da96d45b11f9672e177f2051f212f90f7bee3",
+      "sha256": "a352876ad460c529793d86eec260df049c7a15ac489536dd92d502d5308882f9",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -359,26 +268,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "EGRESS_UNATTESTED",
@@ -387,26 +277,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -418,7 +289,7 @@
     {
       "id": "honest_input_shield_gateway_claim_lost",
       "file": "cases/honest_input_shield_gateway_claim_lost.json",
-      "sha256": "cd68c19938c510e9882e1a5423248f0c1f35b0e18fcb9cedf6402ec90e0ce46e",
+      "sha256": "6943933ff9d24f6b67e5acf12433601304af4f9595ebf3b4ced859e40df9d27b",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -429,24 +300,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "inconsistent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -455,24 +309,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "inconsistent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -483,7 +320,7 @@
     {
       "id": "honest_input_shield_partial",
       "file": "cases/honest_input_shield_partial.json",
-      "sha256": "0022fe60d2acdc4eed2d0e80699e902d04345d251a4a89ca1dc788f17d87b0ac",
+      "sha256": "8b7ca334311f59735a46ac1345f99670c5edabc695dcc1a61ad41410e3caed93",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -494,26 +331,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -522,26 +340,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -550,9 +349,40 @@
       }
     },
     {
-      "id": "honest_input_shield_pre_t921",
-      "file": "cases/honest_input_shield_pre_t921.json",
-      "sha256": "ea1d3bcad2a7613f63fc2fd8631c9e08582a5458f1746e5ffac45db052949db3",
+      "id": "honest_input_shield_sanitizer_claim_lost",
+      "file": "cases/honest_input_shield_sanitizer_claim_lost.json",
+      "sha256": "41d0722b76e2f0440b8537b9702b97d47631ad4d47154f8087047f61315963a3",
+      "class": "honest",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "PARTIAL",
+          "reason": "sealed_partial",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "input_shield",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "PARTIAL",
+          "reason": "sealed_partial",
+          "egress_attestation": "unattested",
+          "user_unredacted": "false",
+          "signed_cert_tier": "input_shield",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "honest_input_shield_tier_unset",
+      "file": "cases/honest_input_shield_tier_unset.json",
+      "sha256": "d34fc4e9c85d9bb18b5fdc1167f887f42e906106e64dbd4a51f0dddc5c4f767d",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -563,26 +393,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "EGRESS_UNATTESTED",
@@ -591,26 +402,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "input_shield",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[1].inference.isolation_probe",
-            "claims[1].inference.model_used",
-            "claims[2].inference.model_used"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -620,78 +412,9 @@
       }
     },
     {
-      "id": "honest_input_shield_sanitizer_claim_lost",
-      "file": "cases/honest_input_shield_sanitizer_claim_lost.json",
-      "sha256": "29e7d6c715bcb35f6125359264448762e02ff22b3c904991ccc91e3e2eef985e",
-      "class": "honest",
-      "surface": "get_certificate",
-      "expected": {
-        "default": {
-          "verdict": "PARTIAL",
-          "reason": "sealed_partial",
-          "egress_attestation": "unattested",
-          "user_unredacted": "false",
-          "signed_cert_tier": "input_shield",
-          "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].inference.isolation_probe",
-            "claims[0].inference.model_used",
-            "claims[1].inference.model_used"
-          ]
-        },
-        "minimum_v3": {
-          "verdict": "PARTIAL",
-          "reason": "sealed_partial",
-          "egress_attestation": "unattested",
-          "user_unredacted": "false",
-          "signed_cert_tier": "input_shield",
-          "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].inference.isolation_probe",
-            "claims[0].inference.model_used",
-            "claims[1].inference.model_used"
-          ]
-        }
-      },
-      "reference": {
-        "witness_reverify_verdict": "VERDICT_PARTIAL",
-        "witness_agrees": true
-      }
-    },
-    {
       "id": "inference_cancelled",
       "file": "cases/inference_cancelled.json",
-      "sha256": "7af4bc7946a3e044f52bf45a64b7bb2a1129f1f7414d932a3856c1812c8553f7",
+      "sha256": "39f60c0b6f78b0f59240970f5d7b8d32593409272a05ecd5bf95762f930841f6",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -702,27 +425,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -731,27 +434,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -762,7 +445,7 @@
     {
       "id": "inference_failed",
       "file": "cases/inference_failed.json",
-      "sha256": "3cb8f09b8cdd02b264b8241c00c50d00d7ee7f16d23631c7263c28ba7dd0d9e0",
+      "sha256": "a111dd06da38bf1c2bd355775836c9149db568ccbe9b802f219619d25e022002",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -773,27 +456,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -802,27 +465,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -833,7 +476,7 @@
     {
       "id": "inference_failed_user_unredacted",
       "file": "cases/inference_failed_user_unredacted.json",
-      "sha256": "56b127456b817474cd658ce1345c5bacb19f94d581216098927146e3ff4b5187",
+      "sha256": "097cf0cd6c393e88a37e9c6d9a6d28c1ded53d452d6a3789aa37142b6278eaf6",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -844,27 +487,7 @@
           "user_unredacted": "true",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -873,27 +496,7 @@
           "user_unredacted": "true",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[2].inference.model_used",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -904,7 +507,7 @@
     {
       "id": "legacy_no_egress_hash",
       "file": "cases/legacy_no_egress_hash.json",
-      "sha256": "c85b0a84c47753a046a2995b925709417ffdb2fa526b567c1a031069e8301050",
+      "sha256": "0a880dc4be7bbf11644c8bbb7f656b9d90811cb7b9c882da39a91b63660f9bd9",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -915,26 +518,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "EGRESS_UNATTESTED",
@@ -943,26 +527,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -974,7 +539,7 @@
     {
       "id": "legacy_v2_signable_only",
       "file": "cases/legacy_v2_signable_only.json",
-      "sha256": "cd2b49653d957f4bbd38697d5473ce874a0a559fa13ecd3419eb563082194b1d",
+      "sha256": "a71364e42d6587cd030291295c6cabf3b349583e5ba29e81dfd78183af898016",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -985,23 +550,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v2",
-          "authenticated_fields": [
-            "certificate_id",
-            "claim_ids",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "request_id",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length",
-            "client_id"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1010,12 +559,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1027,7 +571,7 @@
     {
       "id": "sealed_failed_splice",
       "file": "cases/sealed_failed_splice.json",
-      "sha256": "ee8b66ba3ca8ec4c0165e240f81529d4c0e91d521a67ab6b9a19e051bbefd456",
+      "sha256": "dbf62760ff12cd90ef72f2d0ab39c720c3db2e2e47d066181a0d14d1701f1dce",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -1038,12 +582,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1052,12 +591,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1068,7 +602,7 @@
     {
       "id": "tamper_cert_tier_full_chain_on_inconsistent",
       "file": "cases/tamper_cert_tier_full_chain_on_inconsistent.json",
-      "sha256": "aa79c9be9befb87040425939740f9f616681187e8f4072945e194b046300ae7b",
+      "sha256": "eb297f282b1b2da9aeebf2105a30c4e47c94374287a1042ae3c2475cd5d29461",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1079,12 +613,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1093,12 +622,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1109,7 +633,7 @@
     {
       "id": "tamper_cert_tier_full_chain_on_input_shield",
       "file": "cases/tamper_cert_tier_full_chain_on_input_shield.json",
-      "sha256": "89dd123a5538a989697aaf853286987957928b35cf568fd7ace730495c6d2dfc",
+      "sha256": "f1c7bd4160fd980cfab63e5cb27115606fafce24a0d23a47e7eef87d379ec192",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1120,12 +644,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1134,12 +653,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1151,7 +665,7 @@
     {
       "id": "tamper_cert_tier_input_shield_on_full_chain",
       "file": "cases/tamper_cert_tier_input_shield_on_full_chain.json",
-      "sha256": "677c25199938ebf4115ae49ee2f66462df1a52eab8a21d38b9c128412486248d",
+      "sha256": "9fb54df338e3855ad79bf3cfa49bbfa80b40b5828a18fafe1c76e4b18af8ba5c",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1162,12 +676,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1176,12 +685,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1193,7 +697,7 @@
     {
       "id": "tamper_cert_tier_unknown_label_on_partial",
       "file": "cases/tamper_cert_tier_unknown_label_on_partial.json",
-      "sha256": "daff44a0f669ffed5507483582c3b04cca2849e2b48168b68547465b8e203917",
+      "sha256": "8e338f2f52793b4daa82b1a50e195d66ce673d1b5d4b31ffe2e11f346b0dbad2",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1204,12 +708,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1218,12 +717,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1233,9 +727,9 @@
       }
     },
     {
-      "id": "tamper_certificate_trailing_bracket",
-      "file": "cases/tamper_certificate_trailing_bracket.json",
-      "sha256": "2b67d32be3b2458c306cc1c0f2b9cbaf31f04477feb849815a25b3db2c6932bd",
+      "id": "tamper_certificate_duplicate_key",
+      "file": "cases/tamper_certificate_duplicate_key.json",
+      "sha256": "405d008be82b55f22495e201ce298e322b6a3128c299e792c92e0c0c39f2b76e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1246,12 +740,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1260,12 +749,326 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_certificate_duplicate_key_escaped",
+      "file": "cases/tamper_certificate_duplicate_key_escaped.json",
+      "sha256": "bb3e0a8f9c55f8413a42093f685d0e61359a1c0a9e34c09396735392fbf2ce93",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_certificate_id_mismatch",
+      "file": "cases/tamper_certificate_id_mismatch.json",
+      "sha256": "4c52e18084d42b4e28705b598aa2b419813cfdb6813a554205b8470a9113a547",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "inputs": {
+        "expected_request_id": "req_parity_v1_full",
+        "expected_certificate_id": "veil_339c194f-5488-45f1-b57f-c3750d01d34d"
+      },
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "request_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "request_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the request binding is a client input: /verify has no expected certificate id"
+      }
+    },
+    {
+      "id": "tamper_certificate_key_camel_case",
+      "file": "cases/tamper_certificate_key_camel_case.json",
+      "sha256": "efb9ba7713ef0f990a54cc7b827f07b95bee50398414a929a1b019f33f359c95",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_certificate_key_camel_case_bodies",
+      "file": "cases/tamper_certificate_key_camel_case_bodies.json",
+      "sha256": "c2ccf7e1be9646075cab2d86354d2cf80ae0ac09a849fe79c66cc4b3bdfa15a1",
+      "class": "tamper",
+      "surface": "witness_export",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_certificate_key_case_variant",
+      "file": "cases/tamper_certificate_key_case_variant.json",
+      "sha256": "5e24161f0a60202d8b724bb4a17f4a8f8e1d71c1ee8873ff1287437430aeba50",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true,
+        "note": "protojson rejects the unknown field, so the witness /verify RPC never runs"
+      }
+    },
+    {
+      "id": "tamper_certificate_key_case_variant_alone",
+      "file": "cases/tamper_certificate_key_case_variant_alone.json",
+      "sha256": "7ce3edbdd42e71e31c7dab431ba79e4e8934925c60fa5a8b796c478387f4af51",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true,
+        "note": "protojson rejects the unknown field, so the witness /verify RPC never runs"
+      }
+    },
+    {
+      "id": "tamper_certificate_key_kelvin_sign",
+      "file": "cases/tamper_certificate_key_kelvin_sign.json",
+      "sha256": "e4603db87e5dd44c973ede3f5aac041493b4a8cf60845bac972780c91afe5ead",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true,
+        "note": "protojson rejects the unknown field, so the witness /verify RPC never runs"
+      }
+    },
+    {
+      "id": "tamper_certificate_lone_surrogate",
+      "file": "cases/tamper_certificate_lone_surrogate.json",
+      "sha256": "aba4394a674244b943ec2372567432bfd1a5e42da8ce75e9f649aec866a74dfb",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_certificate_nesting_too_deep",
+      "file": "cases/tamper_certificate_nesting_too_deep.json",
+      "sha256": "8b9689a64b317e431ecc0b0cfbfa9ce1e9a9da331df2fda16a414ac3aa3d47fd",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true,
+        "note": "protojson rejects the unknown field, so the witness /verify RPC never runs"
+      }
+    },
+    {
+      "id": "tamper_certificate_trailing_bracket",
+      "file": "cases/tamper_certificate_trailing_bracket.json",
+      "sha256": "f08292a66cb3f7325347bcfd32d881ab5f5ccd45ee055c77c37353db99b4c766",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1277,7 +1080,7 @@
     {
       "id": "tamper_claim_body_edited_same_id",
       "file": "cases/tamper_claim_body_edited_same_id.json",
-      "sha256": "fad1ed6cce5db3829e02147b430e65a7483bec27aaa1620a31e02c03a8b93cc7",
+      "sha256": "b3395f7cc3340586a8c826d12581517ddd59d3e469e650ec70709b6a71d99404",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1288,12 +1091,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1302,12 +1100,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1318,7 +1111,7 @@
     {
       "id": "tamper_claim_id_not_witness_listed",
       "file": "cases/tamper_claim_id_not_witness_listed.json",
-      "sha256": "fbabc39e470c4f2259a8a68505d391596c6fff81efae9df49728737a9ffa5777",
+      "sha256": "ab424b5f47bb92e23838d728b02431290dc28c09d0044440023af5335ab2bf4e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1329,12 +1122,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1343,12 +1131,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1359,7 +1142,7 @@
     {
       "id": "tamper_claim_payload_not_base64",
       "file": "cases/tamper_claim_payload_not_base64.json",
-      "sha256": "a694f95f018a97fdd4f8baee456f0a77d03791e5e2b44f7d5c66b544ff511cd0",
+      "sha256": "1c15c41eaa935ba184f4a78d7adb8fe1e408986128d4a297266b37fd46cb4a68",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1370,12 +1153,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1384,12 +1162,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1401,7 +1174,7 @@
     {
       "id": "tamper_claim_signature_noncanonical_base64",
       "file": "cases/tamper_claim_signature_noncanonical_base64.json",
-      "sha256": "557b8b8127adfa9757c64d28cad0c2a93cea8e56d9c8ebfe42b3cbdf292a6529",
+      "sha256": "b894001917627ddbc19b2036b0270e9971f5acec9abc3425ad8cf14e4ca91396",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1412,12 +1185,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1426,12 +1194,100 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false
+      }
+    },
+    {
+      "id": "tamper_claim_signature_noncanonical_r",
+      "file": "cases/tamper_claim_signature_noncanonical_r.json",
+      "sha256": "7351e482d8c783614355f6ae014c7e7ca8e6d406f1f44dde3c4943b95cacf589",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_FAILED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_claim_signature_noncanonical_s",
+      "file": "cases/tamper_claim_signature_noncanonical_s.json",
+      "sha256": "e93db1e638d1be5304b2764b2d60b348603e0a46dfd75351c456f30b760fad22",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_FAILED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_claim_signature_small_order_r",
+      "file": "cases/tamper_claim_signature_small_order_r.json",
+      "sha256": "d8349cbc6acece8eb84cb1684a0dd4ac1390e675df2b4b3af1fd575ede6eeaef",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "claim_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1442,7 +1298,7 @@
     {
       "id": "tamper_claim_swapped_from_other_cert",
       "file": "cases/tamper_claim_swapped_from_other_cert.json",
-      "sha256": "313c5c5a8a56b1c54b998ee4c3848fce22c1bbd02329b6b32fa7538b722b1897",
+      "sha256": "bce737dcf4a23a7fbfdd947b410f41e112be9690bc96028e7c82de1a83916526",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1453,12 +1309,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1467,12 +1318,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1483,7 +1329,7 @@
     {
       "id": "tamper_duplicate_audit_claim",
       "file": "cases/tamper_duplicate_audit_claim.json",
-      "sha256": "47f1458059cd85497643630fda83ae6b936bedae29801c89dfbe7f8e6699af56",
+      "sha256": "ec02b3c210c2cc696b7d9c8a6fb01042bbac908ef081f9d139e44c6c9dab7482",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1494,12 +1340,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1508,12 +1349,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1524,7 +1360,7 @@
     {
       "id": "tamper_egress_bodies_on_gateway_seal",
       "file": "cases/tamper_egress_bodies_on_gateway_seal.json",
-      "sha256": "bb8b90afe411bebb8b249edd2bcd60a273a67f219079a5502579fe2cd1ebd3f4",
+      "sha256": "091b47f0e8219972122ce24fdd103f441c910f105c64613b161ae856d3b7aad5",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1535,12 +1371,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1549,12 +1380,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1566,7 +1392,7 @@
     {
       "id": "tamper_egress_bodies_without_digest",
       "file": "cases/tamper_egress_bodies_without_digest.json",
-      "sha256": "4d78ede33dfb28703cc59a62994d1e0f61751c44f45ff7205fd8ed1d085b0688",
+      "sha256": "e6eed80b19c23b80c4b67d023491fa2f5cd3550475dba3584dc2761542900502",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1577,12 +1403,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1591,12 +1412,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1608,7 +1424,7 @@
     {
       "id": "tamper_egress_body_hash_mismatch",
       "file": "cases/tamper_egress_body_hash_mismatch.json",
-      "sha256": "888eb539811ea3ec7d6d4707250e5d5f949835f596c9782c642a37262003288b",
+      "sha256": "7e42cef27117124644442b24163a55d12427871ca11e27381f952ba20469b49a",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1619,12 +1435,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1633,12 +1444,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1650,7 +1456,7 @@
     {
       "id": "tamper_egress_digest_malformed",
       "file": "cases/tamper_egress_digest_malformed.json",
-      "sha256": "e73c28c3b8da3b75e8155439364d2fd6c06f1489b1268a96dba6cfed03db9ca6",
+      "sha256": "bbb8182fdaba756deb86ab9d93b99be701614e01058df7d3ed280788b35a44d8",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1661,12 +1467,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1675,12 +1476,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1692,7 +1488,7 @@
     {
       "id": "tamper_egress_digest_null",
       "file": "cases/tamper_egress_digest_null.json",
-      "sha256": "b672647b6c5dbf2783e884a6632536c742632cd06dabc8b392b107cebc412095",
+      "sha256": "4099994c17aff6f10121146930a9015210d60f4ad301dc7ca0463986c5e22291",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1703,12 +1499,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1717,12 +1508,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1734,7 +1520,7 @@
     {
       "id": "tamper_issued_at_ten_digit_fraction",
       "file": "cases/tamper_issued_at_ten_digit_fraction.json",
-      "sha256": "595cbf46d5a57c030c6a49ac7da0e143ab4ca9fb7e30ea44d8776c6251b63c3e",
+      "sha256": "b20166323d9568dba34ea151c4a94413579458e0106523f38bb1b7cc05a55cbf",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1745,12 +1531,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1759,12 +1540,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1776,7 +1552,7 @@
     {
       "id": "tamper_outer_field_edited",
       "file": "cases/tamper_outer_field_edited.json",
-      "sha256": "42a07a2d7864ecef4938154a21efb3acf2634b2b6f80887a90eb345246750f13",
+      "sha256": "05f2525c8860fa39e18f6fb3175ba939484d6d4b3ffd969ac0ad8fd10220661a",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1787,12 +1563,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1801,12 +1572,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1817,7 +1583,7 @@
     {
       "id": "tamper_protocol_version_changed",
       "file": "cases/tamper_protocol_version_changed.json",
-      "sha256": "d405f19eeba8862cd071a9eb82beda0c750dec41b5c10697b07801809b57b352",
+      "sha256": "00781ffdfdd505ccc45bcd28a3fdc27f8f8bb92d2e5ada21580f4e27459bb653",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1828,12 +1594,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1842,12 +1603,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1858,7 +1614,7 @@
     {
       "id": "tamper_protocol_version_float_token",
       "file": "cases/tamper_protocol_version_float_token.json",
-      "sha256": "9f42386d651111d25ef6638e06b2b11ca246d626076fd91f92567d7f07fe0b71",
+      "sha256": "209868dbac45a1297a96b8fcf3c639502b65974e58a7a40878eee12af87cdb2e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1869,12 +1625,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1883,12 +1634,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1899,7 +1645,7 @@
     {
       "id": "tamper_protocol_version_oversized_integer",
       "file": "cases/tamper_protocol_version_oversized_integer.json",
-      "sha256": "c3ae70b5a5c476e85e208d32a1103466a3cde3248633453db0e3f5dc8fe3876f",
+      "sha256": "7c5caa687f3cdd3cf65e5aaf876ae1bc24be996482eeaab3ac48640b4810608d",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1910,12 +1656,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1924,12 +1665,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1941,7 +1677,7 @@
     {
       "id": "tamper_qi_risk_score_float32_overflow",
       "file": "cases/tamper_qi_risk_score_float32_overflow.json",
-      "sha256": "b940642010c7f2b1c86537cb3806d76bf8c9e18143058f58a096a96d7d8f08f2",
+      "sha256": "58556e6162290fea33740c11cda5c2f3ce4953b2f330ac82338c8fdf734b270d",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1952,12 +1688,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -1966,12 +1697,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -1981,9 +1707,44 @@
       }
     },
     {
-      "id": "tamper_sealed_verdict_upgraded",
-      "file": "cases/tamper_sealed_verdict_upgraded.json",
-      "sha256": "132de90aba5646443ba2c8883cbe777261cbac873cf67a3dc2678bfe146bb40f",
+      "id": "tamper_request_id_mismatch",
+      "file": "cases/tamper_request_id_mismatch.json",
+      "sha256": "685235cc98108816d0c5e3ba0383cccf51087c1d66f9fea813bef194c0970264",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "inputs": {
+        "expected_request_id": "req_parity_v1_legacy"
+      },
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "request_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "request_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the request binding is a client input: /verify has no expected request id"
+      }
+    },
+    {
+      "id": "tamper_sanitizer_payload_duplicate_key",
+      "file": "cases/tamper_sanitizer_payload_duplicate_key.json",
+      "sha256": "046a43c762c552863efa3ccae714f967dfcf695d0b54cd61da090a1410618076",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1994,12 +1755,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2008,12 +1764,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2022,9 +1773,72 @@
       }
     },
     {
-      "id": "tamper_signable_version_field_stripped",
-      "file": "cases/tamper_signable_version_field_stripped.json",
-      "sha256": "e0cb7b6a99a19402b4afa02934919582d75685086c45359a4c0c21556fd14d38",
+      "id": "tamper_sealed_verdict_upgraded",
+      "file": "cases/tamper_sealed_verdict_upgraded.json",
+      "sha256": "72d29617cd4b7829fe277eab9fafcfba4c150967daeecbb17270ff05ba326799",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "witness_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "witness_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_FAILED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_second_egress_digest_list",
+      "file": "cases/tamper_second_egress_digest_list.json",
+      "sha256": "58143ce62d50c21dd410ac58a845b63f41aea92332046a1e5817fb2cad2f3e7f",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "egress_digest_malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "egress_digest_malformed",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness has no egress rule in /verify: it re-verifies VERIFIED"
+      }
+    },
+    {
+      "id": "tamper_signable_v3_signature_control_char",
+      "file": "cases/tamper_signable_v3_signature_control_char.json",
+      "sha256": "8e6643fc9b42d9dda9554f700bf094f833bb7347738fc872b211baf11ad4ad48",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2035,12 +1849,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2049,12 +1858,69 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "UNPARSEABLE",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_signable_version_field_stripped",
+      "file": "cases/tamper_signable_version_field_stripped.json",
+      "sha256": "8a32852e1e25553abd06df749fc616b23ddb1b7012dcaf087cbf5ce3598eb3c8",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "version_downgrade_detected",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "version_downgrade_detected",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false
+      }
+    },
+    {
+      "id": "tamper_signed_key_long_s",
+      "file": "cases/tamper_signed_key_long_s.json",
+      "sha256": "5cae67e2fa4178d0e7961ea04ff00744401de12a84683c989a05c9c4d6940fe1",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "claim_canonical_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "claim_canonical_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2065,7 +1931,7 @@
     {
       "id": "tamper_signed_noncanonical_bytes",
       "file": "cases/tamper_signed_noncanonical_bytes.json",
-      "sha256": "af1d7b2ed4110ede542e9f65b0c3baa7473bfd7d311c51d84b6bcab8fb069701",
+      "sha256": "a90d12868d57c6e75cc3e38db3a0d64fbb36246e89daf1c77b3335bc64bf151e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2076,12 +1942,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2090,12 +1951,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2106,7 +1962,7 @@
     {
       "id": "tamper_typed_bridge_token_hash",
       "file": "cases/tamper_typed_bridge_token_hash.json",
-      "sha256": "a9ee0b64d94086c8cb1ebbf18e0f6ee678b6b720cf3af6e7df5250d633c2bbc2",
+      "sha256": "44f8980e10791c7bc830d2fbf6ca9f6752ead300244552eaf063937f7a45d799",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2117,12 +1973,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2131,12 +1982,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2147,7 +1993,7 @@
     {
       "id": "tamper_typed_inference_stripped",
       "file": "cases/tamper_typed_inference_stripped.json",
-      "sha256": "adbfbc2dc9d214266adad28df63192db4e46a38dddc2577aaead836d5c2f01d7",
+      "sha256": "4eb91216c9dfa146a530ed4eed59197bb965c360683c419221e71963f516c27a",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2158,12 +2004,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2172,12 +2013,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2188,7 +2024,7 @@
     {
       "id": "tamper_typed_model_used",
       "file": "cases/tamper_typed_model_used.json",
-      "sha256": "e72041cf7b259769a8cffb5bc8ed7a2acaf6002e0f0bd0046b3293820609367d",
+      "sha256": "02800c5a0b24f4098b6521b8904793c42cf0013982629a3e738b8fd3eec20f8b",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2199,12 +2035,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2213,12 +2044,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2229,7 +2055,7 @@
     {
       "id": "tamper_typed_pii_entities_found",
       "file": "cases/tamper_typed_pii_entities_found.json",
-      "sha256": "27334801c96d90e9c010a4ffdc085a05ebb9ee651d29f0ae6f0f0a1ce9f6b842",
+      "sha256": "bf68225d52a9c684a88592c898d214c8bb4b0e4c1b854d015eb0fd60370027a0",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2240,12 +2066,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2254,12 +2075,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2270,7 +2086,7 @@
     {
       "id": "tamper_typed_qi_score_fabricated",
       "file": "cases/tamper_typed_qi_score_fabricated.json",
-      "sha256": "34f6f3f68ce321a7f581708750f33caf3bd8a560b47c2806d6e2a55578a50088",
+      "sha256": "249ddddbd361b7ec4d3a6abce98307352e0fb13e5792817c13a9a36a9eb6e29e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2281,12 +2097,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2295,12 +2106,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2311,7 +2117,7 @@
     {
       "id": "tamper_unknown_service_claim",
       "file": "cases/tamper_unknown_service_claim.json",
-      "sha256": "e86939831870d6e291ca77b22ad7a929caeeb66274a1b0234c13ecd9f7da98ae",
+      "sha256": "212cf7e45ff93ec80ece2e4120c4e5aeb3f2e2c61b27a93a32aa6911dacf9ec2",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2322,12 +2128,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2336,24 +2137,19 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
         "witness_reverify_verdict": "VERDICT_FAILED",
         "witness_agrees": true,
-        "note": "the corpus witness pins the same six service keys, so /verify also FAILS it (verifier.go:480-485)"
+        "note": "the corpus witness pins the same service keys, so /verify also FAILS it"
       }
     },
     {
       "id": "tamper_unknown_signing_key",
       "file": "cases/tamper_unknown_signing_key.json",
-      "sha256": "3720081ca41fdecc21f7ec81b559801556d6205f630d14c533c326fad4cc27f7",
+      "sha256": "9ce403b57a060fcabfcb9f55e7dbf5afa28a6d53ba44bc5b7f53500f95bed5ed",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2364,12 +2160,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2378,12 +2169,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2394,7 +2180,7 @@
     {
       "id": "tamper_user_unredacted_token_added",
       "file": "cases/tamper_user_unredacted_token_added.json",
-      "sha256": "f8f568f1ead196a1511da1364719e3d027f987393246c20cdaf90f18dd769b3d",
+      "sha256": "c057b91fe1a9e532cd7ca5f7b45373b0c6e0cced16dc13d5c507a7252e82e9ed",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2405,12 +2191,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2419,12 +2200,38 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_FAILED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "tamper_user_unredacted_token_on_inference_claim",
+      "file": "cases/tamper_user_unredacted_token_on_inference_claim.json",
+      "sha256": "42fade9c09e7da128d17c8092aaec83989b89abd55da17271f1f9baf9bd31328",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "typed_payload_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "typed_payload_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2435,7 +2242,7 @@
     {
       "id": "tamper_user_unredacted_token_stripped",
       "file": "cases/tamper_user_unredacted_token_stripped.json",
-      "sha256": "d79119aa8c8fa58d568450fbb4f43b68689cddb64ab973b9ddcec0aaec38d12f",
+      "sha256": "800aa539d0c863c06fb1abb5b4baf28e670b62babd517298efdd38434d294cc7",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2446,12 +2253,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2460,12 +2262,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2476,7 +2273,7 @@
     {
       "id": "tamper_v3_stripped_metadata_forged",
       "file": "cases/tamper_v3_stripped_metadata_forged.json",
-      "sha256": "01fa5e47e9daadbb7361779fec6aae07721d18b699f95f262c9df8d063f67e37",
+      "sha256": "d5a18d9375a853c543b47ea23d5ef49926b9a54eea209269bd40fa79c95a022f",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2487,23 +2284,7 @@
           "user_unredacted": "false",
           "signed_cert_tier": "absent",
           "signable_version": "v2",
-          "authenticated_fields": [
-            "certificate_id",
-            "claim_ids",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "request_id",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length",
-            "client_id"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2512,12 +2293,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2526,9 +2302,40 @@
       }
     },
     {
+      "id": "tamper_values_bound_exceeded",
+      "file": "cases/tamper_values_bound_exceeded.json",
+      "sha256": "eb5e0bf748e6ae787cfad51424876cfa59a1959d92af9ec5258be3593d1dd040",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "claim_canonical_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "claim_canonical_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false
+      }
+    },
+    {
       "id": "tamper_witness_key_id_changed",
       "file": "cases/tamper_witness_key_id_changed.json",
-      "sha256": "9cf2e8911acc87886693e4bd7c22beefd20e88c00aa8cf8ebf56634aff86fd32",
+      "sha256": "19d58003be92e1269865e5ffbdbb33625a039b9a946d526d3413b0cf69474ff5",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2539,12 +2346,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2553,12 +2355,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2567,9 +2364,40 @@
       }
     },
     {
+      "id": "tamper_witness_signature_small_order_r",
+      "file": "cases/tamper_witness_signature_small_order_r.json",
+      "sha256": "182d94b8810d4254872fd6fcbc1bdac36a84cf20d6a663fe399a70ddbd5f03c0",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "witness_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "witness_signature_invalid",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false
+      }
+    },
+    {
       "id": "tamper_wrong_service_key",
       "file": "cases/tamper_wrong_service_key.json",
-      "sha256": "8cfc0098e4782e4314ef4ff95092dbab65b20cd7e62aaeccc0f667223549084b",
+      "sha256": "97cde5ef896d1582112291b22dbfb79945ec8d289388bdeae3c716d1c92135a3",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2580,12 +2408,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         },
         "minimum_v3": {
           "verdict": "FAILED",
@@ -2594,12 +2417,7 @@
           "user_unredacted": "unknown",
           "signed_cert_tier": "not_evaluated",
           "signable_version": "none",
-          "authenticated_fields": [],
-          "unauthenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "client_id"
-          ]
+          "request_binding": "not_evaluated"
         }
       },
       "reference": {
@@ -2610,7 +2428,7 @@
     {
       "id": "user_unredacted_segment",
       "file": "cases/user_unredacted_segment.json",
-      "sha256": "67659d99f9ae9f4b746f1ea8fcb30001d5d87642a6bb449c97392ae6e0d2a88e",
+      "sha256": "20dd50b474d609f094ee5cd5b74378c4901032fc6f832f0086506131f4485442",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -2621,26 +2439,7 @@
           "user_unredacted": "true",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
         },
         "minimum_v3": {
           "verdict": "PARTIAL",
@@ -2649,26 +2448,38 @@
           "user_unredacted": "true",
           "signed_cert_tier": "absent",
           "signable_version": "v3",
-          "authenticated_fields": [
-            "api_key_id",
-            "byok_exempt",
-            "certificate_id",
-            "claim_ids",
-            "client_id",
-            "issued_at",
-            "overall_verdict",
-            "protocol_version",
-            "redaction_manifest_hash",
-            "request_id",
-            "sanitized_fields_body_hash",
-            "tms_manifest_hash",
-            "witness_key_id"
-          ],
-          "unauthenticated_fields": [
-            "claims[0].bridge.encryption_enabled",
-            "claims[3].audit.chain_head_hash",
-            "claims[3].audit.chain_length"
-          ]
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "user_unredacted_streaming_sanitizer",
+      "file": "cases/user_unredacted_streaming_sanitizer.json",
+      "sha256": "307b1df7d8537cb7338a2ea126f2590c59b17410a9f24e9e72fbd2653643f875",
+      "class": "honest",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "PARTIAL",
+          "reason": "user_sent_unredacted",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "true",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "PARTIAL",
+          "reason": "user_sent_unredacted",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "true",
+          "signed_cert_tier": "absent",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
         }
       },
       "reference": {
@@ -2687,9 +2498,12 @@
     "unattested",
     "not_evaluated"
   ],
-  "format": "lucairn-parity-corpus/v1.1",
-  "generator": "tools/parity-corpus/produce_claims.py → services/veil-witness/cmd/parity-corpus (paritycorpus.Generate)",
+  "format": "lucairn-parity-corpus/v1.2",
+  "key_policy": "key-policy.json",
   "keys": "keys.json",
+  "max_depth": 256,
+  "max_input_bytes": 33554432,
+  "max_values_pointer_bytes": 67108864,
   "policies": [
     {
       "name": "default",
@@ -2700,17 +2514,6 @@
       "minimum_signable_version": "v3"
     }
   ],
-  "producer_sources": {
-    "dsa-ai": "services/sandbox-b/evidence.py deliver_claim → veil_emitter.py emit_claim_sync; egress_capture.py (digests, emit_failed_turn_claim); input-shield dsa-ai seal: pkg/veil Emitter (gateway VEIL_AI_SIGNING_KEY)",
-    "dsa-audit": "pkg/veil Emitter.BuildClaimProtoAt with an EVENTS_RECORDED payload",
-    "dsa-bridge": "pkg/veil Emitter.BuildClaimProtoAt with the id-bridge server.go TOKEN_GENERATED payload",
-    "dsa-gateway": "pkg/veil Emitter.BuildClaimProtoAt with the sensitive_mode.go seal payload",
-    "dsa-reid-guard": "pkg/veil Emitter.BuildClaimProtoAt shaped like services/reid-guard/claim_builder.py (canonical claim_type \"\", proto CLAIM_TYPE_UNSPECIFIED, no typed oneof)",
-    "dsa-sanitizer": "services/sanitizer/veil_emitter.py VeilEmitter.build_claim + _submit_claim_grpc",
-    "dsa-sanitizer-streaming": "pkg/veil Emitter.BuildClaimProtoAt (not pinned; the unknown-service case only)",
-    "witness": "services/veil-witness/internal/verifier.Verify + internal/assembler.Assemble (WithClock / WithIDGenerator)"
-  },
-  "readme": "tools/parity-corpus/README.md",
   "reasons": [
     "ok",
     "egress_unattested",
@@ -2723,6 +2526,7 @@
     "version_downgrade_detected",
     "witness_signature_invalid",
     "signable_version_insufficient",
+    "request_mismatch",
     "sealed_failed",
     "duplicate_claim_id",
     "unknown_service",
@@ -2736,6 +2540,11 @@
     "egress_body_unbound",
     "egress_body_hash_mismatch",
     "cert_tier_mismatch"
+  ],
+  "request_bindings": [
+    "matched",
+    "not_checked",
+    "not_evaluated"
   ],
   "seed": "lucairn-parity-corpus-v1",
   "signable_versions": [

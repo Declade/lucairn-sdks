@@ -1,9 +1,9 @@
 {
-  "format": "lucairn-parity-corpus/v1.1",
+  "format": "lucairn-parity-corpus/v1.2",
   "id": "tamper_egress_bodies_without_digest",
   "class": "tamper",
   "surface": "witness_export",
-  "description": "The certificate carries stored upstream bodies but the sandbox-b signed payload has no upstream_body_sha256: the bytes are unanchored. A real witness never serves this: it strips unanchored bodies at claim intake (internal/server/egress_intake.go:33-50) and the gateway refuses to serve them (veil_upstream_request.go extractSignedEgress).",
+  "description": "The certificate carries stored upstream bodies but the sandbox-b signed payload has no upstream_body_sha256: the bytes are unanchored. A real witness never serves this: it strips unanchored bodies at claim intake, and the gateway refuses to serve them.",
   "construction": "a dsa-ai claim delivered with upstream_request_bodies and no digest, sealed by verifier.Verify + assembler.Assemble WITHOUT the witness server's intake strip — the lying/relaying-witness model for unsigned sidecars",
   "certificate": {
     "anchor_status": null,
@@ -202,12 +202,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     },
     "minimum_v3": {
       "verdict": "FAILED",
@@ -216,12 +212,8 @@
       "user_unredacted": "unknown",
       "signed_cert_tier": "not_evaluated",
       "signable_version": "none",
-      "authenticated_fields": [],
-      "unauthenticated_fields": [
-        "api_key_id",
-        "byok_exempt",
-        "client_id"
-      ]
+      "request_binding": "not_evaluated",
+      "verified": null
     }
   },
   "reference": {
