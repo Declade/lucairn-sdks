@@ -19,6 +19,7 @@ import {
   MAX_VALUES_POINTER_BYTES,
   PinnedKeyError,
   canonicalVerifiedJson,
+  certTierCheck,
   f32,
   integer,
   parseCertificateDocument,
@@ -828,5 +829,18 @@ describe('grammar vectors', () => {
   it('canonical JSON keeps lexemes, sorts by code point and escapes like Python ensure_ascii', () => {
     const v = parseDocument('{"b":0.0,"a":["\\u00fc<>&/\\u007f","\\ud83d\\ude00"],"\\uffff":1e5,"\\ud83d\\ude00":2}');
     expect(canonical(v)).toBe('{"a":["\\u00fc<>&/\\u007f","\\ud83d\\ude00"],"b":0.0,"\\uffff":1e5,"\\ud83d\\ude00":2}');
+  });
+});
+
+describe('two-signer cert_tier is not capped by step 8d (corpus v1.2.1)', () => {
+  it('reports the tier, passes the label, no cap (the EGRESS_UNATTESTED ceiling comes from the absent digests)', () => {
+    const claim = (svc: string): JObj => new Map<string, JVal>([['service_id', svc]]);
+    const claims = [claim('dsa-sanitizer'), claim('dsa-gateway')];
+    const canon: JObj[] = [new Map(), new Map<string, JVal>([['cert_tier', 'input-shield']])];
+    expect(certTierCheck(claims, canon, 'input_shield_two_signer', 'VERDICT_VERIFIED')).toEqual([
+      'input_shield_two_signer',
+      true,
+      false,
+    ]);
   });
 });

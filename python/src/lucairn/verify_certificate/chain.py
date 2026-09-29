@@ -413,12 +413,19 @@ def _has_surrogate(v: Any) -> bool:
     """json joins every escaped high + low pair; any surrogate code point left
     in a key or string was escaped unpaired (strict UTF-8 decoding refuses raw
     ones)."""
-    if isinstance(v, str):
-        return _SURROGATE.search(v) is not None
-    if isinstance(v, list):
-        return any(_has_surrogate(x) for x in v)
-    if isinstance(v, dict):
-        return any(_has_surrogate(k) or _has_surrogate(x) for k, x in v.items())
+    stack = [v]  # explicit stack: never depends on the caller's stack depth
+    while stack:
+        x = stack.pop()
+        if isinstance(x, str):
+            if _SURROGATE.search(x) is not None:
+                return True
+        elif isinstance(x, list):
+            stack.extend(x)
+        elif isinstance(x, dict):
+            for k, y in x.items():
+                if _SURROGATE.search(k) is not None:
+                    return True
+                stack.append(y)
     return False
 
 
@@ -447,14 +454,16 @@ def _loads(data: bytes | bytearray | memoryview | str) -> Any:
 def _case_variant_key(v: Any) -> bool:
     """A key, at any depth, that is not a spec key but folds to a spec key or
     to a spec key's protojson JSON name."""
-    if isinstance(v, dict):
-        for k, x in v.items():
-            if k not in _SPEC_KEYS and k.translate(_FOLD) in _SPEC_FOLDED:
-                return True
-            if _case_variant_key(x):
-                return True
-    elif isinstance(v, list):
-        return any(_case_variant_key(x) for x in v)
+    stack = [v]  # explicit stack: never depends on the caller's stack depth
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            for k, y in x.items():
+                if k not in _SPEC_KEYS and k.translate(_FOLD) in _SPEC_FOLDED:
+                    return True
+                stack.append(y)
+        elif isinstance(x, list):
+            stack.extend(x)
     return False
 
 
@@ -471,24 +480,44 @@ def _load_certificate(data: bytes) -> Any:
 
 def _canonical(v: Any) -> str:
     """Python ``json.dumps(sort_keys=True, separators=(",", ":"),
-    ensure_ascii=True)`` with number lexemes kept."""
-    if isinstance(v, _Num):
-        return v.text
-    if v is None:
-        return "null"
-    if v is True:
-        return "true"
-    if v is False:
-        return "false"
-    if isinstance(v, int):
-        return str(v)
-    if isinstance(v, str):
-        return json.dumps(v, ensure_ascii=True)
-    if isinstance(v, list):
-        return "[" + ",".join(_canonical(x) for x in v) + "]"
-    if isinstance(v, dict):
-        return "{" + ",".join(json.dumps(k, ensure_ascii=True) + ":" + _canonical(v[k]) for k in sorted(v)) + "}"
-    raise TypeError(type(v))
+    ensure_ascii=True)`` with number lexemes kept. Iterative (an explicit
+    stack), so the result never depends on the caller's stack depth."""
+    out: list[str] = []
+    # Work items: (True, literal text) or (False, value still to render).
+    stack: list[tuple[bool, Any]] = [(False, v)]
+    while stack:
+        lit, x = stack.pop()
+        if lit:
+            out.append(x)
+        elif isinstance(x, _Num):
+            out.append(x.text)
+        elif x is None:
+            out.append("null")
+        elif x is True:
+            out.append("true")
+        elif x is False:
+            out.append("false")
+        elif isinstance(x, int):
+            out.append(str(x))
+        elif isinstance(x, str):
+            out.append(json.dumps(x, ensure_ascii=True))
+        elif isinstance(x, list):
+            out.append("[")
+            stack.append((True, "]"))
+            for i in range(len(x) - 1, -1, -1):
+                stack.append((False, x[i]))
+                if i:
+                    stack.append((True, ","))
+        elif isinstance(x, dict):
+            out.append("{")
+            stack.append((True, "}"))
+            keys = sorted(x)
+            for i in range(len(keys) - 1, -1, -1):
+                stack.append((False, x[keys[i]]))
+                stack.append((True, ("," if i else "") + json.dumps(keys[i], ensure_ascii=True) + ":"))
+        else:
+            raise TypeError(type(x))
+    return "".join(out)
 
 
 def _b64(v: Any) -> bytes | None:
@@ -835,7 +864,7 @@ def _cert_tier_check(
             and "dsa-ai" not in services
         )
         if two_signer:
-            return _TWO_SIGNER_TIER, True, True
+            return _TWO_SIGNER_TIER, True, False
         return "not_evaluated", False, False  # FAILED cert_tier_mismatch reports no tier
     if not carriers:
         signed = "absent"
@@ -864,39 +893,44 @@ def _is_value_leaf(v: Any) -> bool:
 def _values_bytes(v: Any, ptr_len: int, budget: int) -> int:
     """The UTF-8 byte total of the pointers _flatten would write for v (each
     ptr_len bytes so far); stops once the total passes budget, so a document
-    built to blow up is never flattened."""
+    built to blow up is never flattened. Iterative (explicit stack)."""
     n = 0
-    if isinstance(v, dict):
-        for k, x in v.items():
-            n += _values_bytes(x, ptr_len + 1 + len(_pointer(k).encode("utf-8")), budget - n)
+    stack: list[tuple[Any, int]] = [(v, ptr_len)]
+    while stack:
+        x, pl = stack.pop()
+        if isinstance(x, dict):
+            for k, y in x.items():
+                stack.append((y, pl + 1 + len(_pointer(k).encode("utf-8"))))
+        elif isinstance(x, list):
+            for i, y in enumerate(x):
+                stack.append((y, pl + 1 + len(str(i))))
+        elif _is_value_leaf(x):
+            n += pl
             if n > budget:
                 return n
-    elif isinstance(v, list):
-        for i, x in enumerate(v):
-            n += _values_bytes(x, ptr_len + 1 + len(str(i)), budget - n)
-            if n > budget:
-                return n
-    elif _is_value_leaf(v):
-        n = ptr_len
     return n
 
 
 def _flatten(v: Any, path: str, out: dict[str, Any]) -> None:
     """``values``: the string / boolean / integer-token leaves of a signed
     document by JSON Pointer (integers as Python ``int``); null, other numbers
-    and empty containers contribute nothing."""
-    if isinstance(v, dict):
-        for k, x in v.items():
-            _flatten(x, path + "/" + _pointer(k), out)
-    elif isinstance(v, list):
-        for i, x in enumerate(v):
-            _flatten(x, f"{path}/{i}", out)
-    elif isinstance(v, (str, bool)):
-        out[path] = v
-    elif isinstance(v, _Num):
-        n = _uint_token(v.text, _U64)
-        if n is not None:
-            out[path] = n
+    and empty containers contribute nothing. Iterative (explicit stack); the
+    result is a dict, so visit order does not matter."""
+    stack: list[tuple[Any, str]] = [(v, path)]
+    while stack:
+        x, p = stack.pop()
+        if isinstance(x, dict):
+            for k, y in x.items():
+                stack.append((y, p + "/" + _pointer(k)))
+        elif isinstance(x, list):
+            for i, y in enumerate(x):
+                stack.append((y, f"{p}/{i}"))
+        elif isinstance(x, (str, bool)):
+            out[p] = x
+        elif isinstance(x, _Num):
+            n = _uint_token(x.text, _U64)
+            if n is not None:
+                out[p] = n
 
 
 def _plain(v: Any) -> Any:

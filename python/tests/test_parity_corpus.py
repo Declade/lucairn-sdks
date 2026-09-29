@@ -789,3 +789,60 @@ def test_two_signer_tier_pairs_only_with_its_shape() -> None:
         cert = CASES[case_id]["certificate"]
         edited = dict(cert, verification=dict(cert["verification"], cert_tier=TWO_SIGNER))
         assert _summary(chain_mod._canonical(edited).encode())[:2] == ("FAILED", "cert_tier_mismatch"), case_id
+
+
+# --- the canonical walk never depends on the caller's stack depth ----------
+
+
+def _depth_256_claim_cert() -> bytes:
+    """honest_full_chain_egress with a signed claim document of exactly
+    MAX_DEPTH (256) nested containers, re-signed with the dsa-ai TEST key and
+    the witness re-sealed."""
+    cert = _load_case(CORPUS / "cases" / "honest_full_chain_egress.json")["certificate"]
+    seed = hashlib.sha256(f"lucairn-parity-corpus|{MANIFEST['seed']}|dsa-ai".encode()).digest()
+    priv = Ed25519PrivateKey.from_private_bytes(seed)
+    done = 0
+    for c in cert["claims"]:
+        if c["service_id"] != "dsa-ai":
+            continue
+        doc = chain_mod._loads(base64.b64decode(c["canonical_payload"]))
+        # document = 1, payload = 2, then 254 more arrays = 256
+        doc["payload"]["deep"] = json.loads("[" * 254 + '"x"' + "]" * 254)
+        cp = chain_mod._canonical(doc).encode()
+        c["canonical_payload"] = base64.b64encode(cp).decode()
+        c["signature"] = base64.b64encode(priv.sign(cp)).decode()
+        done += 1
+    assert done == 1
+    return _reseal(cert)
+
+
+def _call_from_depth(depth: int, fn):
+    if depth == 0:
+        return fn()
+    return _call_from_depth(depth - 1, fn)
+
+
+def test_result_does_not_depend_on_caller_stack_depth() -> None:
+    import sys
+
+    raw = _depth_256_claim_cert()
+    want = verify_certificate_chain(raw, _keys())
+    assert want.reason != "claim_canonical_mismatch"  # not refused for depth
+    # Default recursion limit (1000): the caller sits deep in the stack, well
+    # past where the old recursive canonical walk gave up.
+    assert sys.getrecursionlimit() >= 1000
+    room = sys.getrecursionlimit() - len(__import__("inspect").stack(0))
+    for depth in (0, 300, 500, 600, room - 120):
+        got = _call_from_depth(depth, lambda: verify_certificate_chain(raw, _keys()))
+        assert (got.verdict, got.reason) == (want.verdict, want.reason), depth
+
+
+def test_two_signer_tier_is_not_capped_by_step_8d() -> None:
+    """Corpus v1.2.1: the two-signer label is NOT capped by the tier step
+    itself (the EGRESS_UNATTESTED ceiling comes from the absent dsa-ai
+    egress digests). TS and Go assert the same on their step-8d helpers."""
+    cert = _load_case(CORPUS / "cases" / "honest_input_shield.json")["certificate"]
+    claims = [c for c in cert["claims"] if c["service_id"] != "dsa-ai"]
+    canon = [chain_mod._loads(base64.b64decode(c["canonical_payload"]))["payload"] for c in claims]
+    tier, ok, capped = chain_mod._cert_tier_check(claims, canon, TWO_SIGNER, "VERDICT_VERIFIED")
+    assert (tier, ok, capped) == (TWO_SIGNER, True, False)

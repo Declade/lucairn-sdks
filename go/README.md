@@ -319,6 +319,12 @@ The error is a `*KeyPolicyError` when a pinned key is refused (below), or a
 `*ConfigError` for another programmer error (an empty key id or service id,
 an unknown policy).
 
+**Input size.** The 32 MiB limit is a format limit, not a memory budget: a
+pathological document (for example millions of tiny values) can take many times
+its size in memory while it is parsed. If you verify certificates from an
+untrusted relay or upload, cap the input yourself before calling the verifier
+(8 MiB is ample for a real certificate) and treat anything larger as unverified.
+
 ```go
 reqID := turn.RequestID // the request id of the turn you are showing
 result, err := lucairn.VerifyCertificateChain(rawBody, lucairn.CertificateChainKeys{
@@ -381,7 +387,7 @@ Everything a caller displays or decides on (a "sent unredacted" or BYOK mark, a 
 - The egress claim is the one whose `Values` carry `/payload/upstream_body_sha256/0`, never "the first `dsa-ai` claim".
 - Show an upstream request body only after hashing its exact bytes with SHA-256 and finding the lowercase hex digest at `/payload/upstream_body_sha256/<i>` of that claim, `i` = the body's position.
 
-Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. A certificate that carries only the older v2 witness signature verifies under the default policy with only the v2 keys in `Verified.Certificate`; strict callers pass minimum signable version `v3`, which fails every such certificate. The full rules (document grammar, timestamp grammar, canonical JSON and base64, typed-field binding) are implemented in this SDK's source with comments. The 79-case test corpus, its pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
+Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. A certificate that carries only the older v2 witness signature verifies under the default policy with only the v2 keys in `Verified.Certificate`; strict callers pass minimum signable version `v3`, which fails every such certificate. The full rules (document grammar, timestamp grammar, canonical JSON and base64, typed-field binding) are implemented in this SDK's source with comments. The 84-case test corpus, its pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
 
 ## Per-call options
 

@@ -688,7 +688,7 @@ function typedBound(c: JObj, claimType: string, p: JObj): boolean {
 }
 
 /** README step 8d → [signed tier, the unsigned label passes, capped at EGRESS_UNATTESTED (fix A)]. */
-function certTierCheck(
+export function certTierCheck(
   claims: JObj[],
   canon: JObj[],
   unsigned: string,
