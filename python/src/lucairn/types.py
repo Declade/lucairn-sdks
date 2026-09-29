@@ -341,7 +341,9 @@ class VeilVerificationResult(BaseModel):
     # The certificate's tier, as the witness derived it: ``"full_chain"``
     # (bridge -> sanitizer -> ai -> audit) or ``"input_shield"`` (the
     # sanitize-only route: sanitizer -> gateway -> vendor call, whose VERIFIED
-    # verdict covers that shorter chain). Proto field 15 on VerificationResult.
+    # verdict covers that shorter chain) or ``"input_shield_two_signer"`` (the
+    # input-shield chain with only sanitizer and gateway claims, no ai claim).
+    # Proto field 15 on VerificationResult.
     #
     # OPTIONAL and UNSIGNED: ``None`` (absent) or ``""`` on certificates sealed
     # before the witness shipped tier-aware verdicts, and NOT part of either

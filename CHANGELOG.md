@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Optional `cert_tier` on the certificate's verification result.**
   TS `VeilVerificationResult.cert_tier?: VeilCertTier` (new exported type:
-  `'full_chain' | 'input_shield' | ''` plus any string), Python
+  `'full_chain' | 'input_shield' | 'input_shield_two_signer' | ''` plus any string), Python
   `VeilVerificationResult.cert_tier: str | None = None`, Go
   `VeilVerificationResult.CertTier string` (`json:"cert_tier,omitempty"`).
   The witness now tags each certificate with the tier its verdict was
