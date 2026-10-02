@@ -50,7 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The unsigned `cert_tier` value `input_shield_two_signer` (sanitizer and
   gateway claims, no ai claim) is accepted only beside exactly that signed
   shape and never reaches VERIFIED (EGRESS_UNATTESTED at best).
-- **Shared parity corpus** `testdata/parity-corpus/` (84 cases, format v1.2.1,
+- The unsigned `cert_tier` value `audit_only` (certificate-only mode: bridge,
+  ai and audit claims, the ai claim signing `cert_tier: "audit-only"`) is
+  accepted only beside exactly that signed shape (one signed tier copy, from
+  the one `dsa-ai` claim, value exactly `audit-only`) and reports
+  `signed_cert_tier` `audit_only`. Before, every verifier refused such a
+  certificate with `cert_tier_mismatch` (T-1172). The same shape under any
+  other label still FAILS on a sealed-VERIFIED certificate, so it never
+  passes as a full chain. A `VERIFIED` `audit_only` result attests what was
+  sent, never that anything was sanitized.
+- **Shared parity corpus** `testdata/parity-corpus/` (93 cases, format v1.2.2,
   re-sync with `sync.sh`). All
   three SDKs run every case under both policies and must match every result
   field; a test fails when the vendored copy drifts from `SOURCE.json`.

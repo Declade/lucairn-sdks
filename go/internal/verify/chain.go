@@ -132,6 +132,14 @@ var (
 // (step 8d; not yet in the corpus vocabulary).
 const ChainTierInputShieldTwoSigner = "input_shield_two_signer"
 
+// ChainTierAuditOnly is both the unsigned verification.cert_tier label and
+// the reported signed_cert_tier of a certificate-only chain (corpus v1.2.2,
+// step 8d rule 0b): the one dsa-ai claim signs cert_tier "audit-only"
+// (chainAuditOnlyMarker); the content was NOT sanitized, by design.
+const ChainTierAuditOnly = "audit_only"
+
+const chainAuditOnlyMarker = "audit-only"
+
 // chainIntegerMaxDigits =len("18446744073709551615"): a longer token is out
 // of range before any conversion.
 const chainIntegerMaxDigits = 20
@@ -781,6 +789,28 @@ func chainCertTier(claims []map[string]any, canon []map[string]any, unsigned, se
 		}
 		if n == 1 && !anyAI && sanitizer && len(carriers["dsa-gateway"]) == 1 && carriers["dsa-gateway"][0] == "input-shield" {
 			return ChainTierInputShieldTwoSigner, true, false
+		}
+		return signed, false, false
+	}
+	// Certificate-only label (corpus v1.2.2 rule 0b): it passes ONLY when
+	// the single signed tier copy is the one dsa-ai INFERENCE_COMPLETED
+	// claim's exact "audit-only" and the chain has exactly one dsa-ai claim;
+	// not capped here. Any other use FAILS whatever the sealed verdict. The
+	// shape under any other label stays "inconsistent" (below), so it never
+	// passes as a full chain.
+	if unsigned == ChainTierAuditOnly {
+		aiClaims, marked := 0, false
+		for i, c := range claims {
+			if c["service_id"] != "dsa-ai" {
+				continue
+			}
+			aiClaims++
+			if t, has := canon[i]["cert_tier"]; has && t == chainAuditOnlyMarker && c["claim_type"] == "CLAIM_TYPE_INFERENCE_COMPLETED" {
+				marked = true
+			}
+		}
+		if n == 1 && aiClaims == 1 && marked {
+			return ChainTierAuditOnly, true, false
 		}
 		return signed, false, false
 	}

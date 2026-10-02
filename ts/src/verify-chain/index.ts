@@ -177,8 +177,12 @@ export interface CertificateChainResult {
    * dsa-ai claim (sanitizer + gateway). Such a chain has no signed egress digest, so it never
    * reaches VERIFIED. The same shape under any other label reports
    * `inconsistent`.
+   * `audit_only` (corpus v1.2.2) = certificate-only: the one dsa-ai claim
+   * signs cert_tier `audit-only` under the label `audit_only`; the content was
+   * NOT sanitized, by design. A VERIFIED `audit_only` result attests what was
+   * sent, never that anything was sanitized — say so wherever it is shown.
    */
-  signed_cert_tier: 'absent' | 'input_shield' | 'input_shield_two_signer' | 'inconsistent' | 'not_evaluated';
+  signed_cert_tier: 'absent' | 'input_shield' | 'input_shield_two_signer' | 'audit_only' | 'inconsistent' | 'not_evaluated';
   signable_version: 'v3' | 'v2' | 'none';
   /**
    * `matched` (an expected request / certificate id was supplied and every
@@ -729,6 +733,24 @@ export function certTierCheck(
       claims.some((c) => get(c, 'service_id') === 'dsa-sanitizer') &&
       !claims.some((c) => get(c, 'service_id') === 'dsa-ai');
     return twoSigner ? ['input_shield_two_signer', true, false] : [signed, false, false];
+  }
+  // The certificate-only label (corpus v1.2.2 rule 0b): the witness writes
+  // `audit_only` for a chain whose ONE dsa-ai claim signs cert_tier
+  // "audit-only" (the sanitizer hop skipped by design). It passes ONLY when
+  // that dsa-ai INFERENCE_COMPLETED claim is the single signed tier copy, its
+  // value is exactly "audit-only", and the chain has exactly one dsa-ai claim;
+  // the result reports `audit_only` and is not capped here. Any other use of
+  // the label FAILS, whatever the sealed verdict. The shape under any other
+  // label stays `inconsistent` (below), so it never passes as a full chain.
+  if (unsigned === 'audit_only') {
+    const ai = claims.map((c, i) => [c, canon[i]] as const).filter(([c]) => get(c, 'service_id') === 'dsa-ai');
+    const auditOnly =
+      carriers.length === 1 &&
+      ai.length === 1 &&
+      get(ai[0][0], 'claim_type') === 'CLAIM_TYPE_INFERENCE_COMPLETED' &&
+      ai[0][1].has('cert_tier') &&
+      get(ai[0][1], 'cert_tier') === 'audit-only';
+    return auditOnly ? ['audit_only', true, false] : [signed, false, false];
   }
   if (unsigned !== '' && unsigned !== 'full_chain' && unsigned !== 'input_shield') return [signed, false, false];
   if ((signed === 'absent' && (unsigned === '' || unsigned === 'full_chain')) || (signed === 'input_shield' && unsigned === 'input_shield')) {

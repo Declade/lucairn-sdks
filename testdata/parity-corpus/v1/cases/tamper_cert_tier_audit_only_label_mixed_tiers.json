@@ -1,0 +1,212 @@
+{
+  "format": "lucairn-parity-corpus/v1.2.2",
+  "id": "tamper_cert_tier_audit_only_label_mixed_tiers",
+  "class": "tamper",
+  "surface": "get_certificate",
+  "description": "The certificate-only chain plus a dsa-gateway input-shield seal claim: two signed tier copies (dsa-ai audit-only, dsa-gateway input-shield) under the label audit_only. The label needs exactly ONE signed tier copy.",
+  "construction": "bridge + the certificate-only dsa-ai claim + a gateway seal claim + audit, sealed with the honest certificate-only verification result; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs)",
+  "certificate": {
+    "anchor_status": null,
+    "api_key_id": "k_paritycorpus0001",
+    "attestation": {
+      "notary": {
+        "attested_at": null,
+        "checks_performed": [
+          "canonical_json_signing"
+        ],
+        "notary_public_key_id": "witness_parity_v1",
+        "notary_signature": "ZhmwLK8mELUoIs211WcSCRe8YBrPaqeeOQtOF/gFlP4GDxVQVkh12K5t0IlJa07RPS/RK60Sl31K/T3YHhaZAg==",
+        "provider": "dsa-veil-witness"
+      },
+      "qualified_timestamp": null,
+      "rails": [],
+      "timestamp": null,
+      "transparency_log": null
+    },
+    "audit_integrity": {
+      "inclusion_proof": null,
+      "log_proofs": [],
+      "merkle_root": "UwfCqkvRej2LaImT6S9zZlkNlBn0Uc2tOmx/P3IgMtI=",
+      "tree_size": "7"
+    },
+    "certificate_id": "veil_c103b7e4-8f9f-453a-aef0-27649bffb58c",
+    "claims": [
+      {
+        "bridge": {
+          "encryption_enabled": true,
+          "epoch": "0",
+          "token_hash": "ntLRm0WGKzAGIXRgOKV4dijQ4o2e3iC1gwzSWfxVZE0="
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV83NzAwZmEyNC1mZmFlLTQ5NTAtYWYzNC0wNzk0MjUwYjM0MDIiLCJjbGFpbV90eXBlIjoiVE9LRU5fR0VORVJBVEVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJjb250ZXh0IiwicHJvbXB0X3RlbXBsYXRlIiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwicGF5bG9hZCI6eyJhcGlfa2V5X2lkIjoia19wYXJpdHljb3JwdXMwMDAxIiwiY29udmVyc2F0aW9uX2lkIjoiIiwiY3VzdG9tZXJfaWQiOiJjdXN0X3Bhcml0eV9jb3JwdXMiLCJlcGhlbWVyYWwiOmZhbHNlLCJvcmdfaWQiOiJvcmdfcGFyaXR5X2NvcnB1cyIsInRva2VuX2hhc2giOiI5ZWQyZDE5YjQ1ODYyYjMwMDYyMTc0NjAzOGE1Nzg3NjI4ZDBlMjhkOWVkZTIwYjU4MzBjZDI1OWZjNTU2NDRkIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1icmlkZ2UiLCJ0aW1lc3RhbXAiOiIyMDI2LTA5LTI1VDEyOjA4OjAwLjFaIn0=",
+        "claim_id": "clm_7700fa24-ffae-4950-af34-0794250b3402",
+        "claim_type": "CLAIM_TYPE_TOKEN_GENERATED",
+        "data_not_seen": [
+          "context",
+          "prompt_template",
+          "inference_result"
+        ],
+        "data_seen": [
+          "customer_id"
+        ],
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-bridge",
+        "signature": "FSdXnB7wbbsPJIvk1051CeMThHN0dfCw5SXAlA2mbOYu1bITd7CBs+CGeIFiKKP7MBwvXWhVBKYJC8UL8z2+AA==",
+        "timestamp": "2026-09-25T12:08:00.100Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9iMDVkMjMzOS0wY2Y2LTQzYzItYjQzNC01N2I0N2NjZDRjNzkiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwiZGF0YV9zZWVuIjpbIm9wYXF1ZV90b2tlbiIsInVuc2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJhdWRpdC1vbmx5IiwiY2VydF90aWVyX2Jhc2lzIjoiZ2F0ZXdheV9hc3NlcnRlZCIsImlzb2xhdGlvbl9wcm9iZSI6IlZFUklGSUVEIiwibW9kZWxfdXNlZCI6ImNsYXVkZS1zb25uZXQtNC01IiwicmVzcG9uc2VfaGFzaCI6IjA2MjJhYWY5ZDRiYjM2NTE1YzQxODQ0OWE1NDhiNTQ2Njc3NzFhZjQzZmJlYzhkNTc5MjAyZTQ4MzI5NTE3MWUiLCJ1cHN0cmVhbV9hdXRoX21vZGUiOiJtYW5hZ2VkIiwidXBzdHJlYW1fYm9keV9zaGEyNTYiOlsiZmE5NDdhOTIxZTllNWIyNzE0M2RhMWM5MDQwNTE0NzZjYzI4YzllOGM5NjYwYTFkOTMxZjZmNDdlOGQ3OTY5NCJdfSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfY2VydG9ubHkiLCJzZXJ2aWNlX2lkIjoiZHNhLWFpIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowODowMS41MDAwMDBaIn0=",
+        "claim_id": "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "customer_id"
+        ],
+        "data_seen": [
+          "opaque_token",
+          "unsanitized_context"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_VERIFIED",
+          "model_used": "claude-sonnet-4-5",
+          "response_hash": "BiKq+dS7NlFcQYRJpUi1Rmd3GvQ/vsjVeSAuSDKVFx4=",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-ai",
+        "signature": "afiM8qdWB30j3dNzvH0pCF6ye4VyLZbHtCofFmUAp+vo7G37fCorplfEFEktKnxiFyw1ozREf82JQ8D8vo3rCA==",
+        "timestamp": "2026-09-25T12:08:01.500Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9jNDQ2NjQ0Yy1jYmRlLTQyNGQtYjQ3Ni04ZjcwMzM4MzhlNmIiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsicmF3X3BpaSIsInZlbmRvcl9zZXNzaW9uX2Nvb2tpZSIsImlkZW50aXR5X2ZpZWxkcyJdLCJkYXRhX3NlZW4iOlsic2FuaXRpemVkX3Byb21wdF9oYXNoIiwidmVuZG9yX3Jlc3BvbnNlX2hhc2giLCJzYW5pdGl6ZXJfbWFuaWZlc3QiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJpbnB1dC1zaGllbGQiLCJjbGllbnRfaWQiOiIiLCJjdXN0b21lcl9pZCI6ImN1c3RfcGFyaXR5X2NvcnB1cyIsInJlcXVlc3RfaGFzaCI6ImM0NjcwMjIzZDQ3NDI0YmI0ZTViOTkwNjIzMTE1ZmIzYmYzZTkwYzE5ODg5YWJlMWYzYTk3YjA4YTM4N2FkOTEiLCJyZXNwb25zZV9oYXNoIjoiMDFkNGY3YTQ1MzMzOWQyYWViYmMwYTRjMzZiOGM3OWFhZTg1M2M5YWM0OTM0NjEyN2ViZWMwNTcxMDkxNzE4ZCIsInNhbml0aXplcl9tYW5pZmVzdCI6eyJjYXRlZ29yaWVzX3RyaWdnZXJlZCI6WyJDYXQgMSJdLCJsYXllcnNfYWN0aXZlIjpbImtub3duX2VudGl0eV9tYXRjaGluZyIsInByZXNpZGlvX25lciIsImxsbV9waWlfc2NhbiJdLCJyZWRhY3Rpb25fY291bnQiOnsiUEVSU09OIjoxfSwic2FuaXRpemVyX3ZlcnNpb24iOiJwYXJpdHktY29ycHVzLTEuMCJ9LCJzZWFsZWRfYXQiOiIyMDI2LTA5LTI1VDEyOjA4OjAxWiIsInRvb2xfbmFtZSI6IkNsYXVkZSBEZXNrdG9wIiwidmVuZG9yIjoiYW50aHJvcGljIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1nYXRld2F5IiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowODowMVoifQ==",
+        "claim_id": "clm_c446644c-cbde-424d-b476-8f7033838e6b",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "raw_pii",
+          "vendor_session_cookie",
+          "identity_fields"
+        ],
+        "data_seen": [
+          "sanitized_prompt_hash",
+          "vendor_response_hash",
+          "sanitizer_manifest"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_UNKNOWN",
+          "model_used": "",
+          "response_hash": "AdT3pFMznSrrvApMNrjHmq6FPJrEk0YSfr7AVxCRcY0=",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-gateway",
+        "signature": "cjlvT1tBddxVor5qyXUaU1I+L/h5TVH4y+cAM6yn9ikXlwt8XtjB52lFWq5HUgp70NXcGpIKu07Rzcn6eMipBg==",
+        "timestamp": "2026-09-25T12:08:01Z"
+      },
+      {
+        "audit": {
+          "chain_head_hash": "UwfCqkvRej2LaImT6S9zZlkNlBn0Uc2tOmx/P3IgMtI=",
+          "chain_length": "7",
+          "event_ids": [
+            "evt_parity_certonly"
+          ],
+          "output_scan_body": "",
+          "output_scan_hash": "",
+          "previous_chain_hash": ""
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV85NDBlOTllNi1jOTE4LTQ4NjgtOTc1NC0xZGNhNmFjOTllYjUiLCJjbGFpbV90eXBlIjoiRVZFTlRTX1JFQ09SREVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJwaWkiLCJjb250ZXh0IiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiZXZlbnRfaGFzaGVzIl0sInBheWxvYWQiOnsiZXZlbnRfaWQiOiJldnRfcGFyaXR5X2NlcnRvbmx5IiwibWVya2xlX3Jvb3QiOiI1MzA3YzJhYTRiZDE3YTNkOGI2ODg5OTNlOTJmNzM2NjU5MGQ5NDE5ZjQ1MWNkYWQzYTZjN2YzZjcyMjAzMmQyIiwibWVya2xlX3RyZWVfc2l6ZSI6N30sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1hdWRpdCIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDg6MDJaIn0=",
+        "claim_id": "clm_940e99e6-c918-4868-9754-1dca6ac99eb5",
+        "claim_type": "CLAIM_TYPE_EVENTS_RECORDED",
+        "data_not_seen": [
+          "pii",
+          "context",
+          "inference_result"
+        ],
+        "data_seen": [
+          "event_hashes"
+        ],
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-audit",
+        "signature": "yWlSAlzAjkSJFgzM8NOFUrKAfEevTnI3jqJQoGAKXzDxoCZalv1DO98zJLtEjLrmCXgphQbg7ZW7LxGZJzW7Bw==",
+        "timestamp": "2026-09-25T12:08:02Z"
+      }
+    ],
+    "client_id": "org_parity_corpus",
+    "decoder_expiry": null,
+    "formal_verification": null,
+    "issued_at": "2026-09-25T12:08:02.500Z",
+    "privacy_budget": null,
+    "protocol_version": 2,
+    "request_id": "req_parity_v1_certonly",
+    "signable_protocol_version_emitted": 3,
+    "signable_v2_signature": "ZhmwLK8mELUoIs211WcSCRe8YBrPaqeeOQtOF/gFlP4GDxVQVkh12K5t0IlJa07RPS/RK60Sl31K/T3YHhaZAg==",
+    "signable_v3_signature": "UnmN+RI7fIa6MqAj8Hx1/2WVdJLDor9Tjkb7qffhmEAN3YKDQ0j1gM71/Ykn6OBaaY15zGAJkAcIbeMx6HzECw==",
+    "upstream_model": "claude-sonnet-4-5",
+    "verification": {
+      "anchor_verifications": [],
+      "byok_exempt": false,
+      "cert_tier": "audit_only",
+      "completeness": "COMPLETENESS_FULL",
+      "data_visibility_consistent": true,
+      "isolation_verified": true,
+      "l3_coverage_evidence": {
+        "canaries_planted": 0,
+        "canaries_recovered": 0,
+        "composed_green": false,
+        "composed_reason": "scope_unavailable",
+        "derivation_version": "",
+        "drives_verdict": false,
+        "fields": [],
+        "fields_absent": 0,
+        "fields_failed": 0,
+        "fields_passed": 0,
+        "record_status": "absent",
+        "rollup": ""
+      },
+      "l3_coverage_scope": {
+        "covered": [],
+        "derivation_version": "",
+        "drives_claim": false,
+        "eligible_count": 0,
+        "eligible_not_covered": [],
+        "excluded": [],
+        "granted": false,
+        "reason": "",
+        "record_status": "absent"
+      },
+      "missing_services": [],
+      "overall_verdict": "VERDICT_VERIFIED",
+      "qi_score": null,
+      "signatures_valid": true,
+      "temporal_consistent": true,
+      "temporal_order_status": "valid",
+      "upstream_auth_mode": "managed"
+    },
+    "witness_key_id": "witness_parity_v1",
+    "witness_signature": "ZhmwLK8mELUoIs211WcSCRe8YBrPaqeeOQtOF/gFlP4GDxVQVkh12K5t0IlJa07RPS/RK60Sl31K/T3YHhaZAg=="
+  },
+  "expected": {
+    "default": {
+      "verdict": "FAILED",
+      "reason": "cert_tier_mismatch",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "request_binding": "not_evaluated",
+      "verified": null
+    },
+    "minimum_v3": {
+      "verdict": "FAILED",
+      "reason": "cert_tier_mismatch",
+      "egress_attestation": "not_evaluated",
+      "user_unredacted": "unknown",
+      "signed_cert_tier": "not_evaluated",
+      "signable_version": "none",
+      "request_binding": "not_evaluated",
+      "verified": null
+    }
+  },
+  "reference": {
+    "witness_reverify_verdict": "VERDICT_VERIFIED",
+    "witness_agrees": false,
+    "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+  }
+}

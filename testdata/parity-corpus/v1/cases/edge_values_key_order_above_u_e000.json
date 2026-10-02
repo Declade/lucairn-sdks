@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "id": "edge_values_key_order_above_u_e000",
   "class": "edge",
   "surface": "get_certificate",

@@ -105,7 +105,9 @@ type VeilVerificationResult struct {
 	// it: "full_chain" (bridge -> sanitizer -> ai -> audit) or
 	// "input_shield" (the sanitize-only route: sanitizer -> gateway ->
 	// vendor call, whose VERIFIED verdict covers that shorter chain) or "input_shield_two_signer" (the input-shield
-	// chain with only sanitizer and gateway claims, no ai claim).
+	// chain with only sanitizer and gateway claims, no ai claim) or
+	// "audit_only" (certificate-only: bridge -> ai -> audit, the sanitizer
+	// skipped by design; the content was NOT sanitized).
 	// Proto field 15 on VerificationResult.
 	//
 	// OPTIONAL and UNSIGNED: "" (absent) on certificates sealed before the

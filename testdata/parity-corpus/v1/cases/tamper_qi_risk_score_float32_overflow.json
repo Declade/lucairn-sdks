@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "id": "tamper_qi_risk_score_float32_overflow",
   "class": "tamper",
   "surface": "get_certificate",

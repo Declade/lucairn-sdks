@@ -1,9 +1,9 @@
 {
   "format": "lucairn-parity-corpus/v1.2.2",
-  "id": "tamper_cert_tier_unknown_label_on_partial",
+  "id": "tamper_cert_tier_audit_only_label_on_partial",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "verification.cert_tier set to \"gold\", a value no witness emits, on a sealed-PARTIAL input-shield certificate. An unsigned tier outside {\"\", full_chain, input_shield} FAILS even where step 8d tolerates a mismatch.",
+  "description": "verification.cert_tier (unsigned) says audit_only on the sealed-PARTIAL input-shield certificate (both seal claims sign input-shield). The label FAILS outside its shape whatever the sealed verdict — the sealed-PARTIAL tolerance (rule 4) does not apply to it.",
   "construction": "post-seal edit of honest_input_shield_partial's verification.cert_tier",
   "certificate": {
     "anchor_status": null,
@@ -121,7 +121,7 @@
     "verification": {
       "anchor_verifications": [],
       "byok_exempt": true,
-      "cert_tier": "gold",
+      "cert_tier": "audit_only",
       "completeness": "COMPLETENESS_PARTIAL",
       "data_visibility_consistent": true,
       "isolation_verified": true,

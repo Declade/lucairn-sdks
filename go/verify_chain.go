@@ -92,8 +92,12 @@ type CertificateChainResult struct {
 	// "not_evaluated", or "input_shield_two_signer" (an input-shield chain
 	// with only sanitizer + gateway claims: exactly one signed tier copy,
 	// from the gateway, at least one dsa-sanitizer claim, and no dsa-ai
-	// claim; never green, as it carries no signed egress digests). Show THIS tier, never the unsigned
-	// verification.cert_tier.
+	// claim; never green, as it carries no signed egress digests), or
+	// "audit_only" (corpus v1.2.2: a certificate-only chain whose one dsa-ai
+	// claim signs cert_tier "audit-only" — the content was NOT sanitized, by
+	// design; a VERIFIED audit_only result attests what was sent, never that
+	// anything was sanitized, and must be shown that way). Show THIS tier,
+	// never the unsigned verification.cert_tier.
 	SignedCertTier string `json:"signed_cert_tier"`
 	// SignableVersion: "v3" | "v2" | "none".
 	SignableVersion string `json:"signable_version"`

@@ -233,13 +233,14 @@ export interface VeilVerificationResult {
    * (bridge → sanitizer → ai → audit) or `'input_shield'` (the sanitize-only
    * route: sanitizer → gateway → vendor call, whose VERIFIED verdict covers
    * that shorter chain), or `'input_shield_two_signer'` (the input-shield chain
-   * with only sanitizer and gateway claims, no ai claim). Proto field 15 on
-   * VerificationResult.
+   * with only sanitizer and gateway claims, no ai claim), or `'audit_only'`
+   * (certificate-only: bridge → ai → audit, the sanitizer skipped by design —
+   * the content was NOT sanitized). Proto field 15 on VerificationResult.
    *
    * OPTIONAL and UNSIGNED: absent (or `''`) on certificates sealed before the
    * witness shipped tier-aware verdicts, and NOT part of either witness
    * signable (v2 7-key / v3 13-key) — this SDK's verifier never reads it, and a
-   * tampered value still verifies. Treat anything other than the three documented
+   * tampered value still verifies. Treat anything other than the documented
    * values as legacy/unknown; it is surfaced verbatim and never an error.
    */
   cert_tier?: VeilCertTier;
@@ -249,7 +250,7 @@ export interface VeilVerificationResult {
  * Documented `verification.cert_tier` values. The `(string & {})` arm keeps
  * the type open: an unknown future value parses as-is instead of failing.
  */
-export type VeilCertTier = 'full_chain' | 'input_shield' | 'input_shield_two_signer' | '' | (string & {});
+export type VeilCertTier = 'full_chain' | 'input_shield' | 'input_shield_two_signer' | 'audit_only' | '' | (string & {});
 
 export interface VeilAnchorStatusInfo {
   status: VeilCertAnchorStatus;

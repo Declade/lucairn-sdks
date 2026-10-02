@@ -120,8 +120,13 @@ class CertificateChainResult:
             (every FAILED result). Compare to ``"true"``, never by truthiness.
             Read from the verified, signed sanitizer payload only.
         signed_cert_tier: ``absent`` | ``input_shield`` | ``inconsistent`` |
-            ``input_shield_two_signer`` | ``not_evaluated``. Show THIS tier,
-            never the unsigned ``verification.cert_tier``.
+            ``input_shield_two_signer`` | ``audit_only`` | ``not_evaluated``.
+            Show THIS tier, never the unsigned ``verification.cert_tier``.
+            ``audit_only`` (corpus v1.2.2) is a certificate-only chain: the
+            sanitizer hop was skipped by design and the content was NOT
+            sanitized — a VERIFIED ``audit_only`` result attests what was
+            sent, never that anything was sanitized; say so wherever it is
+            shown.
             ``input_shield_two_signer`` (an input-shield chain sealed with a
             sanitizer claim and no dsa-ai claim: only the gateway claim signs
             the tier) is an
@@ -221,6 +226,10 @@ _TOKEN = "user_unredacted_segment"
 # sealed with only the sanitizer and gateway claims (no dsa-ai claim). Not in
 # corpus v1.2; see _cert_tier_check.
 _TWO_SIGNER_TIER = "input_shield_two_signer"
+# Step 8d rule 0b (corpus v1.2.2): the certificate-only label and the dsa-ai
+# signed marker it requires (pkg/veil CertTierAuditOnly).
+_AUDIT_ONLY_TIER = "audit_only"
+_AUDIT_ONLY_MARKER = "audit-only"
 _CLAIM_TYPES = {
     "CLAIM_TYPE_TOKEN_GENERATED": "TOKEN_GENERATED",
     "CLAIM_TYPE_PII_SANITIZED": "PII_SANITIZED",
@@ -872,6 +881,24 @@ def _cert_tier_check(
         signed = "input_shield"
     else:
         signed = "inconsistent"
+    if unsigned == _AUDIT_ONLY_TIER:
+        # Corpus v1.2.2 rule 0b: passes ONLY when the single signed tier copy
+        # is the one dsa-ai INFERENCE_COMPLETED claim's exact "audit-only" and
+        # the chain has exactly one dsa-ai claim; not capped here. Any other
+        # use FAILS whatever the sealed verdict. The shape under any other
+        # label stays "inconsistent" (below), so it never passes as a full
+        # chain.
+        ai = [(c, p) for c, p in zip(claims, canon) if c["service_id"] == "dsa-ai"]
+        audit_only = (
+            len(carriers) == 1
+            and len(ai) == 1
+            and ai[0][0].get("claim_type") == "CLAIM_TYPE_INFERENCE_COMPLETED"
+            and "cert_tier" in ai[0][1]
+            and ai[0][1]["cert_tier"] == _AUDIT_ONLY_MARKER
+        )
+        if audit_only:
+            return _AUDIT_ONLY_TIER, True, False
+        return signed, False, False
     if unsigned not in ("", "full_chain", "input_shield"):
         return signed, False, False
     if (signed == "absent" and unsigned in ("", "full_chain")) or (signed == "input_shield" and unsigned == "input_shield"):
