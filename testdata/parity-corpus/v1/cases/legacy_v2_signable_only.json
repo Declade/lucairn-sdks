@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "legacy_v2_signable_only",
   "class": "honest",
   "surface": "get_certificate",

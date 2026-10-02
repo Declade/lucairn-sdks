@@ -1,7 +1,7 @@
 """Parity: verify_certificate_chain against the vendored verifier parity corpus.
 
 The corpus (testdata/parity-corpus, vendored at the commit in SOURCE.json,
-format lucairn-parity-corpus/v1.2.2) carries, per case, the result every Lucairn
+format lucairn-parity-corpus/v1.2.3) carries, per case, the result every Lucairn
 verifier must return under every policy — every field, ``verified`` compared
 as canonical JSON — and the pinned-key policy vectors (key-policy.json). The
 TS (ts/src/verify-chain/parityCorpus.test.ts) and Go (go/parity_corpus_test.go)
@@ -41,8 +41,8 @@ MANIFEST = json.loads((CORPUS / "manifest.json").read_text())
 KEYS = json.loads((CORPUS / "keys.json").read_text())
 KEY_POLICY = json.loads((CORPUS / "key-policy.json").read_text())
 
-FORMAT = "lucairn-parity-corpus/v1.2.2"
-EXPECTED_CASES = 93
+FORMAT = "lucairn-parity-corpus/v1.2.3"
+EXPECTED_CASES = 98
 # SOURCE.json records no hash for key-policy.json; pin it here so a changed
 # vector file cannot pass silently.
 V2_SIGNABLE_KEYS = {

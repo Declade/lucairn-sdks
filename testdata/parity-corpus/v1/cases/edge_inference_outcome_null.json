@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "edge_inference_outcome_null",
   "class": "edge",
   "surface": "get_certificate",

@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "user_unredacted_segment",
   "class": "honest",
   "surface": "get_certificate",

@@ -1,4 +1,4 @@
-<!-- Extracted by sync.sh from Declade/dual-sandbox-architecture tools/parity-corpus/README.md @ 0dc1f20f08806749374fc68c53ab889370b8e8b6 — do not edit. -->
+<!-- Extracted by sync.sh from Declade/dual-sandbox-architecture tools/parity-corpus/README.md @ a46d8db6641d430a0961c56d3a1e21383a4cd261 — do not edit. -->
 <!-- recipe-table:begin -->
 | step | check (fails when …) | verdict + reason |
 |---|---|---|

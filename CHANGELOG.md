@@ -55,11 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accepted only beside exactly that signed shape (one signed tier copy, from
   the one `dsa-ai` claim, value exactly `audit-only`) and reports
   `signed_cert_tier` `audit_only`. Before, every verifier refused such a
-  certificate with `cert_tier_mismatch` (T-1172). The same shape under any
-  other label still FAILS on a sealed-VERIFIED certificate, so it never
-  passes as a full chain. A `VERIFIED` `audit_only` result attests what was
-  sent, never that anything was sanitized.
-- **Shared parity corpus** `testdata/parity-corpus/` (93 cases, format v1.2.2,
+  certificate with `cert_tier_mismatch` (T-1172). The tier is decided by the
+  SIGNED claims, never the unsigned label: as soon as any claim signs
+  `cert_tier: "audit-only"`, the chain is certificate-only, and a missing
+  label or one relabelled `full_chain` / `input_shield` FAILS
+  `cert_tier_mismatch` whatever the sealed verdict (VERIFIED or PARTIAL), so
+  a certificate-only chain never reports a sanitized tier. A `VERIFIED`
+  `audit_only` result attests what was sent, never that anything was
+  sanitized.
+- **Shared parity corpus** `testdata/parity-corpus/` (98 cases, format v1.2.3,
   re-sync with `sync.sh`). All
   three SDKs run every case under both policies and must match every result
   field; a test fails when the vendored copy drifts from `SOURCE.json`.
