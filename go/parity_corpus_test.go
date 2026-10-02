@@ -1,7 +1,7 @@
 package lucairn
 
 // Certificate verifier parity: VerifyCertificateChain against the vendored
-// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2.2, source
+// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2.3, source
 // commit in SOURCE.json). The TS (ts/src/verify-chain/parityCorpus.test.ts)
 // and Python (python/tests/test_parity_corpus.py) SDKs run the same cases
 // against the same expectations: every result field, `verified` compared as
@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	parityFormat        = "lucairn-parity-corpus/v1.2.2"
-	parityExpectedCases = 93
+	parityFormat        = "lucairn-parity-corpus/v1.2.3"
+	parityExpectedCases = 98
 )
 
 var parityRoot = filepath.Join("..", "testdata", "parity-corpus")

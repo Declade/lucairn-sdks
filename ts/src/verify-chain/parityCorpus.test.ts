@@ -1,7 +1,7 @@
 // Parity: verifyCertificateChain against the vendored corpus
 // (testdata/parity-corpus, vendored from Declade/dual-sandbox-architecture
 // tools/parity-corpus at the commit in SOURCE.json, format
-// lucairn-parity-corpus/v1.2.2). The Python (python/tests/test_parity_corpus.py)
+// lucairn-parity-corpus/v1.2.3). The Python (python/tests/test_parity_corpus.py)
 // and Go (go/parity_corpus_test.go) SDKs run the same cases against the same
 // expectations: every result field, `verified` compared as canonical JSON,
 // under both policies, with each case's request-binding inputs.
@@ -38,8 +38,8 @@ import { JNum, MAX_DEPTH, canonical, parseDocument, parseLenient, type JObj, typ
 
 const ROOT = join(__dirname, '..', '..', '..', 'testdata', 'parity-corpus');
 const CORPUS = join(ROOT, 'v1');
-const FORMAT = 'lucairn-parity-corpus/v1.2.2';
-const EXPECTED_CASES = 93;
+const FORMAT = 'lucairn-parity-corpus/v1.2.3';
+const EXPECTED_CASES = 98;
 
 type Summary = Omit<CertificateChainResult, 'verified'>;
 interface ManifestCase {

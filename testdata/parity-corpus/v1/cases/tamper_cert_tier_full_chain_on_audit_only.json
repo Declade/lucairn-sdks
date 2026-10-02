@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "tamper_cert_tier_full_chain_on_audit_only",
   "class": "tamper",
   "surface": "get_certificate",

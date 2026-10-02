@@ -122,7 +122,7 @@ class CertificateChainResult:
         signed_cert_tier: ``absent`` | ``input_shield`` | ``inconsistent`` |
             ``input_shield_two_signer`` | ``audit_only`` | ``not_evaluated``.
             Show THIS tier, never the unsigned ``verification.cert_tier``.
-            ``audit_only`` (corpus v1.2.2) is a certificate-only chain: the
+            ``audit_only`` (corpus v1.2.2+) is a certificate-only chain: the
             sanitizer hop was skipped by design and the content was NOT
             sanitized — a VERIFIED ``audit_only`` result attests what was
             sent, never that anything was sanitized; say so wherever it is
@@ -226,7 +226,7 @@ _TOKEN = "user_unredacted_segment"
 # sealed with only the sanitizer and gateway claims (no dsa-ai claim). Not in
 # corpus v1.2; see _cert_tier_check.
 _TWO_SIGNER_TIER = "input_shield_two_signer"
-# Step 8d rule 0b (corpus v1.2.2): the certificate-only label and the dsa-ai
+# Step 8d rule 0b (corpus v1.2.2+): the certificate-only label and the dsa-ai
 # signed marker it requires (pkg/veil CertTierAuditOnly).
 _AUDIT_ONLY_TIER = "audit_only"
 _AUDIT_ONLY_MARKER = "audit-only"
@@ -881,13 +881,19 @@ def _cert_tier_check(
         signed = "input_shield"
     else:
         signed = "inconsistent"
-    if unsigned == _AUDIT_ONLY_TIER:
-        # Corpus v1.2.2 rule 0b: passes ONLY when the single signed tier copy
-        # is the one dsa-ai INFERENCE_COMPLETED claim's exact "audit-only" and
-        # the chain has exactly one dsa-ai claim; not capped here. Any other
-        # use FAILS whatever the sealed verdict. The shape under any other
-        # label stays "inconsistent" (below), so it never passes as a full
-        # chain.
+    marker_signed = any(isinstance(v, str) and v == _AUDIT_ONLY_MARKER for _, v in carriers)
+    if unsigned == _AUDIT_ONLY_TIER or marker_signed:
+        # Corpus v1.2.3 rule 0b — the SIGNED marker wins: as soon as ANY
+        # claim signs cert_tier "audit-only", OR the label is audit_only, the
+        # chain is certificate-only. It passes ONLY when the label is
+        # audit_only, the single signed tier copy is the one dsa-ai
+        # INFERENCE_COMPLETED claim's exact "audit-only" and the chain has
+        # exactly one dsa-ai claim; not capped here. Everything else FAILS
+        # whatever the sealed verdict — a deleted or relabelled label beside a
+        # signed "audit-only" never yields a sanitized tier, not even under a
+        # sealed PARTIAL.
+        if unsigned != _AUDIT_ONLY_TIER:
+            return signed, False, False
         ai = [(c, p) for c, p in zip(claims, canon) if c["service_id"] == "dsa-ai"]
         audit_only = (
             len(carriers) == 1

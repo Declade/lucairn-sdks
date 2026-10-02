@@ -177,7 +177,7 @@ export interface CertificateChainResult {
    * dsa-ai claim (sanitizer + gateway). Such a chain has no signed egress digest, so it never
    * reaches VERIFIED. The same shape under any other label reports
    * `inconsistent`.
-   * `audit_only` (corpus v1.2.2) = certificate-only: the one dsa-ai claim
+   * `audit_only` (corpus v1.2.2+) = certificate-only: the one dsa-ai claim
    * signs cert_tier `audit-only` under the label `audit_only`; the content was
    * NOT sanitized, by design. A VERIFIED `audit_only` result attests what was
    * sent, never that anything was sanitized — say so wherever it is shown.
@@ -734,15 +734,22 @@ export function certTierCheck(
       !claims.some((c) => get(c, 'service_id') === 'dsa-ai');
     return twoSigner ? ['input_shield_two_signer', true, false] : [signed, false, false];
   }
-  // The certificate-only label (corpus v1.2.2 rule 0b): the witness writes
-  // `audit_only` for a chain whose ONE dsa-ai claim signs cert_tier
-  // "audit-only" (the sanitizer hop skipped by design). It passes ONLY when
-  // that dsa-ai INFERENCE_COMPLETED claim is the single signed tier copy, its
-  // value is exactly "audit-only", and the chain has exactly one dsa-ai claim;
-  // the result reports `audit_only` and is not capped here. Any other use of
-  // the label FAILS, whatever the sealed verdict. The shape under any other
-  // label stays `inconsistent` (below), so it never passes as a full chain.
-  if (unsigned === 'audit_only') {
+  // The certificate-only tier (corpus v1.2.3 rule 0b — the SIGNED marker
+  // wins). The witness writes `audit_only` for a chain whose ONE dsa-ai claim
+  // signs cert_tier "audit-only" (the sanitizer hop skipped by design). The
+  // tier is decided by the signed content, never by the unsigned label: as
+  // soon as ANY claim signs cert_tier "audit-only", OR the label is
+  // `audit_only`, the chain is certificate-only and passes ONLY when the label
+  // is `audit_only`, that dsa-ai INFERENCE_COMPLETED claim is the single
+  // signed tier copy, its value is exactly "audit-only", and the chain has
+  // exactly one dsa-ai claim; the result reports `audit_only` and is not
+  // capped here. Everything else FAILS, whatever the sealed verdict — a
+  // deleted or relabelled (`full_chain` / `input_shield`) label beside a
+  // signed "audit-only" never yields a sanitized tier, not even under a
+  // sealed PARTIAL.
+  const auditOnlyMarkerSigned = carriers.some(([, v]) => v === 'audit-only');
+  if (unsigned === 'audit_only' || auditOnlyMarkerSigned) {
+    if (unsigned !== 'audit_only') return [signed, false, false];
     const ai = claims.map((c, i) => [c, canon[i]] as const).filter(([c]) => get(c, 'service_id') === 'dsa-ai');
     const auditOnly =
       carriers.length === 1 &&

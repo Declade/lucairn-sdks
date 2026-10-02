@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "tamper_protocol_version_changed",
   "class": "tamper",
   "surface": "get_certificate",

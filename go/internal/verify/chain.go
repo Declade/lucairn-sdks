@@ -133,7 +133,7 @@ var (
 const ChainTierInputShieldTwoSigner = "input_shield_two_signer"
 
 // ChainTierAuditOnly is both the unsigned verification.cert_tier label and
-// the reported signed_cert_tier of a certificate-only chain (corpus v1.2.2,
+// the reported signed_cert_tier of a certificate-only chain (corpus v1.2.3,
 // step 8d rule 0b): the one dsa-ai claim signs cert_tier "audit-only"
 // (chainAuditOnlyMarker); the content was NOT sanitized, by design.
 const ChainTierAuditOnly = "audit_only"
@@ -792,13 +792,27 @@ func chainCertTier(claims []map[string]any, canon []map[string]any, unsigned, se
 		}
 		return signed, false, false
 	}
-	// Certificate-only label (corpus v1.2.2 rule 0b): it passes ONLY when
-	// the single signed tier copy is the one dsa-ai INFERENCE_COMPLETED
-	// claim's exact "audit-only" and the chain has exactly one dsa-ai claim;
-	// not capped here. Any other use FAILS whatever the sealed verdict. The
-	// shape under any other label stays "inconsistent" (below), so it never
-	// passes as a full chain.
-	if unsigned == ChainTierAuditOnly {
+	// Certificate-only tier (corpus v1.2.3 rule 0b — the SIGNED marker
+	// wins): as soon as ANY claim signs cert_tier "audit-only", OR the label
+	// is audit_only, the chain is certificate-only. It passes ONLY when the
+	// label is audit_only, the single signed tier copy is the one dsa-ai
+	// INFERENCE_COMPLETED claim's exact "audit-only" and the chain has
+	// exactly one dsa-ai claim; not capped here. Everything else FAILS
+	// whatever the sealed verdict — a deleted or relabelled label beside a
+	// signed "audit-only" never yields a sanitized tier, not even under a
+	// sealed PARTIAL.
+	markerSigned := false
+	for _, ts := range carriers {
+		for _, t := range ts {
+			if t == chainAuditOnlyMarker {
+				markerSigned = true
+			}
+		}
+	}
+	if unsigned == ChainTierAuditOnly || markerSigned {
+		if unsigned != ChainTierAuditOnly {
+			return signed, false, false
+		}
 		aiClaims, marked := 0, false
 		for i, c := range claims {
 			if c["service_id"] != "dsa-ai" {

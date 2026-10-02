@@ -1,10 +1,10 @@
 {
   "format": "lucairn-parity-corpus/v1.2.3",
-  "id": "tamper_cert_tier_audit_only_label_near_miss_marker",
+  "id": "tamper_cert_tier_unset_on_audit_only_partial",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "A dsa-ai claim that signs cert_tier \"audit_only\" (underscore — the unsigned spelling, not the signed marker \"audit-only\") under the label audit_only. Only the exact signed value \"audit-only\" is the certificate-only marker.",
-  "construction": "bridge + a dsa-ai claim signing the near-miss marker + audit, sealed with the honest certificate-only verification result; sealed by the corpus's lying-witness model (a valid witness signature over a chain the real witness would refuse: a compromised or buggy witness, or a relay that re-signs)",
+  "description": "verification.cert_tier (unsigned) cleared on the sealed-PARTIAL certificate-only certificate, whose dsa-ai claim signs cert_tier audit-only. The signed marker decides the tier whatever the sealed verdict: rule 4's PARTIAL tolerance does not apply beside a signed audit-only.",
+  "construction": "post-seal edit of honest_audit_only_partial's verification.cert_tier",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -15,7 +15,7 @@
           "canonical_json_signing"
         ],
         "notary_public_key_id": "witness_parity_v1",
-        "notary_signature": "JreNAZ708cxSTEUfbqReAidcRaSV2B1iUcoRFdn9QilIDb/D9wz4JtLhosoQp8cNEddVssgtX3d0U3BgGrWABg==",
+        "notary_signature": "uu/8GSpBMGy7jI3vAqo/bBFeE6lhpykAzrZLaC49malyvhXRRoOnWgapiWD6hqIHCEEniJxlxg6dwlLcBBdTDw==",
         "provider": "dsa-veil-witness"
       },
       "qualified_timestamp": null,
@@ -54,8 +54,8 @@
         "timestamp": "2026-09-25T12:08:00.100Z"
       },
       {
-        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9jZmE5ZTdlZS00ZDJhLTRiMGEtODExNi1jZDc5MTdkNGI2MTEiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwiZGF0YV9zZWVuIjpbIm9wYXF1ZV90b2tlbiIsInVuc2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJhdWRpdF9vbmx5IiwiY2VydF90aWVyX2Jhc2lzIjoiZ2F0ZXdheV9hc3NlcnRlZCIsImlzb2xhdGlvbl9wcm9iZSI6IlZFUklGSUVEIiwibW9kZWxfdXNlZCI6ImNsYXVkZS1zb25uZXQtNC01IiwicmVzcG9uc2VfaGFzaCI6Ijk2NzU3ZmUxMGJkNzM3ZWJkN2ZmNTQxMzlmYjhkY2M2MTkyYTM3YWM3MDA3ZjYxMGU1MjAxMDIzZmQ5NjhjZTMiLCJ1cHN0cmVhbV9hdXRoX21vZGUiOiJtYW5hZ2VkIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1haSIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDg6MDEuNVoifQ==",
-        "claim_id": "clm_cfa9e7ee-4d2a-4b0a-8116-cd7917d4b611",
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9iMDVkMjMzOS0wY2Y2LTQzYzItYjQzNC01N2I0N2NjZDRjNzkiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwiZGF0YV9zZWVuIjpbIm9wYXF1ZV90b2tlbiIsInVuc2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJhdWRpdC1vbmx5IiwiY2VydF90aWVyX2Jhc2lzIjoiZ2F0ZXdheV9hc3NlcnRlZCIsImlzb2xhdGlvbl9wcm9iZSI6IlZFUklGSUVEIiwibW9kZWxfdXNlZCI6ImNsYXVkZS1zb25uZXQtNC01IiwicmVzcG9uc2VfaGFzaCI6IjA2MjJhYWY5ZDRiYjM2NTE1YzQxODQ0OWE1NDhiNTQ2Njc3NzFhZjQzZmJlYzhkNTc5MjAyZTQ4MzI5NTE3MWUiLCJ1cHN0cmVhbV9hdXRoX21vZGUiOiJtYW5hZ2VkIiwidXBzdHJlYW1fYm9keV9zaGEyNTYiOlsiZmE5NDdhOTIxZTllNWIyNzE0M2RhMWM5MDQwNTE0NzZjYzI4YzllOGM5NjYwYTFkOTMxZjZmNDdlOGQ3OTY5NCJdfSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfY2VydG9ubHkiLCJzZXJ2aWNlX2lkIjoiZHNhLWFpIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowODowMS41MDAwMDBaIn0=",
+        "claim_id": "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
         "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
         "data_not_seen": [
           "customer_id"
@@ -67,12 +67,12 @@
         "inference": {
           "isolation_probe": "ISOLATION_PROBE_VERIFIED",
           "model_used": "claude-sonnet-4-5",
-          "response_hash": "lnV/4QvXN+vX/1QTn7jcxhkqN6xwB/YQ5SAQI/2WjOM=",
+          "response_hash": "BiKq+dS7NlFcQYRJpUi1Rmd3GvQ/vsjVeSAuSDKVFx4=",
           "upstream_request_bodies": []
         },
         "request_id": "req_parity_v1_certonly",
         "service_id": "dsa-ai",
-        "signature": "a4uY7qHttXQdT/ZBOuBpn82TAYmI55DJ2PG+dEomLa766QU/3zzCSg6jtAdPSeEBbEaRADbSStKldiL4vLhNDQ==",
+        "signature": "afiM8qdWB30j3dNzvH0pCF6ye4VyLZbHtCofFmUAp+vo7G37fCorplfEFEktKnxiFyw1ozREf82JQ8D8vo3rCA==",
         "timestamp": "2026-09-25T12:08:01.500Z"
       },
       {
@@ -111,14 +111,14 @@
     "protocol_version": 2,
     "request_id": "req_parity_v1_certonly",
     "signable_protocol_version_emitted": 3,
-    "signable_v2_signature": "JreNAZ708cxSTEUfbqReAidcRaSV2B1iUcoRFdn9QilIDb/D9wz4JtLhosoQp8cNEddVssgtX3d0U3BgGrWABg==",
-    "signable_v3_signature": "8Ba+w7H+KTz9NV9eC7KhJmMWKVWOYKh0Sl2Tx2JHRhk4NVwaTnDQEQNo4dckahMSHo3UvxugalKvgr9qMe57Bg==",
+    "signable_v2_signature": "uu/8GSpBMGy7jI3vAqo/bBFeE6lhpykAzrZLaC49malyvhXRRoOnWgapiWD6hqIHCEEniJxlxg6dwlLcBBdTDw==",
+    "signable_v3_signature": "p2wfgjI9B+S4r6/aaF8N3ja9X5YYyG8mI8EtlGdnzbL4o/2YDWxTApzUWtRDDK8Ln4kp/srsrG/5NW0zJIvqDg==",
     "upstream_model": "claude-sonnet-4-5",
     "verification": {
       "anchor_verifications": [],
       "byok_exempt": false,
-      "cert_tier": "audit_only",
-      "completeness": "COMPLETENESS_FULL",
+      "cert_tier": "",
+      "completeness": "COMPLETENESS_PARTIAL",
       "data_visibility_consistent": true,
       "isolation_verified": true,
       "l3_coverage_evidence": {
@@ -146,8 +146,10 @@
         "reason": "",
         "record_status": "absent"
       },
-      "missing_services": [],
-      "overall_verdict": "VERDICT_VERIFIED",
+      "missing_services": [
+        "dsa-reid-guard"
+      ],
+      "overall_verdict": "VERDICT_PARTIAL",
       "qi_score": null,
       "signatures_valid": true,
       "temporal_consistent": true,
@@ -155,7 +157,7 @@
       "upstream_auth_mode": "managed"
     },
     "witness_key_id": "witness_parity_v1",
-    "witness_signature": "JreNAZ708cxSTEUfbqReAidcRaSV2B1iUcoRFdn9QilIDb/D9wz4JtLhosoQp8cNEddVssgtX3d0U3BgGrWABg=="
+    "witness_signature": "uu/8GSpBMGy7jI3vAqo/bBFeE6lhpykAzrZLaC49malyvhXRRoOnWgapiWD6hqIHCEEniJxlxg6dwlLcBBdTDw=="
   },
   "expected": {
     "default": {

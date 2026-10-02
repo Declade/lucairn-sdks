@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.2",
+  "format": "lucairn-parity-corpus/v1.2.3",
   "id": "tamper_cert_tier_two_signer_label_two_tier_copies",
   "class": "tamper",
   "surface": "get_certificate",
