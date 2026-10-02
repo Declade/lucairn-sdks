@@ -3,7 +3,7 @@
     {
       "id": "edge_cert_tier_full_chain_on_partial_input_shield",
       "file": "cases/edge_cert_tier_full_chain_on_partial_input_shield.json",
-      "sha256": "2c94462537919875d6e82e8c822b2e3d88e201aa7a7c3e8d5ce00bc93265e424",
+      "sha256": "aad6cec837c99962e145589dca557e60030006c0fbc7f61de7e57424582a94fb",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -34,7 +34,7 @@
     {
       "id": "edge_inference_outcome_null",
       "file": "cases/edge_inference_outcome_null.json",
-      "sha256": "7c1b632c015c652fd04c33ef0bf0e0c520ad9de194150b9dfb6991ec99773efe",
+      "sha256": "eed8ce49fbba07470574090899234d1ec8854c2f048db0c21741f858bc48f5dd",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -65,7 +65,7 @@
     {
       "id": "edge_values_integer_above_2_53",
       "file": "cases/edge_values_integer_above_2_53.json",
-      "sha256": "f7df09dd2969ebc2a9c71c97daeb3750d0f6b6de1b3915dc900685e194fd1d9f",
+      "sha256": "3f0f86e31c5a6880bff84a2d0160c151296a231c5cd6960962d06a57fd806cba",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -97,7 +97,7 @@
     {
       "id": "edge_values_key_order_above_u_e000",
       "file": "cases/edge_values_key_order_above_u_e000.json",
-      "sha256": "57c2226ccd042ff82939676780d4e008b0d59cd05992709393c44b9c40173a68",
+      "sha256": "85c38c658b9a12dc5541ed1e3366542d1ec00d498c12fc984b21253284df04dd",
       "class": "edge",
       "surface": "get_certificate",
       "expected": {
@@ -127,9 +127,71 @@
       }
     },
     {
+      "id": "honest_audit_only",
+      "file": "cases/honest_audit_only.json",
+      "sha256": "5b4f36600b3a60023df0a777e32efa4b3f1fc1bf6292dcd7b73f7ca8ba87ce0e",
+      "class": "honest",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "VERIFIED",
+          "reason": "ok",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "audit_only",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "VERIFIED",
+          "reason": "ok",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "audit_only",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": true
+      }
+    },
+    {
+      "id": "honest_audit_only_partial",
+      "file": "cases/honest_audit_only_partial.json",
+      "sha256": "78b81bf491f8670f2ab89a55bb56c2cf31225c5e27142c86af5c7c3b83286117",
+      "class": "honest",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "PARTIAL",
+          "reason": "sealed_partial",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "audit_only",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        },
+        "minimum_v3": {
+          "verdict": "PARTIAL",
+          "reason": "sealed_partial",
+          "egress_attestation": "signed_digests",
+          "user_unredacted": "false",
+          "signed_cert_tier": "audit_only",
+          "signable_version": "v3",
+          "request_binding": "not_checked"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": true
+      }
+    },
+    {
       "id": "honest_full_chain_egress",
       "file": "cases/honest_full_chain_egress.json",
-      "sha256": "85c4a51eec03f20a75085f777eabc1d345708a3203a0cb545f05fa366dcbb13a",
+      "sha256": "baafa4d070b3caff6c1c48a9a31f9438a33152cc421c3c0ce2a0940725ed55e3",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -160,7 +222,7 @@
     {
       "id": "honest_full_chain_egress_export",
       "file": "cases/honest_full_chain_egress_export.json",
-      "sha256": "de5e06cabffc24eee3ebf1f706156017493fec7a5476c9b583cd9886bacd461c",
+      "sha256": "7a549166978bc91a983adfc451666b5ad4f747103a86dcbab32bc0be565cfc2a",
       "class": "honest",
       "surface": "witness_export",
       "expected": {
@@ -191,7 +253,7 @@
     {
       "id": "honest_full_chain_reid_guard",
       "file": "cases/honest_full_chain_reid_guard.json",
-      "sha256": "ea3850683d6788c1e5dc94a403ef2deb95a915e6514586d2f6a3c0541cfbfb63",
+      "sha256": "cbda20bd00bee088184bb225cf1a3fa29db20f72a0f57e31e4ea20bea048bcee",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -222,7 +284,7 @@
     {
       "id": "honest_full_chain_request_bound",
       "file": "cases/honest_full_chain_request_bound.json",
-      "sha256": "4a1749745048f867f24b7fd280c8129fba0b2d7b2160ee92f0c1abfa3961db75",
+      "sha256": "a9eae0adc277b3d10deccb5819d7285d8fa4a4f4b3343991198b8e45eed6ee6d",
       "class": "honest",
       "surface": "get_certificate",
       "inputs": {
@@ -257,7 +319,7 @@
     {
       "id": "honest_input_shield",
       "file": "cases/honest_input_shield.json",
-      "sha256": "5677ea3d331a4e7e2973854df092e13d04c3f6d525c4f62f1d1935ec0eda669c",
+      "sha256": "a95bbcdcbfbd2916c9e20a7cbbc64b3859fe4b07964485c9aed1db65af534da9",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -289,7 +351,7 @@
     {
       "id": "honest_input_shield_gateway_claim_lost",
       "file": "cases/honest_input_shield_gateway_claim_lost.json",
-      "sha256": "cdd7d4e604462d852aec47d988e0920dff4ecbe8bb677e80c5791accd4513671",
+      "sha256": "19cc38b7b74af1fa6240eca55a5775a0e5575bba995c04dee899cb391772c740",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -320,7 +382,7 @@
     {
       "id": "honest_input_shield_partial",
       "file": "cases/honest_input_shield_partial.json",
-      "sha256": "6735714de22984295ff884193a5efa97256d695999266646776a6038e6cc64f7",
+      "sha256": "a00c72d40f02e90082e0790daabf797170f5509f743f020c93dd9ebc9a24fda4",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -351,7 +413,7 @@
     {
       "id": "honest_input_shield_sanitizer_claim_lost",
       "file": "cases/honest_input_shield_sanitizer_claim_lost.json",
-      "sha256": "16fbf3c5600a63a906f6f29161cd4c623df352b87ae440f14ba2b3c2c0b668c1",
+      "sha256": "b890583b928d99393bd8c2efbcbaabe058412813e069f8b418db46314dde055e",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -382,7 +444,7 @@
     {
       "id": "honest_input_shield_tier_unset",
       "file": "cases/honest_input_shield_tier_unset.json",
-      "sha256": "887154af7432a31f7cafb590b250b0003bc4a912f6622aa799b36988ac13ba41",
+      "sha256": "894bd882b8bc5fdf6807b992b352ff19acac7272748faced4bb5d746756a333c",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -414,7 +476,7 @@
     {
       "id": "honest_input_shield_two_signer",
       "file": "cases/honest_input_shield_two_signer.json",
-      "sha256": "e84173de9acb83692189583a75916f7b57ce73fee1beaf57eca592f5cebdeb1e",
+      "sha256": "b73f16a7fcb73603079f61914761fbbc1d533ff147f787d1072ee9a6fcda5f78",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -446,7 +508,7 @@
     {
       "id": "honest_input_shield_two_signer_partial",
       "file": "cases/honest_input_shield_two_signer_partial.json",
-      "sha256": "305bfe5f021f5b97a20e9b9db217e97bca1ec3ec06b8f9c86faaf723115975fc",
+      "sha256": "e699598a76747809797be1c427b2a8f08a9dceff4d9017db0891e74cc634dd08",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -477,7 +539,7 @@
     {
       "id": "inference_cancelled",
       "file": "cases/inference_cancelled.json",
-      "sha256": "3d497d8cd3caad4685d2f872a03048874a512801880b87a6015ea372dd8cae7a",
+      "sha256": "6ae9532b2caa8ad0a32089d35c4bb609bc1d59119a702a380c38e23f726bb0e1",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -508,7 +570,7 @@
     {
       "id": "inference_failed",
       "file": "cases/inference_failed.json",
-      "sha256": "8e5a3c2e4a0a0d7fd81067228c8e61daaf0382e29a8c810cc50a8d497a0a727b",
+      "sha256": "1e48881d2eb0c4109b943c92d62e14b8cc8de1028ed129a9a8dfb9d556efbb5d",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -539,7 +601,7 @@
     {
       "id": "inference_failed_user_unredacted",
       "file": "cases/inference_failed_user_unredacted.json",
-      "sha256": "63f8e33cc84ecb6e2000072b951791e348c8ed425b25f51c49644243a116af9e",
+      "sha256": "2287ad4ae001b12d8878a5f64c9e8770efba39ffb4663bf5ed6bb39d3562d71d",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -570,7 +632,7 @@
     {
       "id": "legacy_no_egress_hash",
       "file": "cases/legacy_no_egress_hash.json",
-      "sha256": "44490fc77495764c0d91593546f844e3a306093f2e223a57c993195305d25ce3",
+      "sha256": "a5ad1cb1dbcb4c4db38ec8d62c78fc8556feb43c451e9a72d8c86b130fc50cfb",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -602,7 +664,7 @@
     {
       "id": "legacy_v2_signable_only",
       "file": "cases/legacy_v2_signable_only.json",
-      "sha256": "e5cb2b029bb92cbd53d3195dffdc13dcfb1da6be82d76566ecd013d375f90f25",
+      "sha256": "a2bf7b1e890567c19557499c4294f4ccf8dc7cddbed720edd14ee98ead578820",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -634,7 +696,7 @@
     {
       "id": "sealed_failed_splice",
       "file": "cases/sealed_failed_splice.json",
-      "sha256": "e6d3edc11b91918fa401b457823672e458d62bcefffee2353ac98371cea5cb21",
+      "sha256": "d7636f3129506988602c57eabdc777c757ed93134bd97b47532941dbd3859c4a",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -663,9 +725,201 @@
       }
     },
     {
+      "id": "tamper_cert_tier_audit_only_label_mixed_tiers",
+      "file": "cases/tamper_cert_tier_audit_only_label_mixed_tiers.json",
+      "sha256": "f0f2b2b67776e0b9d242287e3d632621d5139997174d83c23193a13c35b24914",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
+      "id": "tamper_cert_tier_audit_only_label_near_miss_marker",
+      "file": "cases/tamper_cert_tier_audit_only_label_near_miss_marker.json",
+      "sha256": "e542b1e189eb366ece273a3a3f863f7876371221d8c5e921579b98644b6b4092",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
+      "id": "tamper_cert_tier_audit_only_label_on_full_chain",
+      "file": "cases/tamper_cert_tier_audit_only_label_on_full_chain.json",
+      "sha256": "1a0bd8adb1c4b1ab9d9b7b6b2b87b2e0b4c7c8f7c954f048925eab44cbbbe6da",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
+      "id": "tamper_cert_tier_audit_only_label_on_partial",
+      "file": "cases/tamper_cert_tier_audit_only_label_on_partial.json",
+      "sha256": "3743021d15b114d6a57eb66c7b616f8360449d5857ff3f4b4f1a2c14750bf165",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
+      "id": "tamper_cert_tier_audit_only_label_second_dsa_ai",
+      "file": "cases/tamper_cert_tier_audit_only_label_second_dsa_ai.json",
+      "sha256": "351efd426ca1dfbf13f7e16bd35a3d6eb79ea2ff1b7cfbbfc54e606b93a70fa9",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_PARTIAL",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
+      "id": "tamper_cert_tier_full_chain_on_audit_only",
+      "file": "cases/tamper_cert_tier_full_chain_on_audit_only.json",
+      "sha256": "2663a63c0e36154a3da6ad7ec7b47b087cbdd8cd7ab565225ff4c1eed863e082",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
       "id": "tamper_cert_tier_full_chain_on_inconsistent",
       "file": "cases/tamper_cert_tier_full_chain_on_inconsistent.json",
-      "sha256": "98791188d1b2926894638c719f17797fc38b2075f5621d5bb4c5d656ce6c9ce3",
+      "sha256": "1064fd15f198076debf45ed89f7d6ff0a6ebe27feac2262c6904e2d75b78ad1d",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -696,7 +950,7 @@
     {
       "id": "tamper_cert_tier_full_chain_on_input_shield",
       "file": "cases/tamper_cert_tier_full_chain_on_input_shield.json",
-      "sha256": "3b5038228606421abe736e0e88f869e5c650dba1e8de4db7155acd012a9a3b50",
+      "sha256": "8d277f7db1f7f22e14835ab1acec1fc0adfa9d50a378279a225ceb277369d133",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -728,7 +982,7 @@
     {
       "id": "tamper_cert_tier_input_shield_on_full_chain",
       "file": "cases/tamper_cert_tier_input_shield_on_full_chain.json",
-      "sha256": "838483997f26e059858f322ff6f44cc028628c68ef2e05cd15005572bc419b94",
+      "sha256": "e5454db1d13abc5f45cc3c6cbcdf39d03cc593bb9580a707653bf50bbf22da48",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -760,7 +1014,7 @@
     {
       "id": "tamper_cert_tier_two_signer_label_two_tier_copies",
       "file": "cases/tamper_cert_tier_two_signer_label_two_tier_copies.json",
-      "sha256": "e03ab9dff42623f3df24c286741a36029bdd61ba2715d732cb76b8cd38ada72e",
+      "sha256": "425918b6784594d909cfc5a32ac21619cb3686707f89d27ae80c5434213b9777",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -792,7 +1046,7 @@
     {
       "id": "tamper_cert_tier_two_signer_label_with_dsa_ai",
       "file": "cases/tamper_cert_tier_two_signer_label_with_dsa_ai.json",
-      "sha256": "4e1a418f7828596283721d838c514d7727651954a747c5af12249306ff0679d2",
+      "sha256": "86cc1e4d280583e63bebd3cfc0a15ec3a443246be4e42b4203880a2a4559da53",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -824,7 +1078,7 @@
     {
       "id": "tamper_cert_tier_two_signer_label_without_sanitizer",
       "file": "cases/tamper_cert_tier_two_signer_label_without_sanitizer.json",
-      "sha256": "a14d2d6873eecd5de3ae26d99a7dc155778e0fb240ccefb0ff5cfdd92258f7bb",
+      "sha256": "1360211bd52a4f527e8e9284b9275cb593d5d31988e621ce7a05416b27004a21",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -856,7 +1110,7 @@
     {
       "id": "tamper_cert_tier_unknown_label_on_partial",
       "file": "cases/tamper_cert_tier_unknown_label_on_partial.json",
-      "sha256": "274ad5ee6774a44f119e20ce1b5893070b6a6bb8d72a827fec5adc8ba354d396",
+      "sha256": "930b169801df58e64f043ca90f33b4c7b843520d46d925971b63221c4e21f11c",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -886,9 +1140,41 @@
       }
     },
     {
+      "id": "tamper_cert_tier_unset_on_audit_only",
+      "file": "cases/tamper_cert_tier_unset_on_audit_only.json",
+      "sha256": "ef8186c215960c4fd8516095b7447935de71e29833eb3660f1cbb2a6537903fc",
+      "class": "tamper",
+      "surface": "get_certificate",
+      "expected": {
+        "default": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        },
+        "minimum_v3": {
+          "verdict": "FAILED",
+          "reason": "cert_tier_mismatch",
+          "egress_attestation": "not_evaluated",
+          "user_unredacted": "unknown",
+          "signed_cert_tier": "not_evaluated",
+          "signable_version": "none",
+          "request_binding": "not_evaluated"
+        }
+      },
+      "reference": {
+        "witness_reverify_verdict": "VERDICT_VERIFIED",
+        "witness_agrees": false,
+        "note": "the witness recomputes cert_tier from the signed claims and ignores the submitted value"
+      }
+    },
+    {
       "id": "tamper_certificate_duplicate_key",
       "file": "cases/tamper_certificate_duplicate_key.json",
-      "sha256": "527b18da20798754d5c6feb73bfc8fb2189b20b237cbf59f1adba61531ac2339",
+      "sha256": "06f48124edf822be59f015fb83b6bfccd1b65770146278b0b0c382dcd1a49091",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -919,7 +1205,7 @@
     {
       "id": "tamper_certificate_duplicate_key_escaped",
       "file": "cases/tamper_certificate_duplicate_key_escaped.json",
-      "sha256": "99e848c4c21dd1f9104cc7bfae9cd7a4c5c05575eab5ef0ebdf92e6b638c356b",
+      "sha256": "26c65ba30dcfe9c0e310f6d756c4542726396c682d69147ed6ec280ca505c485",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -950,7 +1236,7 @@
     {
       "id": "tamper_certificate_id_mismatch",
       "file": "cases/tamper_certificate_id_mismatch.json",
-      "sha256": "5f9560865d33472524bdc7002f7f789ac7c87d4905ebc485419d9349342e9f0d",
+      "sha256": "6913729a9252d56cd5fe2c91e5a9a46ad47d8000e964d7557558086d9d515c6b",
       "class": "tamper",
       "surface": "get_certificate",
       "inputs": {
@@ -986,7 +1272,7 @@
     {
       "id": "tamper_certificate_key_camel_case",
       "file": "cases/tamper_certificate_key_camel_case.json",
-      "sha256": "3144004d2ec847e46fbb9431380431a2ba9baece8bc34d898d9e4a21af7080b2",
+      "sha256": "80bec8f18af983a6def783023b9e6bf50c7841484c97a87ee04cb7d04f9b4442",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1017,7 +1303,7 @@
     {
       "id": "tamper_certificate_key_camel_case_bodies",
       "file": "cases/tamper_certificate_key_camel_case_bodies.json",
-      "sha256": "ab154814c13bdf1c456d16fa1fa9fdb5b73702b79c3e6c93a6230361e5e94bdb",
+      "sha256": "a983dff07f4d6ce4d758b027f0238c0f5e359c038e42cd2f0fd34457a4b1a3c0",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1048,7 +1334,7 @@
     {
       "id": "tamper_certificate_key_case_variant",
       "file": "cases/tamper_certificate_key_case_variant.json",
-      "sha256": "8c769ad5a76da648e5af0d355f13598ae8a19fbfcd19788aa64c2005194414de",
+      "sha256": "fb60e0542ba9a48d0701f65fbac09852080606ca4e2490aa4f1c3c3e3114baa7",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1080,7 +1366,7 @@
     {
       "id": "tamper_certificate_key_case_variant_alone",
       "file": "cases/tamper_certificate_key_case_variant_alone.json",
-      "sha256": "68e4d1d1615ffce3ff3faf8fd991d53a2bb2c6dce72b7ee7aa0136567d41a2ec",
+      "sha256": "f658d59ad00ad38f76eddfded72326312acfb3649362b350e7c0e7379a702cb9",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1112,7 +1398,7 @@
     {
       "id": "tamper_certificate_key_kelvin_sign",
       "file": "cases/tamper_certificate_key_kelvin_sign.json",
-      "sha256": "f47ea98fa4cc33cc146d4efd818dffd81da0f0f0ee960b7cfdd2ccb60773eef6",
+      "sha256": "5bc27e52703dc9f8e57e5a05d1f8d322ed1f48a9d562ea35ce6e859cf93b8aed",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1144,7 +1430,7 @@
     {
       "id": "tamper_certificate_lone_surrogate",
       "file": "cases/tamper_certificate_lone_surrogate.json",
-      "sha256": "431bcafafa3093752b5ff81fc7a480c2f86140c314eb0c0ca195f85d55c764da",
+      "sha256": "b8058c13ff7a6ba9724a67df44f13bd305e3dd00d63c272341007b83aac3177e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1175,7 +1461,7 @@
     {
       "id": "tamper_certificate_nesting_too_deep",
       "file": "cases/tamper_certificate_nesting_too_deep.json",
-      "sha256": "1f4a66bd8ee2c2fee0b7aec1235eb9044b46a6c477cdaf50b02af033eaffbde7",
+      "sha256": "632760b0541a194229a0530cbdb6225897a54535e078e0c232d4db45e99d1880",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1207,7 +1493,7 @@
     {
       "id": "tamper_certificate_trailing_bracket",
       "file": "cases/tamper_certificate_trailing_bracket.json",
-      "sha256": "3282511515252341dd7d3b77b8b6746afac7a6de5d4bcab456fb767ffd699653",
+      "sha256": "2212596b36a4bc04b61c52ddf4e527c07ed7a674033f3dec655c72126813d38a",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1239,7 +1525,7 @@
     {
       "id": "tamper_claim_body_edited_same_id",
       "file": "cases/tamper_claim_body_edited_same_id.json",
-      "sha256": "81022b4da46814bec1afa8fe856281f8835a6069fcc0f9d2cf63245065181018",
+      "sha256": "918b779c59cd2b8fd7ad46e104a971ccf499958557174838adb908fd74418e4d",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1270,7 +1556,7 @@
     {
       "id": "tamper_claim_id_not_witness_listed",
       "file": "cases/tamper_claim_id_not_witness_listed.json",
-      "sha256": "0fc7de4b3848dead0b13e6e13ba2321e2afd9c1a8a4ec7d7a674132aa59451db",
+      "sha256": "afb6cf6847787fde1b5f2aadcf084438d8a3de1e951ccb9ebd25e10edc8c325e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1301,7 +1587,7 @@
     {
       "id": "tamper_claim_payload_not_base64",
       "file": "cases/tamper_claim_payload_not_base64.json",
-      "sha256": "09a41565be9e29cfdb3216bf41d7814a98391e1406df23f7cb8b3816d4e6ff6f",
+      "sha256": "4d08c655b9c9271a26ddc432b0b912f0cedd3ef7da985d061b7556c7e8c825a8",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1333,7 +1619,7 @@
     {
       "id": "tamper_claim_signature_noncanonical_base64",
       "file": "cases/tamper_claim_signature_noncanonical_base64.json",
-      "sha256": "fe7642c802ec127cf9fa15475f44ef19c1cba93839db38da8ea632191cf7ed35",
+      "sha256": "86a5a343efee7a786e280e01e275f41fa015abf27ed0729cf6382e4e2cb97802",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1364,7 +1650,7 @@
     {
       "id": "tamper_claim_signature_noncanonical_r",
       "file": "cases/tamper_claim_signature_noncanonical_r.json",
-      "sha256": "ad232d548ba0ff80fb1ed50e5ab9d21b7c7552b5b567e1af418ff16083b0674e",
+      "sha256": "0e5d2ea1f0e6e15852cef0c1bc172e1a5aa1d88c9e0bbb2685bdc6291e84652c",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1395,7 +1681,7 @@
     {
       "id": "tamper_claim_signature_noncanonical_s",
       "file": "cases/tamper_claim_signature_noncanonical_s.json",
-      "sha256": "8a8e72e0c61713771239bb2421ccd9ad4558a94f4599f1ee594b88acc6bcffe0",
+      "sha256": "19fd26d5b7a9ca22e86f134eeac85521c1232924aa067b57f44a70d88f89cf88",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1426,7 +1712,7 @@
     {
       "id": "tamper_claim_signature_small_order_r",
       "file": "cases/tamper_claim_signature_small_order_r.json",
-      "sha256": "1799c0871fc97ed332fdc75223f3675bc72dbbe8d8d3ed42493441afdf84cf12",
+      "sha256": "7ceaee0e7026f7b4c6a2b92199dba3f1cbc149520849ef8098aad8cea40dbd6c",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1457,7 +1743,7 @@
     {
       "id": "tamper_claim_swapped_from_other_cert",
       "file": "cases/tamper_claim_swapped_from_other_cert.json",
-      "sha256": "b45f9c7b962a8feee04096dec1ce4174e1cb03e1ded17555628f753c6cb450ff",
+      "sha256": "77f3b93df2a0511ce4cce21d13c4d03d2a91839fcf58e5e2984895eb2700d549",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1488,7 +1774,7 @@
     {
       "id": "tamper_duplicate_audit_claim",
       "file": "cases/tamper_duplicate_audit_claim.json",
-      "sha256": "77783e1ed708e12185ebf96349faea6fe1a5b035e54f6a9a0758a30024221899",
+      "sha256": "137dbab7f781633cd11bca2dba13ab456de5658234408a105a465f28875b2f58",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1519,7 +1805,7 @@
     {
       "id": "tamper_egress_bodies_on_gateway_seal",
       "file": "cases/tamper_egress_bodies_on_gateway_seal.json",
-      "sha256": "c76270fbd947aa1434cb31c947f36c6c2c4171b2f1d2bc7376889fb30c949d76",
+      "sha256": "27841b117ffd9d50c721303416506a283eb55cc657b71b8dc411c4ebf8e4b644",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1551,7 +1837,7 @@
     {
       "id": "tamper_egress_bodies_without_digest",
       "file": "cases/tamper_egress_bodies_without_digest.json",
-      "sha256": "5a11c29f35e20e7d0a4d61d99835a2f4449bc293fbd0ab43f4df3cddba2a279a",
+      "sha256": "a087db428941d4e62e6761a3152fa83617b5e4bc269e361c553b4a8146847037",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1583,7 +1869,7 @@
     {
       "id": "tamper_egress_body_hash_mismatch",
       "file": "cases/tamper_egress_body_hash_mismatch.json",
-      "sha256": "be6544553823cfb97fe087153f183a0d71be1ec145a7624ae8752a798be2737f",
+      "sha256": "d3d6b6b744e6802b6feb746b5a8b2cd77fa7b61a485398a5e834689476a79c4a",
       "class": "tamper",
       "surface": "witness_export",
       "expected": {
@@ -1615,7 +1901,7 @@
     {
       "id": "tamper_egress_digest_malformed",
       "file": "cases/tamper_egress_digest_malformed.json",
-      "sha256": "79e8cff83668679525b3b9e21f02d148af43d7c4c0a5d7e1a394eee3a29727ec",
+      "sha256": "51cedfd38c1173a3b2e3d020ad0459250e005c5b2a1131899b12d4d27c24cc0a",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1647,7 +1933,7 @@
     {
       "id": "tamper_egress_digest_null",
       "file": "cases/tamper_egress_digest_null.json",
-      "sha256": "f7b5c9ba1332c68da79cd0182ca57bcab3bcba07084d72440af6c94f367319c1",
+      "sha256": "1a8fb3f4ccc05a51f2c952847b0a4de92c810d72551a672b09214a656be5c814",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1679,7 +1965,7 @@
     {
       "id": "tamper_issued_at_ten_digit_fraction",
       "file": "cases/tamper_issued_at_ten_digit_fraction.json",
-      "sha256": "53879596c322ed00631358fa0a5667dcdda4235ccd4788e01445fa23a2e9be4f",
+      "sha256": "366f48d6259d7a4a95dd7a6ebcfcce70b18f4df3a28950ac604ef478213b7de3",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1711,7 +1997,7 @@
     {
       "id": "tamper_outer_field_edited",
       "file": "cases/tamper_outer_field_edited.json",
-      "sha256": "8ce48a9d82a0b928b391fb1bc36426dafc304dd82fa0f6bc1127f987f96e84ce",
+      "sha256": "fe3d2ee301c5a73d98826837059af49f07e9332dc63cb79d8afc2b6cb5e43d3f",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1742,7 +2028,7 @@
     {
       "id": "tamper_protocol_version_changed",
       "file": "cases/tamper_protocol_version_changed.json",
-      "sha256": "93bd0438f73a8fd945d297a6538e29149ab7be655bd7779d40b0f8a5b3e3bfbf",
+      "sha256": "a268ccccfa1ddfd0e84ef03d80fdc1296b69ea1a68dd38905e4a88c233ecd758",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1773,7 +2059,7 @@
     {
       "id": "tamper_protocol_version_float_token",
       "file": "cases/tamper_protocol_version_float_token.json",
-      "sha256": "d3518c190f78b74c7896fc6c12d6ad2e4be69a495fa4f40ba845ac247359e860",
+      "sha256": "8f2e4b74b73411f181bd2476a616bd9fd72fb52f6977da19986d7b56fb84ce93",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1804,7 +2090,7 @@
     {
       "id": "tamper_protocol_version_oversized_integer",
       "file": "cases/tamper_protocol_version_oversized_integer.json",
-      "sha256": "93605a3aa88d30a473fb4dd3b7d1a9074a4a80936be228d52b419b883ad56021",
+      "sha256": "95254c7fbe52f741672b3bb2e6033ad7e54e64c796da7386d89fc43a6f19d896",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1836,7 +2122,7 @@
     {
       "id": "tamper_qi_risk_score_float32_overflow",
       "file": "cases/tamper_qi_risk_score_float32_overflow.json",
-      "sha256": "0d2cfec5c15efed0581155a82e6028432cb665bcc70ec03a084753d52c14e69a",
+      "sha256": "ccd8247f26d1cd04f86f27f5a361321af6e03f20001e5782d0f5ff4489cc1f5e",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1868,7 +2154,7 @@
     {
       "id": "tamper_request_id_mismatch",
       "file": "cases/tamper_request_id_mismatch.json",
-      "sha256": "29392688c9ab1f02cd15a3133399fce41716f6c7c94d2d7e72adfa1ed6a16672",
+      "sha256": "bc039a055dc0be4bc76448ccedf6f6d5d7eaebea96d4795a320b29ed10236457",
       "class": "tamper",
       "surface": "get_certificate",
       "inputs": {
@@ -1903,7 +2189,7 @@
     {
       "id": "tamper_sanitizer_payload_duplicate_key",
       "file": "cases/tamper_sanitizer_payload_duplicate_key.json",
-      "sha256": "ae95bcdd1c44e23c2fcb171b98158f2ba4a20bf81ee3101b2fcac2b6ae36af79",
+      "sha256": "512bc4bd0f5ae4c7e7f024ca23eae1d8fc1a09c7a885bee6744398cc931ac9c9",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1934,7 +2220,7 @@
     {
       "id": "tamper_sealed_verdict_upgraded",
       "file": "cases/tamper_sealed_verdict_upgraded.json",
-      "sha256": "7d0f579b7a0026d3b37dd9dd391bdc9b6ccb0c8a7db9a01d835c750440465111",
+      "sha256": "c9074ead4d827e5a2483113d9df916cf964b7716b2f8c25c4b8172bc7f744676",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1965,7 +2251,7 @@
     {
       "id": "tamper_second_egress_digest_list",
       "file": "cases/tamper_second_egress_digest_list.json",
-      "sha256": "684d4cc79597dd69693c7248aa80dd08bc9e6450de13332d17bb8ca69d743805",
+      "sha256": "f623f903e32106018b2b8afd0bfa1052dbe1cd9e6fed25901a26eddd3f326b4f",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -1997,7 +2283,7 @@
     {
       "id": "tamper_signable_v3_signature_control_char",
       "file": "cases/tamper_signable_v3_signature_control_char.json",
-      "sha256": "71c678705c990cceb4395c2729e8d1c6712056926d3ec650af1fc84eefac146f",
+      "sha256": "4bd34cc1d132611a3942ae30924d615df9a03f9a874988179d9f564cacdc02fe",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2028,7 +2314,7 @@
     {
       "id": "tamper_signable_version_field_stripped",
       "file": "cases/tamper_signable_version_field_stripped.json",
-      "sha256": "2a9e5d55f3ca5f19c5ac311740f28b274b9c1317194688d92e53bf202a8f70f0",
+      "sha256": "42a8d5208074e8153fc0232ae164b4d8d692e2b78016c7b592228212c509c8bd",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2059,7 +2345,7 @@
     {
       "id": "tamper_signed_key_long_s",
       "file": "cases/tamper_signed_key_long_s.json",
-      "sha256": "8eafd489423c43102adc21b2ace04f108329b92ed1d78079a1659b9af44c46c5",
+      "sha256": "a7743a27d6ef3363c62d84b66b3298a1523811a88311b82cafce81be6d191195",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2090,7 +2376,7 @@
     {
       "id": "tamper_signed_noncanonical_bytes",
       "file": "cases/tamper_signed_noncanonical_bytes.json",
-      "sha256": "9064a80f8ce638e7fa2952b7de6d5095b414e2f4a53ebf92dc9908ce3e8254e3",
+      "sha256": "181e0aeb6638d88312b62998dade9b981ec789eeb15533c7c41c3277d86cf8d2",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2121,7 +2407,7 @@
     {
       "id": "tamper_typed_bridge_token_hash",
       "file": "cases/tamper_typed_bridge_token_hash.json",
-      "sha256": "669902c2d5c0d7daaaff091c214b89a099acddb561cad4325f12721489b31809",
+      "sha256": "be7232efeddbd3ead55cd41451559759f121e5461063c44317d00a656d9375d0",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2152,7 +2438,7 @@
     {
       "id": "tamper_typed_inference_stripped",
       "file": "cases/tamper_typed_inference_stripped.json",
-      "sha256": "35d483111b8d2c82c4294c9aae03ecc398d482cae9dbbb39f1016213b21d0c55",
+      "sha256": "0b6a31155b907a5f1f76b92fe257f2da11ff9017ff560e367edd366c4d6647dd",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2183,7 +2469,7 @@
     {
       "id": "tamper_typed_model_used",
       "file": "cases/tamper_typed_model_used.json",
-      "sha256": "2c2c02080928f0d15d65e5e77f12af88c252942c25c1e0a76b1015fe6e1046a0",
+      "sha256": "6f3b6231ed474d7423135d3eed65a37ed1bb1a776bf65a9cb3f00a232d3b99fd",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2214,7 +2500,7 @@
     {
       "id": "tamper_typed_pii_entities_found",
       "file": "cases/tamper_typed_pii_entities_found.json",
-      "sha256": "19e1f0a950b20ff0de9284d4482a3dc75c951b45b78b79c4cce2c286f857b328",
+      "sha256": "ae72fe17cc68a7fdef8287e38bada436ffc97303c4cb87a683efa52d6f8863ac",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2245,7 +2531,7 @@
     {
       "id": "tamper_typed_qi_score_fabricated",
       "file": "cases/tamper_typed_qi_score_fabricated.json",
-      "sha256": "ca8929218fbb76df98815fd3de22a2864c7096bb8d1e8a0c9b416ee0f8a8e743",
+      "sha256": "2a52a80ecfc590f8059f667cbfa0e8e8600a031c07414c7f9ac3d5bf9f684df1",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2276,7 +2562,7 @@
     {
       "id": "tamper_unknown_service_claim",
       "file": "cases/tamper_unknown_service_claim.json",
-      "sha256": "0748e81c11662e60c034e5c77a4cb7a0013cd1bc8cd503b89edcb6bbdfa304c2",
+      "sha256": "fe65c507f8bf2a4025c8771c7df56f3d4da2e61d9b209ed470e23fa3a9ba6643",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2308,7 +2594,7 @@
     {
       "id": "tamper_unknown_signing_key",
       "file": "cases/tamper_unknown_signing_key.json",
-      "sha256": "fcbea253f02c6d89eebd6dba79dad4c7d2060bae3c4d158c714bfb10e36bf60e",
+      "sha256": "087fe12e97ac61418ae1a0a24e5f5abc610cebd8ca1f04df9d4b5c8501d92d74",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2339,7 +2625,7 @@
     {
       "id": "tamper_user_unredacted_token_added",
       "file": "cases/tamper_user_unredacted_token_added.json",
-      "sha256": "42e76bfa5f733982a4552c27ab04f7f559c40cabcc1b2aabbf4e037fe772d765",
+      "sha256": "bff24780d6211c732770b6053c5d523787353c2c895b01d247e774b2b263f5ff",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2370,7 +2656,7 @@
     {
       "id": "tamper_user_unredacted_token_on_inference_claim",
       "file": "cases/tamper_user_unredacted_token_on_inference_claim.json",
-      "sha256": "f786e205bc54fb217f6bf362509f3530ed2be8bc2917aab75afe18b4938a18d0",
+      "sha256": "7fb28f5493aec6a8c80a6eb679f178232aab4a4eb016a01cae332ad3296b196f",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2401,7 +2687,7 @@
     {
       "id": "tamper_user_unredacted_token_stripped",
       "file": "cases/tamper_user_unredacted_token_stripped.json",
-      "sha256": "01f4b0481e46398ebaf37feede1f7267790aa5f4dfe020cb65e66f6f1bd4f69a",
+      "sha256": "aa90c143dae4629d2278d94e835388d2ea3a06c56eba77eaf39c3c86bba12fa5",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2432,7 +2718,7 @@
     {
       "id": "tamper_v3_stripped_metadata_forged",
       "file": "cases/tamper_v3_stripped_metadata_forged.json",
-      "sha256": "69d24f3b5cf807ae4b60c719ac1a4ab436008d520647ae62150084d88fae1c61",
+      "sha256": "7bbfe76c6b73de9daf2a3701dcb3ace629b1f643fc57546d74d4698b45fa1ff4",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2463,7 +2749,7 @@
     {
       "id": "tamper_values_bound_exceeded",
       "file": "cases/tamper_values_bound_exceeded.json",
-      "sha256": "6e082dd3d87595903faac31ca5b73761ce09f6532d5689bc27217e54e1016b75",
+      "sha256": "ea53cb05d4774764266606da51f32118f9d9f6315082d8a1b1586116e0579856",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2494,7 +2780,7 @@
     {
       "id": "tamper_witness_key_id_changed",
       "file": "cases/tamper_witness_key_id_changed.json",
-      "sha256": "eb2c985f0e442f2e02518bfcc2699293b75e588f0e422c2531aff34b09be1587",
+      "sha256": "3fb1c8045f79a2b484e5ccf8fe24b82ab58620af5cf01797da89347d46de5bd9",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2525,7 +2811,7 @@
     {
       "id": "tamper_witness_signature_small_order_r",
       "file": "cases/tamper_witness_signature_small_order_r.json",
-      "sha256": "dabae64f00b55710d9b530ad55c21706cbff684fddf2045eb74df99ccaaa1e5a",
+      "sha256": "4faecdd91a5ed812a35c354eec6c37ab3729fdd4734066d0b987325c7cce08ae",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2556,7 +2842,7 @@
     {
       "id": "tamper_wrong_service_key",
       "file": "cases/tamper_wrong_service_key.json",
-      "sha256": "a1b73c7f2828a1dbf8b2be9d5392c5e32d249a7a81713ee9558b9fbbbceca7f1",
+      "sha256": "5d352cd75d5bc631befca9bc74713bcc16c7ff3ad55ddf1eec3db63120dd38fa",
       "class": "tamper",
       "surface": "get_certificate",
       "expected": {
@@ -2587,7 +2873,7 @@
     {
       "id": "user_unredacted_segment",
       "file": "cases/user_unredacted_segment.json",
-      "sha256": "4d1de950b07886bd37de11767873e784c06348905c6d1eedc5281b16c02d20fb",
+      "sha256": "52c21b65ad32123fb58431188179a30961dc4c0a823cdbc078ceedc0ca594667",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -2618,7 +2904,7 @@
     {
       "id": "user_unredacted_streaming_sanitizer",
       "file": "cases/user_unredacted_streaming_sanitizer.json",
-      "sha256": "295f79962b1ea014ccdcceec1e76d0c7f19f0bf60829fb85d071c7e5e62b3918",
+      "sha256": "cb7a87900d238f4cfcfe7048c43c198b4fb602799adc40d619caa229d4a687f4",
       "class": "honest",
       "surface": "get_certificate",
       "expected": {
@@ -2657,7 +2943,7 @@
     "unattested",
     "not_evaluated"
   ],
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "key_policy": "key-policy.json",
   "keys": "keys.json",
   "max_depth": 256,
@@ -2715,6 +3001,7 @@
     "absent",
     "input_shield",
     "input_shield_two_signer",
+    "audit_only",
     "inconsistent",
     "not_evaluated"
   ],

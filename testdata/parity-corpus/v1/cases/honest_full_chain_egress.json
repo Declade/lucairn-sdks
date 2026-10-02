@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "id": "honest_full_chain_egress",
   "class": "honest",
   "surface": "get_certificate",

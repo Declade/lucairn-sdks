@@ -1,5 +1,5 @@
 {
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "id": "tamper_cert_tier_full_chain_on_input_shield",
   "class": "tamper",
   "surface": "get_certificate",

@@ -6,7 +6,7 @@
     "key_invalid_point",
     "key_test_key"
   ],
-  "format": "lucairn-parity-corpus/v1.2.1",
+  "format": "lucairn-parity-corpus/v1.2.2",
   "note": "Each vector is ONE pinned key given as text plus the allow_test_keys setting; expected is ok or the code the verifier raises when it loads that key (a key-set error, never a verdict). The checks, in order: key_malformed = not canonical standard padded base64 of exactly 32 bytes (decode, re-encode, compare: no hex, URL-safe alphabet, missing padding, whitespace or set trailing bits); key_small_order = the 32 bytes with the top bit of byte 31 cleared equal one of the seven small-order y values (0, 1, p-1, p, p+1 and the two order-8 values, little-endian; 14 encodings with the sign bit either way); key_invalid_point = not the canonical encoding of a curve point (y = the low 255 bits, little-endian, is >= p = 2^255-19, or no x satisfies -x^2 + y^2 = 1 + d*x^2*y^2 with d = -121665/121666 mod p); key_test_key = one of the public keys in keys.json while allow_test_keys is false (their private keys follow from the public corpus seed).",
   "vectors": [
     {

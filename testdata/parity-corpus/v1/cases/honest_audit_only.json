@@ -1,0 +1,344 @@
+{
+  "format": "lucairn-parity-corpus/v1.2.2",
+  "id": "honest_audit_only",
+  "class": "honest",
+  "surface": "get_certificate",
+  "description": "Honest certificate-only (audit-only) certificate: dsa-bridge + dsa-ai + dsa-audit, no dsa-sanitizer claim because the sanitizer hop was skipped BY DESIGN for the calling key. The dsa-ai claim signs cert_tier audit-only (with cert_tier_basis gateway_asserted and the certificate-only visibility: it saw unsanitized_context) and the egress digest; the witness sealed it VERIFIED with the unsigned cert_tier audit_only. Exactly one signed tier copy exists (the dsa-ai's audit-only) and exactly one dsa-ai claim, so step 8d passes and the result reports the tier audit_only — the content was NOT sanitized, and a reader MUST say so.",
+  "construction": "bridge + the sandbox-b certificate-only claim + audit; honest seal",
+  "certificate": {
+    "anchor_status": null,
+    "api_key_id": "k_paritycorpus0001",
+    "attestation": {
+      "notary": {
+        "attested_at": null,
+        "checks_performed": [
+          "canonical_json_signing"
+        ],
+        "notary_public_key_id": "witness_parity_v1",
+        "notary_signature": "+dFpyO07XfD+sbAzfzF/LvmHGBxjWMueDLRhaEXpRctLkKrUQGDbYqdJkn1gaBWSsLNIVp1Wo3YXhUjoVe/vBg==",
+        "provider": "dsa-veil-witness"
+      },
+      "qualified_timestamp": null,
+      "rails": [],
+      "timestamp": null,
+      "transparency_log": null
+    },
+    "audit_integrity": {
+      "inclusion_proof": null,
+      "log_proofs": [],
+      "merkle_root": "UwfCqkvRej2LaImT6S9zZlkNlBn0Uc2tOmx/P3IgMtI=",
+      "tree_size": "7"
+    },
+    "certificate_id": "veil_c103b7e4-8f9f-453a-aef0-27649bffb58c",
+    "claims": [
+      {
+        "bridge": {
+          "encryption_enabled": true,
+          "epoch": "0",
+          "token_hash": "ntLRm0WGKzAGIXRgOKV4dijQ4o2e3iC1gwzSWfxVZE0="
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV83NzAwZmEyNC1mZmFlLTQ5NTAtYWYzNC0wNzk0MjUwYjM0MDIiLCJjbGFpbV90eXBlIjoiVE9LRU5fR0VORVJBVEVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJjb250ZXh0IiwicHJvbXB0X3RlbXBsYXRlIiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwicGF5bG9hZCI6eyJhcGlfa2V5X2lkIjoia19wYXJpdHljb3JwdXMwMDAxIiwiY29udmVyc2F0aW9uX2lkIjoiIiwiY3VzdG9tZXJfaWQiOiJjdXN0X3Bhcml0eV9jb3JwdXMiLCJlcGhlbWVyYWwiOmZhbHNlLCJvcmdfaWQiOiJvcmdfcGFyaXR5X2NvcnB1cyIsInRva2VuX2hhc2giOiI5ZWQyZDE5YjQ1ODYyYjMwMDYyMTc0NjAzOGE1Nzg3NjI4ZDBlMjhkOWVkZTIwYjU4MzBjZDI1OWZjNTU2NDRkIn0sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1icmlkZ2UiLCJ0aW1lc3RhbXAiOiIyMDI2LTA5LTI1VDEyOjA4OjAwLjFaIn0=",
+        "claim_id": "clm_7700fa24-ffae-4950-af34-0794250b3402",
+        "claim_type": "CLAIM_TYPE_TOKEN_GENERATED",
+        "data_not_seen": [
+          "context",
+          "prompt_template",
+          "inference_result"
+        ],
+        "data_seen": [
+          "customer_id"
+        ],
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-bridge",
+        "signature": "FSdXnB7wbbsPJIvk1051CeMThHN0dfCw5SXAlA2mbOYu1bITd7CBs+CGeIFiKKP7MBwvXWhVBKYJC8UL8z2+AA==",
+        "timestamp": "2026-09-25T12:08:00.100Z"
+      },
+      {
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV9iMDVkMjMzOS0wY2Y2LTQzYzItYjQzNC01N2I0N2NjZDRjNzkiLCJjbGFpbV90eXBlIjoiSU5GRVJFTkNFX0NPTVBMRVRFRCIsImRhdGFfbm90X3NlZW4iOlsiY3VzdG9tZXJfaWQiXSwiZGF0YV9zZWVuIjpbIm9wYXF1ZV90b2tlbiIsInVuc2FuaXRpemVkX2NvbnRleHQiXSwicGF5bG9hZCI6eyJjZXJ0X3RpZXIiOiJhdWRpdC1vbmx5IiwiY2VydF90aWVyX2Jhc2lzIjoiZ2F0ZXdheV9hc3NlcnRlZCIsImlzb2xhdGlvbl9wcm9iZSI6IlZFUklGSUVEIiwibW9kZWxfdXNlZCI6ImNsYXVkZS1zb25uZXQtNC01IiwicmVzcG9uc2VfaGFzaCI6IjA2MjJhYWY5ZDRiYjM2NTE1YzQxODQ0OWE1NDhiNTQ2Njc3NzFhZjQzZmJlYzhkNTc5MjAyZTQ4MzI5NTE3MWUiLCJ1cHN0cmVhbV9hdXRoX21vZGUiOiJtYW5hZ2VkIiwidXBzdHJlYW1fYm9keV9zaGEyNTYiOlsiZmE5NDdhOTIxZTllNWIyNzE0M2RhMWM5MDQwNTE0NzZjYzI4YzllOGM5NjYwYTFkOTMxZjZmNDdlOGQ3OTY5NCJdfSwicmVxdWVzdF9pZCI6InJlcV9wYXJpdHlfdjFfY2VydG9ubHkiLCJzZXJ2aWNlX2lkIjoiZHNhLWFpIiwidGltZXN0YW1wIjoiMjAyNi0wOS0yNVQxMjowODowMS41MDAwMDBaIn0=",
+        "claim_id": "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+        "claim_type": "CLAIM_TYPE_INFERENCE_COMPLETED",
+        "data_not_seen": [
+          "customer_id"
+        ],
+        "data_seen": [
+          "opaque_token",
+          "unsanitized_context"
+        ],
+        "inference": {
+          "isolation_probe": "ISOLATION_PROBE_VERIFIED",
+          "model_used": "claude-sonnet-4-5",
+          "response_hash": "BiKq+dS7NlFcQYRJpUi1Rmd3GvQ/vsjVeSAuSDKVFx4=",
+          "upstream_request_bodies": []
+        },
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-ai",
+        "signature": "afiM8qdWB30j3dNzvH0pCF6ye4VyLZbHtCofFmUAp+vo7G37fCorplfEFEktKnxiFyw1ozREf82JQ8D8vo3rCA==",
+        "timestamp": "2026-09-25T12:08:01.500Z"
+      },
+      {
+        "audit": {
+          "chain_head_hash": "UwfCqkvRej2LaImT6S9zZlkNlBn0Uc2tOmx/P3IgMtI=",
+          "chain_length": "7",
+          "event_ids": [
+            "evt_parity_certonly"
+          ],
+          "output_scan_body": "",
+          "output_scan_hash": "",
+          "previous_chain_hash": ""
+        },
+        "canonical_payload": "eyJjbGFpbV9pZCI6ImNsbV85NDBlOTllNi1jOTE4LTQ4NjgtOTc1NC0xZGNhNmFjOTllYjUiLCJjbGFpbV90eXBlIjoiRVZFTlRTX1JFQ09SREVEIiwiZGF0YV9ub3Rfc2VlbiI6WyJwaWkiLCJjb250ZXh0IiwiaW5mZXJlbmNlX3Jlc3VsdCJdLCJkYXRhX3NlZW4iOlsiZXZlbnRfaGFzaGVzIl0sInBheWxvYWQiOnsiZXZlbnRfaWQiOiJldnRfcGFyaXR5X2NlcnRvbmx5IiwibWVya2xlX3Jvb3QiOiI1MzA3YzJhYTRiZDE3YTNkOGI2ODg5OTNlOTJmNzM2NjU5MGQ5NDE5ZjQ1MWNkYWQzYTZjN2YzZjcyMjAzMmQyIiwibWVya2xlX3RyZWVfc2l6ZSI6N30sInJlcXVlc3RfaWQiOiJyZXFfcGFyaXR5X3YxX2NlcnRvbmx5Iiwic2VydmljZV9pZCI6ImRzYS1hdWRpdCIsInRpbWVzdGFtcCI6IjIwMjYtMDktMjVUMTI6MDg6MDJaIn0=",
+        "claim_id": "clm_940e99e6-c918-4868-9754-1dca6ac99eb5",
+        "claim_type": "CLAIM_TYPE_EVENTS_RECORDED",
+        "data_not_seen": [
+          "pii",
+          "context",
+          "inference_result"
+        ],
+        "data_seen": [
+          "event_hashes"
+        ],
+        "request_id": "req_parity_v1_certonly",
+        "service_id": "dsa-audit",
+        "signature": "yWlSAlzAjkSJFgzM8NOFUrKAfEevTnI3jqJQoGAKXzDxoCZalv1DO98zJLtEjLrmCXgphQbg7ZW7LxGZJzW7Bw==",
+        "timestamp": "2026-09-25T12:08:02Z"
+      }
+    ],
+    "client_id": "org_parity_corpus",
+    "decoder_expiry": null,
+    "formal_verification": null,
+    "issued_at": "2026-09-25T12:08:02.500Z",
+    "privacy_budget": null,
+    "protocol_version": 2,
+    "request_id": "req_parity_v1_certonly",
+    "signable_protocol_version_emitted": 3,
+    "signable_v2_signature": "+dFpyO07XfD+sbAzfzF/LvmHGBxjWMueDLRhaEXpRctLkKrUQGDbYqdJkn1gaBWSsLNIVp1Wo3YXhUjoVe/vBg==",
+    "signable_v3_signature": "9BqJVB4Dt1vcfqNawHeXCcao93YoKjmcoCBPZU6aYOJxKlK55yD/u319N9g9Ogj2CaTX9MEEhhJsE+QJLvQFCw==",
+    "upstream_model": "claude-sonnet-4-5",
+    "verification": {
+      "anchor_verifications": [],
+      "byok_exempt": false,
+      "cert_tier": "audit_only",
+      "completeness": "COMPLETENESS_FULL",
+      "data_visibility_consistent": true,
+      "isolation_verified": true,
+      "l3_coverage_evidence": {
+        "canaries_planted": 0,
+        "canaries_recovered": 0,
+        "composed_green": false,
+        "composed_reason": "scope_unavailable",
+        "derivation_version": "",
+        "drives_verdict": false,
+        "fields": [],
+        "fields_absent": 0,
+        "fields_failed": 0,
+        "fields_passed": 0,
+        "record_status": "absent",
+        "rollup": ""
+      },
+      "l3_coverage_scope": {
+        "covered": [],
+        "derivation_version": "",
+        "drives_claim": false,
+        "eligible_count": 0,
+        "eligible_not_covered": [],
+        "excluded": [],
+        "granted": false,
+        "reason": "",
+        "record_status": "absent"
+      },
+      "missing_services": [],
+      "overall_verdict": "VERDICT_VERIFIED",
+      "qi_score": null,
+      "signatures_valid": true,
+      "temporal_consistent": true,
+      "temporal_order_status": "valid",
+      "upstream_auth_mode": "managed"
+    },
+    "witness_key_id": "witness_parity_v1",
+    "witness_signature": "+dFpyO07XfD+sbAzfzF/LvmHGBxjWMueDLRhaEXpRctLkKrUQGDbYqdJkn1gaBWSsLNIVp1Wo3YXhUjoVe/vBg=="
+  },
+  "expected": {
+    "default": {
+      "verdict": "VERIFIED",
+      "reason": "ok",
+      "egress_attestation": "signed_digests",
+      "user_unredacted": "false",
+      "signed_cert_tier": "audit_only",
+      "signable_version": "v3",
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": "k_paritycorpus0001",
+          "byok_exempt": false,
+          "certificate_id": "veil_c103b7e4-8f9f-453a-aef0-27649bffb58c",
+          "claim_ids": [
+            "clm_7700fa24-ffae-4950-af34-0794250b3402",
+            "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+            "clm_940e99e6-c918-4868-9754-1dca6ac99eb5"
+          ],
+          "client_id": "org_parity_corpus",
+          "issued_at": "2026-09-25T12:08:02.5Z",
+          "overall_verdict": "VERIFIED",
+          "protocol_version": 2,
+          "redaction_manifest_hash": null,
+          "request_id": "req_parity_v1_certonly",
+          "sanitized_fields_body_hash": null,
+          "tms_manifest_hash": null,
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-bridge:TOKEN_GENERATED": {
+            "canonical": "{\"claim_id\":\"clm_7700fa24-ffae-4950-af34-0794250b3402\",\"claim_type\":\"TOKEN_GENERATED\",\"data_not_seen\":[\"context\",\"prompt_template\",\"inference_result\"],\"data_seen\":[\"customer_id\"],\"payload\":{\"api_key_id\":\"k_paritycorpus0001\",\"conversation_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"ephemeral\":false,\"org_id\":\"org_parity_corpus\",\"token_hash\":\"9ed2d19b45862b300621746038a5787628d0e28d9ede20b5830cd259fc55644d\"},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-bridge\",\"timestamp\":\"2026-09-25T12:08:00.1Z\"}",
+            "values": {
+              "/claim_id": "clm_7700fa24-ffae-4950-af34-0794250b3402",
+              "/claim_type": "TOKEN_GENERATED",
+              "/data_not_seen/0": "context",
+              "/data_not_seen/1": "prompt_template",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "customer_id",
+              "/payload/api_key_id": "k_paritycorpus0001",
+              "/payload/conversation_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/ephemeral": false,
+              "/payload/org_id": "org_parity_corpus",
+              "/payload/token_hash": "9ed2d19b45862b300621746038a5787628d0e28d9ede20b5830cd259fc55644d",
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-bridge",
+              "/timestamp": "2026-09-25T12:08:00.1Z"
+            }
+          },
+          "1:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"customer_id\"],\"data_seen\":[\"opaque_token\",\"unsanitized_context\"],\"payload\":{\"cert_tier\":\"audit-only\",\"cert_tier_basis\":\"gateway_asserted\",\"isolation_probe\":\"VERIFIED\",\"model_used\":\"claude-sonnet-4-5\",\"response_hash\":\"0622aaf9d4bb36515c418449a548b54667771af43fbec8d579202e483295171e\",\"upstream_auth_mode\":\"managed\",\"upstream_body_sha256\":[\"fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694\"]},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:08:01.500000Z\"}",
+            "values": {
+              "/claim_id": "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "customer_id",
+              "/data_seen/0": "opaque_token",
+              "/data_seen/1": "unsanitized_context",
+              "/payload/cert_tier": "audit-only",
+              "/payload/cert_tier_basis": "gateway_asserted",
+              "/payload/isolation_probe": "VERIFIED",
+              "/payload/model_used": "claude-sonnet-4-5",
+              "/payload/response_hash": "0622aaf9d4bb36515c418449a548b54667771af43fbec8d579202e483295171e",
+              "/payload/upstream_auth_mode": "managed",
+              "/payload/upstream_body_sha256/0": "fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694",
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:08:01.500000Z"
+            }
+          },
+          "2:dsa-audit:EVENTS_RECORDED": {
+            "canonical": "{\"claim_id\":\"clm_940e99e6-c918-4868-9754-1dca6ac99eb5\",\"claim_type\":\"EVENTS_RECORDED\",\"data_not_seen\":[\"pii\",\"context\",\"inference_result\"],\"data_seen\":[\"event_hashes\"],\"payload\":{\"event_id\":\"evt_parity_certonly\",\"merkle_root\":\"5307c2aa4bd17a3d8b688993e92f7366590d9419f451cdad3a6c7f3f722032d2\",\"merkle_tree_size\":7},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-audit\",\"timestamp\":\"2026-09-25T12:08:02Z\"}",
+            "values": {
+              "/claim_id": "clm_940e99e6-c918-4868-9754-1dca6ac99eb5",
+              "/claim_type": "EVENTS_RECORDED",
+              "/data_not_seen/0": "pii",
+              "/data_not_seen/1": "context",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "event_hashes",
+              "/payload/event_id": "evt_parity_certonly",
+              "/payload/merkle_root": "5307c2aa4bd17a3d8b688993e92f7366590d9419f451cdad3a6c7f3f722032d2",
+              "/payload/merkle_tree_size": 7,
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-audit",
+              "/timestamp": "2026-09-25T12:08:02Z"
+            }
+          }
+        }
+      }
+    },
+    "minimum_v3": {
+      "verdict": "VERIFIED",
+      "reason": "ok",
+      "egress_attestation": "signed_digests",
+      "user_unredacted": "false",
+      "signed_cert_tier": "audit_only",
+      "signable_version": "v3",
+      "request_binding": "not_checked",
+      "verified": {
+        "certificate": {
+          "api_key_id": "k_paritycorpus0001",
+          "byok_exempt": false,
+          "certificate_id": "veil_c103b7e4-8f9f-453a-aef0-27649bffb58c",
+          "claim_ids": [
+            "clm_7700fa24-ffae-4950-af34-0794250b3402",
+            "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+            "clm_940e99e6-c918-4868-9754-1dca6ac99eb5"
+          ],
+          "client_id": "org_parity_corpus",
+          "issued_at": "2026-09-25T12:08:02.5Z",
+          "overall_verdict": "VERIFIED",
+          "protocol_version": 2,
+          "redaction_manifest_hash": null,
+          "request_id": "req_parity_v1_certonly",
+          "sanitized_fields_body_hash": null,
+          "tms_manifest_hash": null,
+          "witness_key_id": "witness_parity_v1"
+        },
+        "claims": {
+          "0:dsa-bridge:TOKEN_GENERATED": {
+            "canonical": "{\"claim_id\":\"clm_7700fa24-ffae-4950-af34-0794250b3402\",\"claim_type\":\"TOKEN_GENERATED\",\"data_not_seen\":[\"context\",\"prompt_template\",\"inference_result\"],\"data_seen\":[\"customer_id\"],\"payload\":{\"api_key_id\":\"k_paritycorpus0001\",\"conversation_id\":\"\",\"customer_id\":\"cust_parity_corpus\",\"ephemeral\":false,\"org_id\":\"org_parity_corpus\",\"token_hash\":\"9ed2d19b45862b300621746038a5787628d0e28d9ede20b5830cd259fc55644d\"},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-bridge\",\"timestamp\":\"2026-09-25T12:08:00.1Z\"}",
+            "values": {
+              "/claim_id": "clm_7700fa24-ffae-4950-af34-0794250b3402",
+              "/claim_type": "TOKEN_GENERATED",
+              "/data_not_seen/0": "context",
+              "/data_not_seen/1": "prompt_template",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "customer_id",
+              "/payload/api_key_id": "k_paritycorpus0001",
+              "/payload/conversation_id": "",
+              "/payload/customer_id": "cust_parity_corpus",
+              "/payload/ephemeral": false,
+              "/payload/org_id": "org_parity_corpus",
+              "/payload/token_hash": "9ed2d19b45862b300621746038a5787628d0e28d9ede20b5830cd259fc55644d",
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-bridge",
+              "/timestamp": "2026-09-25T12:08:00.1Z"
+            }
+          },
+          "1:dsa-ai:INFERENCE_COMPLETED": {
+            "canonical": "{\"claim_id\":\"clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79\",\"claim_type\":\"INFERENCE_COMPLETED\",\"data_not_seen\":[\"customer_id\"],\"data_seen\":[\"opaque_token\",\"unsanitized_context\"],\"payload\":{\"cert_tier\":\"audit-only\",\"cert_tier_basis\":\"gateway_asserted\",\"isolation_probe\":\"VERIFIED\",\"model_used\":\"claude-sonnet-4-5\",\"response_hash\":\"0622aaf9d4bb36515c418449a548b54667771af43fbec8d579202e483295171e\",\"upstream_auth_mode\":\"managed\",\"upstream_body_sha256\":[\"fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694\"]},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-ai\",\"timestamp\":\"2026-09-25T12:08:01.500000Z\"}",
+            "values": {
+              "/claim_id": "clm_b05d2339-0cf6-43c2-b434-57b47ccd4c79",
+              "/claim_type": "INFERENCE_COMPLETED",
+              "/data_not_seen/0": "customer_id",
+              "/data_seen/0": "opaque_token",
+              "/data_seen/1": "unsanitized_context",
+              "/payload/cert_tier": "audit-only",
+              "/payload/cert_tier_basis": "gateway_asserted",
+              "/payload/isolation_probe": "VERIFIED",
+              "/payload/model_used": "claude-sonnet-4-5",
+              "/payload/response_hash": "0622aaf9d4bb36515c418449a548b54667771af43fbec8d579202e483295171e",
+              "/payload/upstream_auth_mode": "managed",
+              "/payload/upstream_body_sha256/0": "fa947a921e9e5b27143da1c904051476cc28c9e8c9660a1d931f6f47e8d79694",
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-ai",
+              "/timestamp": "2026-09-25T12:08:01.500000Z"
+            }
+          },
+          "2:dsa-audit:EVENTS_RECORDED": {
+            "canonical": "{\"claim_id\":\"clm_940e99e6-c918-4868-9754-1dca6ac99eb5\",\"claim_type\":\"EVENTS_RECORDED\",\"data_not_seen\":[\"pii\",\"context\",\"inference_result\"],\"data_seen\":[\"event_hashes\"],\"payload\":{\"event_id\":\"evt_parity_certonly\",\"merkle_root\":\"5307c2aa4bd17a3d8b688993e92f7366590d9419f451cdad3a6c7f3f722032d2\",\"merkle_tree_size\":7},\"request_id\":\"req_parity_v1_certonly\",\"service_id\":\"dsa-audit\",\"timestamp\":\"2026-09-25T12:08:02Z\"}",
+            "values": {
+              "/claim_id": "clm_940e99e6-c918-4868-9754-1dca6ac99eb5",
+              "/claim_type": "EVENTS_RECORDED",
+              "/data_not_seen/0": "pii",
+              "/data_not_seen/1": "context",
+              "/data_not_seen/2": "inference_result",
+              "/data_seen/0": "event_hashes",
+              "/payload/event_id": "evt_parity_certonly",
+              "/payload/merkle_root": "5307c2aa4bd17a3d8b688993e92f7366590d9419f451cdad3a6c7f3f722032d2",
+              "/payload/merkle_tree_size": 7,
+              "/request_id": "req_parity_v1_certonly",
+              "/service_id": "dsa-audit",
+              "/timestamp": "2026-09-25T12:08:02Z"
+            }
+          }
+        }
+      }
+    }
+  },
+  "reference": {
+    "witness_reverify_verdict": "VERDICT_VERIFIED",
+    "witness_agrees": true
+  }
+}

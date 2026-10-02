@@ -1,11 +1,11 @@
 {
   "source_repo": "Declade/dual-sandbox-architecture",
   "source_path": "tools/parity-corpus",
-  "source_commit": "3623ac0ddf5b9a3e7e9a69ceaab1658d178f0861",
-  "format": "lucairn-parity-corpus/v1.2.1",
-  "manifest_sha256": "b63a23a109f0365fa045376f2fe50d21e4e152f51333da0396b5de38a6476339",
-  "keys_sha256": "fc6b8c687616cb670e4775c5ea9c1b8d3630b614f5acb82252847da0f6eeb377",
-  "key_policy_sha256": "5929a10067233934cd66d6db00123d970e2ef09efa8588eabc9fd37bb75e9cfd",
-  "upstream_readme_sha256": "90395aef5978433ceafbc4da201933b15ae54b433d3791620225d9e29227b92c",
-  "recipe_table_sha256": "98bffcd81b56810972e506c7fee56d1cfb12dbdefc65ee927e955d7de7c38b60"
+  "source_commit": "0dc1f20f08806749374fc68c53ab889370b8e8b6",
+  "format": "lucairn-parity-corpus/v1.2.2",
+  "manifest_sha256": "1558938dd7557e714ef14b27277d83b72a8690feb474a1c141fb8eea124dad6e",
+  "keys_sha256": "81af9d4720b331a33e6fb966bf2180dcbf9697e0ee6f98a0989228a45cb89553",
+  "key_policy_sha256": "d7a2a44bb2f2c07dfe2b03489f162db8e35fc395f7c11f3ad9fa88a730d1c2ab",
+  "upstream_readme_sha256": "169d08109739742599c0928b78e39bb782021265b573b2d5e75c0c30868b9e63",
+  "recipe_table_sha256": "b0edc9fef8130c15b65b19c97028e1abf13d71785f6fb9c5daf15ec95b3c348d"
 }

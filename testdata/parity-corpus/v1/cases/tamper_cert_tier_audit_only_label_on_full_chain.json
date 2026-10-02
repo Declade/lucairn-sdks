@@ -1,10 +1,10 @@
 {
   "format": "lucairn-parity-corpus/v1.2.2",
-  "id": "tamper_cert_tier_input_shield_on_full_chain",
+  "id": "tamper_cert_tier_audit_only_label_on_full_chain",
   "class": "tamper",
   "surface": "get_certificate",
-  "description": "verification.cert_tier (unsigned) says input_shield, but no claim carries a signed cert_tier copy (a full chain).",
-  "construction": "post-seal edit of verification.cert_tier",
+  "description": "verification.cert_tier (unsigned) says audit_only on the VERIFIED full-chain certificate, where no claim signs a cert_tier. The label needs the dsa-ai-signed audit-only marker.",
+  "construction": "post-seal edit of honest_full_chain_egress's verification.cert_tier",
   "certificate": {
     "anchor_status": null,
     "api_key_id": "k_paritycorpus0001",
@@ -159,7 +159,7 @@
     "verification": {
       "anchor_verifications": [],
       "byok_exempt": false,
-      "cert_tier": "input_shield",
+      "cert_tier": "audit_only",
       "completeness": "COMPLETENESS_FULL",
       "data_visibility_consistent": true,
       "isolation_verified": true,

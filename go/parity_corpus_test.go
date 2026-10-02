@@ -1,7 +1,7 @@
 package lucairn
 
 // Certificate verifier parity: VerifyCertificateChain against the vendored
-// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2.1, source
+// corpus (testdata/parity-corpus, format lucairn-parity-corpus/v1.2.2, source
 // commit in SOURCE.json). The TS (ts/src/verify-chain/parityCorpus.test.ts)
 // and Python (python/tests/test_parity_corpus.py) SDKs run the same cases
 // against the same expectations: every result field, `verified` compared as
@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	parityFormat        = "lucairn-parity-corpus/v1.2.1"
-	parityExpectedCases = 84
+	parityFormat        = "lucairn-parity-corpus/v1.2.2"
+	parityExpectedCases = 93
 )
 
 var parityRoot = filepath.Join("..", "testdata", "parity-corpus")
@@ -308,7 +308,7 @@ func TestParityCorpus_ManifestVocabularies(t *testing.T) {
 		Verdicts:         []string{"FAILED", "PARTIAL", "EGRESS_UNATTESTED", "VERIFIED"},
 		EgressStates:     []string{"signed_digests", "unattested", "not_evaluated"},
 		UserUnredacted:   []string{"true", "false", "unknown"},
-		SignedCertTiers:  []string{"absent", "input_shield", "input_shield_two_signer", "inconsistent", "not_evaluated"},
+		SignedCertTiers:  []string{"absent", "input_shield", "input_shield_two_signer", "audit_only", "inconsistent", "not_evaluated"},
 		SignableVersions: []string{"v2", "v3", "none"},
 		RequestBindings:  []string{"matched", "not_checked", "not_evaluated"},
 		Classes:          []string{"honest", "tamper", "edge"},
