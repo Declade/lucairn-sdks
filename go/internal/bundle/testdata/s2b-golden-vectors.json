@@ -126,6 +126,22 @@
       "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000525:PROXY_INFERENCE_COMPLETED7:gateway11:cust_golden64:85d0d12f0abbb15f2940633644baf4e0462110c9901b74c3ad6e8a6a52f4b0b615:req_golden_000532:00112233445566778899aabbccddeeff10:1234567890",
       "event_hash": "cbc705bf84d3ae9a067e08a7695a426d3b323deba4ea12eeed7d282b24e19f18",
       "leaf_hash": "c191d05a40e337452cf6114b484c8d3f22299f7130f5d1a4f5e0c65a5961bafb"
+    },
+    {
+      "kind": "v1",
+      "previous_event_hash": "cbc705bf84d3ae9a067e08a7695a426d3b323deba4ea12eeed7d282b24e19f18",
+      "event_id": "evt_golden_0008_prüfung",
+      "event_type": "ADMIN_NOTE_ÄNDERUNG",
+      "source_service": "sandbox-β",
+      "actor": "service:prüfer-東京-𐍈",
+      "payload_utf8": "{\"customer_id\":\"cust_golden\",\"note\":\"zählung 𐍈 – straße\"}",
+      "payload_sha256": "",
+      "request_id": "",
+      "conversation_id": "",
+      "conv_seq": 0,
+      "serialized_utf8": "24:evt_golden_0008_prüfung20:ADMIN_NOTE_ÄNDERUNG10:sandbox-β27:service:prüfer-東京-𐍈64:{\"customer_id\":\"cust_golden\",\"note\":\"zählung 𐍈 – straße\"}",
+      "event_hash": "fc27021c01d62d5a6505e7faa7c26208133de8dd98bbd3fff20f0fc782bced65",
+      "leaf_hash": "e2c011d19f5ad4a0806635e22023630892000518d545ea17b38b47cdbb8d4eb2"
     }
   ],
   "roots_by_size": [
@@ -135,7 +151,8 @@
     "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c",
     "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f",
     "eb36ac24a7746c2dad1eb204153a43d23ffd1efc2725b8687fd5c2e20b67f92f",
-    "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223"
+    "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223",
+    "5e156ad486cfbd91ce0168ba19505df1783126697eb54d01666b475b5ead9e2c"
   ],
   "inclusion_proofs": [
     {
@@ -204,6 +221,28 @@
         "7d33f94c3709b4cf5ad01b9c7d3b16e1196ae1f4bdc64f16de563fbfba740aeb"
       ],
       "root": "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223"
+    },
+    {
+      "leaf_index": 7,
+      "tree_size": 8,
+      "leaf_hash": "e2c011d19f5ad4a0806635e22023630892000518d545ea17b38b47cdbb8d4eb2",
+      "path": [
+        "c191d05a40e337452cf6114b484c8d3f22299f7130f5d1a4f5e0c65a5961bafb",
+        "42f57972a12c9b17994fe985d5e2a4a4ed0958d45b94e9d2cd816705f842c80f",
+        "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c"
+      ],
+      "root": "5e156ad486cfbd91ce0168ba19505df1783126697eb54d01666b475b5ead9e2c"
+    },
+    {
+      "leaf_index": 3,
+      "tree_size": 8,
+      "leaf_hash": "43b0fef778f4d53b60fb02f3e6a981b9ff624f879729b4909214ea3477e3ebcd",
+      "path": [
+        "ecd00a07fc2dd002f04cf04a1d48853534ab91323829b1a1b24482ac413c0b4d",
+        "e2f3f467055d42150566aff15f58d6972930ece7d126b21cef81eecafa7e2beb",
+        "dc7370d3c86fe4dbcc9480249cea3779ef236ca38e2a9a3741ba4d5cc3bfd532"
+      ],
+      "root": "5e156ad486cfbd91ce0168ba19505df1783126697eb54d01666b475b5ead9e2c"
     }
   ],
   "root_artifact": {

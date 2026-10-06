@@ -26,10 +26,10 @@ import (
 // vector does not reproduce here, the CODE is wrong (or the vectors moved):
 // never edit the file to make this test pass.
 //
-// Re-pinned in fix round 1 (additive: 5 -> 7 rows / roots, 4 -> 7 proofs; the
+// Re-pinned in fix round 1 (additive: 5 -> 7 -> 8 rows / roots, 4 -> 7 -> 9 proofs; the
 // first file was 73d62a84...e08bd0). goldenFirstRowsSHA256 pins the rows of
 // that first file, which must never change.
-const goldenVectorsSHA256 = "9e9c8dedd80e547cd4bab421c5f6e14b0bca2b649080340c66c587e23445d634"
+const goldenVectorsSHA256 = "72a0cb5aadb664e9d1b3466305c9f9dd44a006029591d8a4e91e17dc8362b2b8"
 
 // goldenFirstEventHashes are the event hashes of the five rows of the first
 // golden file (sha256 73d62a84...e08bd0), in order.
