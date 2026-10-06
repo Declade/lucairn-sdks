@@ -55,7 +55,7 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		if err := os.WriteFile(p, c.Zip, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		args := append(append(append([]string{}, flags...), bundletest.ExpandFlags(c.Flags, srv.URL)...), p)
+		args := bundletest.CaseArgs(flags, c.Flags, srv.URL, p)
 		cmd := exec.Command(bin, args...)
 		var out bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &out
@@ -92,6 +92,11 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 			}
 		}
 		switch c.Expect {
+		case bundletest.ExpectTampered:
+			if code != 1 {
+				t.Errorf("%s: mutation exit %d, want exactly 1 (TAMPERED)\n%s", c.Name, code, out.String())
+			}
+			detected++
 		case bundletest.ExpectDetected:
 			if code != 1 && code != 2 {
 				t.Errorf("%s: mutation exit %d, want 1 or 2\n%s", c.Name, code, out.String())
@@ -230,18 +235,26 @@ func TestBindingCutoverFlag(t *testing.T) {
 		noGuard = append(noGuard, base[i])
 	}
 	var out, errb bytes.Buffer
+	const notEnforced = "anchor-binding cutover not enforced"
 	for _, tc := range []struct {
-		name string
-		args []string
-		want int
+		name       string
+		args       []string
+		want       int
+		banner     bool // the trust-roots line says the cutover is not enforced
+		checkLabel bool
 	}{
-		{"with the cutover", base, 1},
-		{"custom witness, no cutover", noGuard, 0},
-		{"bad cutover value", append(append([]string{}, noGuard...), "--require-binding-after", "next tuesday"), 2},
+		{"with the cutover", base, 1, false, true},
+		{"custom witness, no cutover", noGuard, 0, true, true},
+		{"bad cutover value", append(append([]string{}, noGuard...), "--require-binding-after", "next tuesday"), 2, false, false},
 	} {
 		out.Reset()
 		if code := run(append(append([]string{}, tc.args...), zipPath), &out, &errb); code != tc.want {
 			t.Errorf("%s: exit %d, want %d\n%s", tc.name, code, tc.want, out.String())
+		}
+		// S2 (ToB #77 L1): a custom witness key without --require-binding-after
+		// must say on the banner that the cutover is not enforced.
+		if tc.checkLabel && strings.Contains(out.String(), notEnforced) != tc.banner {
+			t.Errorf("%s: banner %q present=%v, want %v\n%s", tc.name, notEnforced, !tc.banner, tc.banner, out.String())
 		}
 	}
 }

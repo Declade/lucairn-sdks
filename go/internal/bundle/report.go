@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/anchor"
 )
@@ -103,6 +105,10 @@ type Report struct {
 	anchorsNotRequired    bool
 	// notContentBound: an anchor without binding v1 was checked on this run.
 	notContentBound bool
+	// ContentBound counts the anchor steps that passed content-bound on this
+	// run (a binding-v1 digest recomputed from the signed content matched).
+	// The "checked content-bound" summary line is printed only when it is > 0.
+	ContentBound int `json:"content_bound_anchor_steps"`
 }
 
 func (r *Report) add(scope, name string, st Status, detail string) {
@@ -121,9 +127,13 @@ func (r *Report) skip(scope, name, reason string, blocks bool) {
 // blocking SKIPPED → INCOMPLETE (2); otherwise VALID (0).
 func (r *Report) finish() {
 	fail, incomplete := false, false
+	r.ContentBound = 0
 	for _, s := range r.Steps {
 		if (s.Name == "timestamp" || s.Name == "rekor") && s.Status == PassNotContentBound {
 			r.notContentBound = true
+		}
+		if (s.Name == "timestamp" || s.Name == "rekor") && s.Status == PassContentBound {
+			r.ContentBound++
 		}
 		switch {
 		case s.Status == Fail:
@@ -155,7 +165,7 @@ func (r *Report) finish() {
 // NotCoveredV1 is printed on every run: what a v1 bundle cannot show.
 var NotCoveredV1 = []string{
 	"Completeness: v1 bundles carry no per-conversation request counter, so a certificate removed TOGETHER WITH its manifest entry is not detectable (planned: audit counter, bundle format 2).",
-	"Anchor content binding, OLDER certificates only: certificates anchored before anchor binding v1 (Lucairn-hosted: issued before " + anchor.BindingV1Cutover.Format("2006-01-02 15:04 MST") + ") have a timestamp and Rekor entry over a digest of the witness's stored certificate bytes, which are not in the bundle. For those the tool checks that a trusted timestamp authority and the public Rekor log committed to the digest the certificate RECORDS, and that the witness key made the Rekor entry; it cannot recompute that digest from the certificate JSON. Certificates with binding v1 are checked content-bound.",
+	"Anchor content binding, certificates WITHOUT the binding-v1 marker only: their timestamp and Rekor entry cover a digest of the witness's stored certificate bytes, which are not in the bundle. For those the tool checks that a trusted timestamp authority and the public Rekor log committed to the digest the certificate RECORDS, and that the witness key made the Rekor entry; it cannot recompute that digest from the certificate JSON. With the built-in pins, a certificate whose signed issued_at is after " + anchor.BindingV1Cutover.Format(time.RFC3339) + " must carry the marker.",
 	"PDF content: the reports are integrity-checked against the manifest only. Their text is not compared with the certificates; the verify page prints the certificate-set digest so a reader can match them by hand.",
 	"Report authenticity: the manifest is unsigned in this bundle version, so the reports, verification.json and README.txt are consistent with it but not authenticated by any signature. Someone who replaces a report and updates its manifest digest is not detected; only the certificates are signed.",
 	"Sanitization: a VALID result is about the bundle's integrity. Whether a turn was sanitized is what each certificate's own chain verdict says, printed per certificate.",
@@ -224,6 +234,9 @@ func (r *Report) WriteText(w io.Writer) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "RESULT: %s (exit %d)\n", r.Verdict, r.ExitCode)
+	if r.ContentBound > 0 {
+		fmt.Fprintf(w, "CONTENT-BOUND: %d anchor step(s) matched a digest this tool recomputed from the certificate's signed content and its recorded cert_hash.\n", r.ContentBound)
+	}
 	for _, l := range r.Limitations {
 		fmt.Fprintf(w, "LIMITATION: %s\n", l)
 	}
@@ -243,6 +256,17 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(r)
+}
+
+// quotedShort quotes s exactly as it is (no trimming, so the quoted value is
+// the value that was rejected) and, when it is long, quotes only its first
+// bytes and says so OUTSIDE the quotes.
+func quotedShort(s string) string {
+	const max = 120
+	if len(s) > max {
+		return strconv.Quote(s[:max]) + fmt.Sprintf(" (first %d of %d bytes)", max, len(s))
+	}
+	return strconv.Quote(s)
 }
 
 func short(s string) string {

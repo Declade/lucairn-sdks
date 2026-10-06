@@ -35,11 +35,13 @@ url_new="$(tr -d '\n' < "$work/new/rekor-url")"
 url_old="$(tr -d '\n' < "$work/legacy/rekor-url")"
 
 run() { # bin dir url drop-require-anchors name extra → exit code
-  local bin="$1" dir="$2" url="$3" drop="$4" name="$5" extra="$6" f=() e=() skipnext=no
+  local bin="$1" dir="$2" url="$3" drop="$4" name="$5" extra="$6" f=() e=() skipnext=no allow=no
+  case " $extra " in *" --allow-unanchored "*) allow=yes ;; esac
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     if [ "$skipnext" = yes ]; then skipnext=no; continue; fi
     [ "$drop" = yes ] && [ "$line" = "--require-anchors" ] && continue
+    [ "$allow" = yes ] && [ "$line" = "--require-anchors" ] && continue
     # Flags newer than the reference binary (S2a) are dropped with their value.
     if [ "$drop" = yes ] && [ "$line" = "--require-binding-after" ]; then skipnext=yes; continue; fi
     f+=("$line")

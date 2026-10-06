@@ -126,6 +126,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 			custom = append(custom, "unanchored certificates allowed")
 		}
 		roots.BindingRequiredAfter = time.Time{}
+		if *requireBindingAfter == "" {
+			// Say so on the banner: a custom witness key silently dropping
+			// the downgrade guard is exactly what a reader must see (ToB #77 L1).
+			custom = append(custom, "anchor-binding cutover not enforced")
+		}
 	}
 	if *requireBindingAfter != "" {
 		t, err := time.Parse(time.RFC3339, *requireBindingAfter)

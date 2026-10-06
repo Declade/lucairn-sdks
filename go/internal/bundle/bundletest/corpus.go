@@ -21,7 +21,38 @@ const (
 	// ExpectKnownGap marks a documented v1 limit: the tool is EXPECTED to
 	// exit 0, and the case exists so the limit is measured, not assumed.
 	ExpectKnownGap = "KNOWN-GAP(0)"
+	// ExpectTampered: the mutation must exit exactly 1 (TAMPERED), not just
+	// "not VALID" — for shapes where INCOMPLETE would let an explicit
+	// --allow-unanchored turn the forgery VALID (Sol #77 P1).
+	ExpectTampered = "TAMPERED(1)"
 )
+
+// FlagAllowUnanchored in Case.Flags runs that case under the self-hosted
+// no-anchoring policy: the runner drops the corpus's --require-anchors
+// (CaseArgs), since the two flags exclude each other.
+const FlagAllowUnanchored = "--allow-unanchored"
+
+// CaseArgs is the full argument list for one case: the world's flags
+// (minus --require-anchors when the case asks for --allow-unanchored), the
+// case's own flags with the Rekor URL filled in, then the zip path.
+// tamper-corpus.sh applies the same rule.
+func CaseArgs(base, caseFlags []string, rekorURL, zipPath string) []string {
+	allow := false
+	for _, f := range caseFlags {
+		if f == FlagAllowUnanchored {
+			allow = true
+		}
+	}
+	out := make([]string, 0, len(base)+len(caseFlags)+1)
+	for _, f := range base {
+		if allow && f == "--require-anchors" {
+			continue
+		}
+		out = append(out, f)
+	}
+	out = append(out, ExpandFlags(caseFlags, rekorURL)...)
+	return append(out, zipPath)
+}
 
 // RekorURLPlaceholder in Case.Flags stands for the base URL of the corpus's
 // local fake Rekor server (bundlecorpus -serve).
@@ -144,6 +175,9 @@ func NewCorpus() (*Corpus, error) {
 			return nil, err
 		}
 		co.Entries[e.LogIndex] = e
+	}
+	addF := func(name, what, expect string, f Files, flags ...string) {
+		co.Cases = append(co.Cases, Case{Name: name, What: what, Expect: expect, Zip: f.Zip(), Flags: flags})
 	}
 	add := func(name, what, expect string, f Files) {
 		co.Cases = append(co.Cases, Case{Name: name, What: what, Expect: expect, Zip: f.Zip()})
@@ -605,8 +639,51 @@ func NewCorpus() (*Corpus, error) {
 			return nil, err
 		}
 		co.RekorOnly = &ro
+		addF("S2a-13b-rekor-only-allow-unanchored", "the S2a-13 certificate under --allow-unanchored: the honest Rekor-only certificate stays acceptable (VALID)", ExpectValid,
+			Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: []*Cert{ab[0], &ro}}), FlagAllowUnanchored)
 		add("S2a-13-rekor-only-hosted-incomplete", "a binding-v1 certificate whose TSA rail failed (cert_hash + marker kept, no token): Rekor PASS (content-bound), the missing timestamp is INCOMPLETE under the hosted policy (VALID with --allow-unanchored, see TestRekorOnlyBoundCertificate)", ExpectDetected,
 			Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: []*Cert{ab[0], &ro}}))
+	}
+
+	// ---- T-1231 S2a round 3 (Sol #77 P1) ----
+	// A post-cutover certificate with its marker relabelled legacy and BOTH
+	// anchors plus anchor_status removed. Before round 3 the anchor steps
+	// returned "not anchored" before the binding rule ran: INCOMPLETE by
+	// default and VALID with --allow-unanchored. The marker rule must hold
+	// independently of anchor presence: TAMPERED under both policies.
+	stripAll := func(removeAttestation bool) func(d map[string]any) {
+		return func(d map[string]any) {
+			delete(d, "anchor_status")
+			if removeAttestation {
+				delete(d, "attestation")
+				return
+			}
+			t := ts(d)
+			t["hash_algorithm"] = "SHA-256"
+			t["timestamp_token"], t["provider"] = "", ""
+			delete(att(d), "transparency_log")
+		}
+	}
+	for _, v := range []struct {
+		name, what string
+		removeAtt  bool
+	}{
+		{"S2a-14-solp1-77-legacy-marker-no-anchors", "Sol #77 P1: post-cutover certificate relabelled legacy (SHA-256) with the timestamp token, the Rekor entry and anchor_status removed; manifest re-hashed", false},
+		{"S2a-16-attestation-removed", "post-cutover certificate with its whole attestation (marker, cert_hash, both anchors) and anchor_status removed; manifest re-hashed", true},
+	} {
+		for _, pol := range []struct {
+			suffix string
+			flags  []string
+		}{{"", nil}, {"-allow-unanchored", []string{FlagAllowUnanchored}}} {
+			f := cleanBound.Clone()
+			edit(f, ab[1], stripAll(v.removeAtt))
+			f.Rehash()
+			what := v.what
+			if pol.flags != nil {
+				what += " (run with --allow-unanchored)"
+			}
+			addF(v.name+pol.suffix, what, ExpectTampered, f, pol.flags...)
+		}
 	}
 	return co, nil
 }

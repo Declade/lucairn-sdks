@@ -24,6 +24,9 @@ func TestCorpusInProcess(t *testing.T) {
 			if fl == "--online" {
 				opt.Fetcher = co.Fetcher()
 			}
+			if fl == bundletest.FlagAllowUnanchored {
+				opt.Roots.RequireAnchors = false
+			}
 		}
 		rep := bundle.Verify(c.Name+".zip", c.Zip, opt)
 		switch c.Expect {
@@ -35,6 +38,12 @@ func TestCorpusInProcess(t *testing.T) {
 			if rep.ExitCode == 0 {
 				t.Errorf("%s: mutation NOT detected (exit 0)", c.Name)
 			}
+		case bundletest.ExpectTampered:
+			if rep.ExitCode != bundle.ExitTampered {
+				t.Errorf("%s: want exit 1 (TAMPERED), got %d %s", c.Name, rep.ExitCode, rep.Verdict)
+			}
+		default:
+			t.Errorf("%s: unknown expectation %q", c.Name, c.Expect)
 		}
 		t.Logf("%-36s exit %d %-10s %s", c.Name, rep.ExitCode, rep.Verdict, first(rep))
 	}

@@ -347,10 +347,22 @@ func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid
 		return signedInput{}
 	}
 	r.add(scope, "signature", Pass, fmt.Sprintf("witness %s signature (%s) over %s", wkid, res.SignableVersion, res.CertificateID))
-	si := signedBytesOf(raw, wkid, wkey, res.CertificateID)
+	si := signedBytesOfFn(raw, wkid, wkey, res.CertificateID)
+	if si.issuedAt.IsZero() && !v.opt.Roots.BindingRequiredAfter.IsZero() {
+		// The signature verified, but its signed bytes / signed issued_at
+		// could not be recovered a second time. Without them the downgrade
+		// guard cannot decide whether this certificate must be content-bound,
+		// so it must not switch off silently (ToB #77 I2).
+		r.skip(scope, "anchor-binding", "the signed issued_at could not be recovered after the signature check, so the anchor-binding cutover ("+
+			v.opt.Roots.BindingRequiredAfter.Format(time.RFC3339)+") cannot be applied to this certificate", true)
+	}
 	v.claimChain(scope, mc, raw, wkid, wkey)
 	return si
 }
+
+// signedBytesOfFn is signedBytesOf; a variable so a test can make the second
+// pipeline run fail after the signature passed (ToB #77 I2).
+var signedBytesOfFn = signedBytesOf
 
 // signedBytesOf re-runs the SDK's signature pipeline to obtain the exact
 // bytes the (already verified) witness signature covers, and the signed
@@ -494,7 +506,9 @@ func (v *certVerifier) bindingOf(att map[string]any, si signedInput) certBinding
 			cb.form, cb.marker = formUnknown, fmt.Sprint(raw)
 		case m == anchor.HashAlgorithmV1:
 			cb.form = formV1
-		case m == "" || strings.EqualFold(strings.ReplaceAll(m, "-", ""), "sha256"):
+		case m == "" || m == anchor.HashAlgorithmLegacy:
+			// Exactly the witness's anchorbinding.FormOf: "" and "SHA-256"
+			// are legacy; every other spelling is unknown (TAMPERED).
 			cb.form = formLegacy
 		default:
 			cb.form = formUnknown
@@ -518,7 +532,7 @@ func (v *certVerifier) bindingOf(att map[string]any, si signedInput) certBinding
 func (v *certVerifier) bindingProblem(cb certBinding) string {
 	switch {
 	case cb.form == formUnknown:
-		return fmt.Sprintf("the timestamp declares an unknown anchor binding %q (this tool knows binding v1); use a newer lucairn-bundle-verify if Lucairn published one", short(cb.marker))
+		return fmt.Sprintf("the timestamp declares an unknown anchor binding %s (this tool knows binding v1); use a newer lucairn-bundle-verify if Lucairn published one", quotedShort(cb.marker))
 	case cb.required && cb.form != formV1:
 		return fmt.Sprintf("this certificate was issued (signed issued_at %s) after %s, from which every certificate's anchors are content-bound (binding v1), but its timestamp does not declare binding v1: the marker was removed or the anchors are not this certificate's",
 			cb.signedIssuedAt.Format(time.RFC3339), v.opt.Roots.BindingRequiredAfter.Format(time.RFC3339))
@@ -534,6 +548,16 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 		r.add(scope, "timestamp", Fail, "timestamp_token is not base64")
 		return
 	}
+	// The binding-marker requirement holds whether or not an anchor is
+	// present (Sol #77 P1): a certificate issued after the cutover always
+	// carries the marker (the witness records it with cert_hash when the
+	// anchoring run starts, and keeps it when both rails fail), so removing
+	// the anchors together with the marker must not turn TAMPERED into "not
+	// anchored", which --allow-unanchored would then accept as VALID.
+	if p := v.bindingProblem(cb); p != "" {
+		r.add(scope, "timestamp", Fail, p)
+		return
+	}
 	if len(token) == 0 {
 		v.notAnchored(scope, "timestamp", "no timestamp token", anchorClaimed)
 		return
@@ -541,10 +565,6 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 	digest, ok := b64(ts["cert_hash"])
 	if !ok || len(digest) != sha256.Size {
 		r.add(scope, "timestamp", Fail, "the certificate's recorded digest (cert_hash) is missing or not SHA-256")
-		return
-	}
-	if p := v.bindingProblem(cb); p != "" {
-		r.add(scope, "timestamp", Fail, p)
 		return
 	}
 	expected, status, over := digest, PassNotContentBound, "the recorded digest"
@@ -603,6 +623,12 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 		return
 	}
 	if len(set) == 0 && len(proof) == 0 && len(body) == 0 && (!hasIdx || idx == 0) {
+		// Same rule as the timestamp step: a binding problem fails this step
+		// even without an entry (Sol #77 P1).
+		if p := v.bindingProblem(cb); p != "" {
+			r.add(scope, "rekor", Fail, p)
+			return
+		}
 		v.notAnchored(scope, "rekor", "no Rekor entry", anchorClaimed)
 		return
 	}
