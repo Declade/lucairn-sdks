@@ -33,10 +33,12 @@ import (
 //   - the anchored audit root: the row's event_hash is a leaf of the audit
 //     tree whose root the audit key signed and Rekor logged.
 //
-// Each file is one JSON array (an object holding that array under the single
-// key "events" / "proofs" / "roots" is read the same way).
+// Each file is ONE top-level JSON object with exactly ONE key — "events",
+// "proofs" or "roots" — whose value is an array (api-contract.md section 2a,
+// pinned). A bare array, another key name, a second key, null in place of the
+// array: all TAMPERED. An empty list is written [] and its key is still there.
 //
-// # audit/events.json — one entry per counted request, ordered by conv_seq
+// # audit/events.json — {"events":[...]}, one entry per counted request, ordered by conv_seq
 //
 //	{ "conv_seq": 1,                        JSON integer >= 1
 //	  "conversation_id": "<32 lowercase hex>",
@@ -52,12 +54,14 @@ import (
 //
 // No payload is carried (design D12: digest only).
 //
-// # audit/proofs.json — one entry per event with a root_ref
+// # audit/proofs.json — {"proofs":[...]}, one entry per event with a root_ref
 //
 //	{ "conv_seq": 1, "leaf_index": 84011, "tree_size": 84020,
-//	  "path": ["<32 bytes: standard base64, or 64 lowercase hex>", ...] }
+//	  "path": ["<64 lowercase hex characters = 32 bytes>", ...] }
 //
-// path is the RFC 6962 audit path (sibling hashes, leaf to root). There are no
+// path is the RFC 6962 audit path (sibling hashes, leaf to root). Its elements
+// are lowercase hex and nothing else (api-contract.md section 2a): base64 or
+// upper-case hex is TAMPERED, so one path has one spelling. There are no
 // left/right flags: index and size decide the side
 // (anchor.AuditInclusionRoot). leaf_index and tree_size here are UNSIGNED
 // copies: the tool takes the leaf index from the event entry and the tree
@@ -66,7 +70,7 @@ import (
 // sizes share one path shape). An event without a root_ref has no entry (an
 // entry with tree_size 0 and an empty path is read as "no proof").
 //
-// # audit/roots.json — the roots the events reference
+// # audit/roots.json — {"roots":[...]}, the roots the events reference
 //
 //	{ "id": 17, "tree_size": 84020, "root_hash": "<64 lowercase hex>",
 //	  "root_artifact": "<base64 of the exact signed bytes>",
@@ -79,7 +83,7 @@ import (
 //	     "log_url": "...", "uuid": "...", "log_id": "..." },   optional, informational
 //	  "published_at": "..." }                optional, informational
 //
-// A deployment without anchoring writes [] for proofs and roots.
+// A deployment without anchoring writes {"proofs":[]} and {"roots":[]}.
 //
 // Every object's key set is exact and case-sensitive; integers are JSON
 // integers (no strings, no exponent, no leading zero). A file that does not
@@ -261,39 +265,37 @@ func jsonBase64(o map[string]any, where, key string) ([]byte, error) {
 	return b, nil
 }
 
-// jsonHash32 reads one 32-byte hash: standard padded base64 (what the
-// gateway's evidence response carries) or 64 lowercase hex characters. The
-// two spellings differ in length, so a string is never both.
+// jsonHash32 reads one 32-byte hash in its ONE pinned spelling: exactly 64
+// lowercase hex characters (api-contract.md section 2a (b)). Base64 and
+// upper-case hex are refused, so a path element has a single spelling.
 func jsonHash32(v any) ([]byte, bool) {
 	s, _ := v.(string)
-	if hex64.MatchString(s) {
-		b, _ := hex.DecodeString(s)
-		return b, true
+	if !hex64.MatchString(s) {
+		return nil, false
 	}
-	if len(s) == 44 {
-		if b, err := base64.StdEncoding.Strict().DecodeString(s); err == nil && len(b) == sha256.Size {
-			return b, true
-		}
-	}
-	return nil, false
+	b, err := hex.DecodeString(s)
+	return b, err == nil && len(b) == sha256.Size
 }
 
-// jsonList reads one audit file: the JSON array itself, or an object whose
-// single key is `key` and holds that array.
+// AuditListKeys names, per audit file, the single top-level key that holds
+// its array (api-contract.md section 2a (a)).
+var AuditListKeys = map[string]string{PathAuditEvents: "events", PathAuditProofs: "proofs", PathAuditRoots: "roots"}
+
+// jsonList reads one audit file in its ONE pinned form: a top-level JSON
+// object with exactly the key `key`, whose value is an array. A bare array,
+// another or a second key, or a non-array value (null included) is refused.
 func jsonList(raw []byte, path, key string) ([]any, error) {
 	doc, err := verify.DecodeDocument(raw)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not one strict JSON document: %s", path, short(err.Error()))
 	}
-	arr, ok := doc.([]any)
+	o, isObject := doc.(map[string]any)
+	if _, has := o[key]; !isObject || !has || len(o) != 1 {
+		return nil, fmt.Errorf("%s is not a JSON object with the single key %q (a bare array or any other key is not the bundle format)", path, key)
+	}
+	arr, ok := o[key].([]any)
 	if !ok {
-		o, err := jsonObject(doc, path, []string{key})
-		if err != nil {
-			return nil, fmt.Errorf("%s is neither a JSON array nor an object with the single key %q", path, key)
-		}
-		if arr, ok = o[key].([]any); !ok {
-			return nil, fmt.Errorf("%s %s is not an array", path, key)
-		}
+		return nil, fmt.Errorf("%s %s is not an array (an empty list is written [])", path, key)
 	}
 	if len(arr) > MaxAuditEvents {
 		return nil, fmt.Errorf("%s holds more than %d entries", path, MaxAuditEvents)
@@ -327,7 +329,7 @@ func parseAudit(files map[string][]byte) (d *auditData, refProblems []string, er
 func parseAuditFiles(files map[string][]byte) (*auditData, error) {
 	d := &auditData{proofs: map[uint64]AuditProof{}, byID: map[uint64]*AuditRootEntry{}}
 
-	evs, err := jsonList(files[PathAuditEvents], PathAuditEvents, "events")
+	evs, err := jsonList(files[PathAuditEvents], PathAuditEvents, AuditListKeys[PathAuditEvents])
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +393,7 @@ func parseAuditFiles(files map[string][]byte) (*auditData, error) {
 		d.events = append(d.events, e)
 	}
 
-	prs, err := jsonList(files[PathAuditProofs], PathAuditProofs, "proofs")
+	prs, err := jsonList(files[PathAuditProofs], PathAuditProofs, AuditListKeys[PathAuditProofs])
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +421,7 @@ func parseAuditFiles(files map[string][]byte) (*auditData, error) {
 		p.Path = make([][]byte, len(arr))
 		for j, h := range arr {
 			if p.Path[j], ok = jsonHash32(h); !ok {
-				return nil, fmt.Errorf("%s path element %d is not a 32-byte hash (standard base64 or 64 lowercase hex characters)", where, j)
+				return nil, fmt.Errorf("%s path element %d is not a 32-byte hash written as 64 lowercase hex characters", where, j)
 			}
 		}
 		if _, dup := d.proofs[seq]; dup {
@@ -428,7 +430,7 @@ func parseAuditFiles(files map[string][]byte) (*auditData, error) {
 		d.proofs[seq] = p
 	}
 
-	rts, err := jsonList(files[PathAuditRoots], PathAuditRoots, "roots")
+	rts, err := jsonList(files[PathAuditRoots], PathAuditRoots, AuditListKeys[PathAuditRoots])
 	if err != nil {
 		return nil, err
 	}
@@ -544,8 +546,11 @@ func auditReferenceProblems(d *auditData) []string {
 // auditClaim is one audit-signed EVENTS_RECORDED claim of a certificate, read
 // from its verified, signed bytes only.
 type auditClaim struct {
+	// requestID is the claim's own signed request_id.
+	requestID                                    string
 	eventHash, eventID, eventType, sourceService string
-	// D3 (conditional): the claim also signs the counter.
+	// D3: the claim of a COUNTED request also signs the counter
+	// (conversation_id + conv_seq). hasSeq is the "counted" marker.
 	conversationID string
 	hasSeq         bool
 	seq            uint64
@@ -569,6 +574,7 @@ func auditClaimsOf(claims map[string]map[string]any) []auditClaim {
 		}
 		v := claims[k]
 		c := auditClaim{
+			requestID: str(v["/request_id"]),
 			eventHash: str(v["/payload/event_hash"]), eventID: str(v["/payload/event_id"]),
 			eventType: str(v["/payload/event_type"]), sourceService: str(v["/payload/source_service"]),
 			conversationID: str(v["/payload/conversation_id"]),

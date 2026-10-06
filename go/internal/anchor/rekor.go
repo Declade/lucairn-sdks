@@ -14,9 +14,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/declade/lucairn-sdks/go/internal/verify"
 )
 
 // RekorPublicGoodPEM is the public key of the Sigstore public-good Rekor log
@@ -151,11 +155,99 @@ func VerifySET(body []byte, integratedTime, logIndex int64, set []byte, rk *Reko
 }
 
 type inclusionProof struct {
-	Checkpoint string   `json:"checkpoint"`
-	Hashes     []string `json:"hashes"`
-	LogIndex   *int64   `json:"logIndex"`
-	RootHash   string   `json:"rootHash"`
-	TreeSize   *int64   `json:"treeSize"`
+	Checkpoint string
+	Hashes     []string
+	LogIndex   *int64
+	RootHash   string
+	TreeSize   *int64
+}
+
+// inclusionProofKeys are the keys of Rekor's inclusionProof object, in their
+// exact spelling. A proof may lack one (reported below as what is missing);
+// it may not carry any other.
+var inclusionProofKeys = map[string]bool{"checkpoint": true, "hashes": true, "logIndex": true, "rootHash": true, "treeSize": true}
+
+// proofIntLexeme is a plain non-negative JSON integer: no sign, fraction,
+// exponent or leading zero.
+var proofIntLexeme = regexp.MustCompile(`^(0|[1-9][0-9]{0,17})$`)
+
+// decodeInclusionProof reads the inclusionProof JSON a bundle carries (for a
+// certificate's Rekor entry and for an audit root's) as ONE strict document:
+// no duplicate key, no key other than the five above — so no case-variant
+// spelling either —, no trailing data, and every value of its JSON type
+// (strings, an array of strings, plain integers). The object is unsigned
+// bundle content; with a lenient decoder two readers could take different
+// values from one byte string (a later duplicate key winning, a case-variant
+// key matching a field), so the bytes get exactly one reading here.
+//
+// The checkpoint VALUE is a signed note in the log's own wire format and is
+// parsed as such by VerifyCheckpoint; nothing about it is decided here.
+func decodeInclusionProof(proofJSON []byte) (*inclusionProof, error) {
+	doc, err := verify.DecodeDocument(proofJSON)
+	if err != nil {
+		return nil, fmt.Errorf("inclusion proof is not one strict JSON document: %w", err)
+	}
+	o, ok := doc.(map[string]any)
+	if !ok {
+		return nil, errors.New("inclusion proof is not a JSON object")
+	}
+	keys := make([]string, 0, len(o))
+	for k := range o {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !inclusionProofKeys[k] {
+			return nil, fmt.Errorf("inclusion proof has key %q, which is not a key of a Rekor inclusion proof (keys are case-sensitive)", k)
+		}
+	}
+	p := &inclusionProof{}
+	str := func(k string, dst *string) error {
+		v, has := o[k]
+		if !has {
+			return nil
+		}
+		s, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("inclusion proof %s is not a string", k)
+		}
+		*dst = s
+		return nil
+	}
+	num := func(k string, dst **int64) error {
+		v, has := o[k]
+		if !has {
+			return nil
+		}
+		n, ok := v.(json.Number)
+		if !ok || !proofIntLexeme.MatchString(string(n)) {
+			return fmt.Errorf("inclusion proof %s is not a plain JSON integer", k)
+		}
+		i, err := strconv.ParseInt(string(n), 10, 64)
+		if err != nil {
+			return fmt.Errorf("inclusion proof %s is not a plain JSON integer", k)
+		}
+		*dst = &i
+		return nil
+	}
+	for _, err := range []error{str("checkpoint", &p.Checkpoint), str("rootHash", &p.RootHash), num("logIndex", &p.LogIndex), num("treeSize", &p.TreeSize)} {
+		if err != nil {
+			return nil, err
+		}
+	}
+	if v, has := o["hashes"]; has {
+		arr, ok := v.([]any)
+		if !ok {
+			return nil, errors.New("inclusion proof hashes is not an array")
+		}
+		p.Hashes = make([]string, len(arr))
+		for i, h := range arr {
+			if p.Hashes[i], ok = h.(string); !ok {
+				return nil, fmt.Errorf("inclusion proof hash %d is not a string", i)
+			}
+		}
+	}
+	return p, nil
 }
 
 // verifyInclusion checks the proof and its REQUIRED signed checkpoint. It
@@ -165,10 +257,9 @@ func verifyInclusion(body, proofJSON []byte, rk *RekorKey) (bool, int64, error) 
 	if len(bytes.TrimSpace(proofJSON)) == 0 {
 		return false, 0, errors.New("the entry carries no inclusion proof")
 	}
-	var p inclusionProof
-	dec := json.NewDecoder(bytes.NewReader(proofJSON))
-	if err := dec.Decode(&p); err != nil {
-		return false, 0, fmt.Errorf("inclusion proof does not parse: %w", err)
+	p, err := decodeInclusionProof(proofJSON)
+	if err != nil {
+		return false, 0, err
 	}
 	if p.LogIndex == nil || p.TreeSize == nil || p.RootHash == "" {
 		return false, 0, errors.New("inclusion proof lacks logIndex, treeSize or rootHash")

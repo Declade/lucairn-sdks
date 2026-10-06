@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
@@ -24,6 +25,8 @@ const (
 	ConvD = "c0ffee00000000000000000000000d04"
 	ConvE = "c0ffee00000000000000000000000e05"
 	ConvF = "c0ffee00000000000000000000000f06"
+	// ConvG: one request whose certificate carries two signed counter claims.
+	ConvG = "c0ffee0000000000000000000000ab07"
 )
 
 // AuditScenario is one synthetic counted conversation: four requests of
@@ -52,7 +55,7 @@ type AuditScenario struct {
 type ScenarioOptions struct {
 	// NoSignedCounter: the audit claims of counted requests do NOT carry
 	// conversation_id + conv_seq (the audit service always signs them, design
-	// D3; this is for tests of the hash-only binding).
+	// D3; such a certificate is "not tracked", whatever audit/ lists for it).
 	NoSignedCounter bool
 	// SelfHosted: no anchoring anywhere — unanchored certificates issued
 	// before the binding cutover, no audit root published.
@@ -297,9 +300,9 @@ func addAuditCases(co *Corpus) error {
 		f := clean.Clone()
 		f.EditList(pr, each(1, func(o map[string]any) {
 			path := o["path"].([]any)
-			b, _ := base64.StdEncoding.DecodeString(path[0].(string))
+			b, _ := hex.DecodeString(path[0].(string))
 			b[7] ^= 0x01
-			path[0] = base64.StdEncoding.EncodeToString(b)
+			path[0] = hex.EncodeToString(b)
 		}))
 		f.Rehash()
 		add("S2b-04e-path-byte-flipped", "one bit of one sibling hash in the inclusion path of seq 1 flipped (path length unchanged); manifest re-hashed", ExpectTampered, bundle.StepAuditInclusion, "does not lead", f)
@@ -467,6 +470,12 @@ func addAuditCases(co *Corpus) error {
 		add("S2b-16-case-variant-key", "a counter entry carries an extra case-variant key Conv_Seq; manifest re-hashed", ExpectTampered, bundle.StepAuditFiles, "Conv_Seq", f)
 	}
 
+	// ---- Fix round 1 of SDK #79 (gate record "Sol #79"): G1-G5 ----
+	// Minted AFTER every scenario above, so those stay as they were.
+	if err := addAuditFixRound1Cases(co, sc, add); err != nil {
+		return err
+	}
+
 	// Documented limit — measured, expected to exit 0.
 	{
 		f := clean.Clone()
@@ -474,6 +483,162 @@ func addAuditCases(co *Corpus) error {
 		f.EditList(pr, dropSeq(4))
 		f.RemoveCert(c[3])
 		add("G4-tail-cut", "the LAST request cut off: certificate 4, its manifest entry, counter entry and proof removed (the counter cannot show that N is the last request; printed as a LIMITATION)", ExpectKnownGap, "", "", f)
+	}
+	return nil
+}
+
+// addAuditFixRound1Cases appends the cases of fix round 1 of SDK #79.
+func addAuditFixRound1Cases(co *Corpus, sc *AuditScenario, add func(name, what, expect, step, detail string, f Files, flags ...string)) error {
+	w := co.World
+	clean := sc.Clean
+	ev, pr, rt := bundle.PathAuditEvents, bundle.PathAuditProofs, bundle.PathAuditRoots
+
+	// G1 (Sol P1, T8). "Counted" is what the certificate's SIGNED claim says.
+	// A scenario whose audit claims do not sign the counter, with genuine v2
+	// entries, proofs and roots for the same requests (every event_hash
+	// matches its certificate's claim): the entries are not accepted on the
+	// hash alone -> "not tracked", INCOMPLETE.
+	hashOnly, err := w.NewAuditScenario(ScenarioOptions{NoSignedCounter: true})
+	if err != nil {
+		return err
+	}
+	add("S2b-17-entry-claim-without-counter", "every counter entry is genuine and its event_hash equals its certificate's signed audit claim, but no claim signs conversation_id + conv_seq (the certificates do not say they were counted)",
+		ExpectIncomplete, bundle.StepAuditCounter, "not tracked", hashOnly.Clean.Clone())
+	// The other half of the rule: an entry that gives a number to a request
+	// whose signed claim carries no counter AND names another event_hash.
+	{
+		fake := bundle.AuditEvent{ConvSeq: 5, ConversationID: ConvD, RequestID: sc.Uncounted.RequestID, EventID: "evt_made_up_for_uncounted",
+			EventType: "PROXY_INFERENCE_COMPLETED", SourceService: "gateway", Actor: Customer,
+			PayloadSHA256: hex.EncodeToString(make([]byte, 32)), PreviousEventHash: sc.Evidence.Events[3].EventHash}
+		fake.EventHash = bundle.EventHashV2(fake)
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: append([]*Cert{sc.Uncounted}, sc.Certs...), Audit: sc.Evidence})
+		f.EditList(ev, func(l []any) []any { return append(l, EventJSON(fake)) })
+		f.Rehash()
+		add("S2b-17b-entry-for-uncounted-request", "a self-consistent counter entry (seq 5) added under the request id of a certificate whose signed audit claim carries no counter and names another event_hash; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditCounter, "no signature of this certificate covers", f)
+	}
+
+	// G2 (Sol P2, T1). One certificate, two VALID audit-signed claims for the
+	// same audit row: one signs seq 1, the other seq 2. The bundle has the
+	// one entry (seq 1). Every signed counter claim needs its own entry.
+	{
+		log := w.NewAuditLog()
+		log.Filler(3)
+		at := CorpusCutover.Add(41*time.Hour + 10*time.Minute)
+		two, err := w.NewCert(CertOptions{ConversationID: ConvG, CustomerID: Customer, IssuedAt: at, Bound: true, Audit: log, ExtraAuditSeq: 2})
+		if err != nil {
+			return err
+		}
+		log.Filler(2)
+		if _, err := log.Publish(at.Truncate(time.Hour).Add(time.Hour + 9*time.Second)); err != nil {
+			return err
+		}
+		add("S2b-18-two-counter-claims-one-entry", "one certificate with two valid audit-signed claims for the same audit row, signing seq 1 and seq 2; the bundle holds the one counter entry (seq 1)",
+			ExpectTampered, bundle.StepAuditCounter, "counted as seq 2",
+			Build(Spec{ConversationID: ConvG, CustomerID: Customer, Certs: []*Cert{two}, Audit: log.Evidence(ConvG)}))
+	}
+
+	// G3 (Sol P2, T11). The Rekor inclusion-proof JSON is read as ONE strict
+	// document. A wrong rootHash followed by a duplicate, genuine rootHash: a
+	// lenient decoder takes the later one and verifies.
+	dupRootHash := func(proofB64 string) string {
+		raw, err := base64.StdEncoding.DecodeString(proofB64)
+		if err != nil {
+			panic(err)
+		}
+		const key = `"rootHash":`
+		if strings.Count(string(raw), key) != 1 {
+			panic("synthetic inclusion proof: rootHash key not found exactly once")
+		}
+		wrong := key + `"` + strings.Repeat("00", 32) + `",`
+		return base64.StdEncoding.EncodeToString([]byte(strings.Replace(string(raw), key, wrong+key, 1)))
+	}
+	{
+		f := clean.Clone()
+		f.EditList(rt, func(l []any) []any {
+			re := l[0].(map[string]any)["rekor_entry"].(map[string]any)
+			re["inclusion_proof"] = dupRootHash(re["inclusion_proof"].(string))
+			return l
+		})
+		f.Rehash()
+		add("S2b-19-root-proof-duplicate-key", "the first audit root's Rekor inclusion proof carries rootHash twice: a wrong value, then the genuine one; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditRoot, "duplicate object key", f)
+	}
+	{
+		f := clean.Clone()
+		p := certPath(sc.Certs[0])
+		var doc map[string]any
+		if err := json.Unmarshal(f[p], &doc); err != nil {
+			return err
+		}
+		tl := doc["attestation"].(map[string]any)["transparency_log"].(map[string]any)
+		tl["inclusion_proof"] = dupRootHash(tl["inclusion_proof"].(string))
+		f[p], _ = json.MarshalIndent(doc, "", "  ")
+		f.Rehash()
+		add("S2b-19b-cert-proof-duplicate-key", "the same duplicate rootHash in the Rekor inclusion proof of a CERTIFICATE (the certificate and the audit-root path share one decoder); manifest re-hashed",
+			ExpectTampered, "rekor", "duplicate object key", f)
+	}
+
+	// G4 (orchestrator decision on Sol P2, T4). A format-2 bundle without any
+	// certificate stays TAMPERED, as in format 1 ("at least one certificate"),
+	// whatever its audit/ folder says.
+	{
+		f := clean.Clone()
+		for _, c := range sc.Certs {
+			f.RemoveCert(c)
+		}
+		add("S2b-20-zero-certificates", "every certificate and its manifest entry removed from a format-2 bundle; the audit/ folder (4 counted requests) is kept; manifest rewritten",
+			ExpectTampered, "certificate-list", "contains no certificate", f)
+	}
+
+	// G5 (api-contract.md section 2a). One form per file, one spelling per hash.
+	bare := func(f Files, path string) {
+		b, _ := json.MarshalIndent(f.List(path), "", "  ")
+		f[path] = append(b, '\n')
+	}
+	{
+		f := clean.Clone()
+		for _, p := range bundle.AuditPaths {
+			bare(f, p)
+		}
+		f.Rehash()
+		add("S2b-21-audit-files-bare-arrays", "each audit/*.json file is a bare JSON array instead of the object with its one named key; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditFiles, "single key", f)
+	}
+	{
+		f := clean.Clone()
+		f.PutJSON(pr, map[string]any{"inclusion_proofs": f.List(pr)})
+		f.Rehash()
+		add("S2b-21b-audit-file-other-key", "audit/proofs.json holds its array under the key inclusion_proofs instead of proofs; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditFiles, "single key", f)
+	}
+	respell := func(f Files, fn func(raw []byte) string) {
+		f.EditList(pr, func(l []any) []any {
+			for _, o := range l {
+				path := o.(map[string]any)["path"].([]any)
+				for i, h := range path {
+					b, err := hex.DecodeString(h.(string))
+					if err != nil {
+						panic(err)
+					}
+					path[i] = fn(b)
+				}
+			}
+			return l
+		})
+		f.Rehash()
+	}
+	{
+		f := clean.Clone()
+		respell(f, base64.StdEncoding.EncodeToString)
+		add("S2b-21c-proof-path-base64", "every inclusion path element written as standard base64 of the same 32 bytes instead of lowercase hex; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditFiles, "64 lowercase hex", f)
+	}
+	{
+		f := clean.Clone()
+		respell(f, func(b []byte) string { return strings.ToUpper(hex.EncodeToString(b)) })
+		add("S2b-21d-proof-path-uppercase-hex", "every inclusion path element written as upper-case hex of the same 32 bytes; manifest re-hashed",
+			ExpectTampered, bundle.StepAuditFiles, "64 lowercase hex", f)
 	}
 	return nil
 }

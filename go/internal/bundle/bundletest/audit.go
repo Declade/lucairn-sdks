@@ -267,12 +267,12 @@ func EventJSON(e bundle.AuditEvent) map[string]any {
 	}
 }
 
-// ProofJSON is one audit/proofs.json entry (path as standard base64, the
-// gateway's encoding of bytes).
+// ProofJSON is one audit/proofs.json entry (path elements as 64 lowercase
+// hex characters, api-contract.md section 2a).
 func ProofJSON(seq uint64, p bundle.AuditProof) map[string]any {
 	path := []any{}
 	for _, h := range p.Path {
-		path = append(path, base64.StdEncoding.EncodeToString(h))
+		path = append(path, hex.EncodeToString(h))
 	}
 	return map[string]any{"conv_seq": num(seq), "leaf_index": num(p.LeafIndex), "tree_size": num(p.TreeSize), "path": path}
 }
@@ -308,9 +308,28 @@ func (ev *Evidence) WriteTo(f Files) {
 	for _, r := range ev.Roots {
 		roots = append(roots, RootJSON(r))
 	}
-	f.PutJSON(bundle.PathAuditEvents, events)
-	f.PutJSON(bundle.PathAuditProofs, proofs)
-	f.PutJSON(bundle.PathAuditRoots, roots)
+	f.PutList(bundle.PathAuditEvents, events)
+	f.PutList(bundle.PathAuditProofs, proofs)
+	f.PutList(bundle.PathAuditRoots, roots)
+}
+
+// PutList writes one audit file in its pinned form: a top-level object with
+// the file's single key ("events" / "proofs" / "roots") holding the array
+// (api-contract.md section 2a).
+func (f Files) PutList(path string, list []any) {
+	if list == nil {
+		list = []any{}
+	}
+	f.PutJSON(path, map[string]any{bundle.AuditListKeys[path]: list})
+}
+
+// List decodes the array of an audit file (number lexemes kept).
+func (f Files) List(path string) []any {
+	doc, err := verify.DecodeDocument(f[path])
+	if err != nil {
+		panic(err)
+	}
+	return doc.(map[string]any)[bundle.AuditListKeys[path]].([]any)
 }
 
 // PutJSON writes v as indented JSON at path.
@@ -323,18 +342,16 @@ func (f Files) PutJSON(path string, v any) {
 }
 
 // EditList decodes the array of an audit file (number lexemes kept), lets fn
-// change it, and writes it back. The manifest is NOT re-hashed.
+// change it, and writes it back in the pinned form. The manifest is NOT
+// re-hashed.
 func (f Files) EditList(path string, fn func(list []any) []any) {
-	doc, err := verify.DecodeDocument(f[path])
-	if err != nil {
-		panic(err)
-	}
-	f.PutJSON(path, fn(doc.([]any)))
+	f.PutList(path, fn(f.List(path)))
 }
 
 // auditClaim records the request's terminal audit event and builds the
-// dsa-audit EVENTS_RECORDED claim that signs its event_hash.
-func (w *World) auditClaim(o CertOptions, n int, reqID string, issued time.Time) (map[string]any, *bundle.AuditEvent, error) {
+// dsa-audit EVENTS_RECORDED claim that signs its event_hash (two claims with
+// CertOptions.ExtraAuditSeq).
+func (w *World) auditClaim(o CertOptions, n int, reqID string, issued time.Time) ([]map[string]any, *bundle.AuditEvent, error) {
 	var e bundle.AuditEvent
 	if o.Uncounted {
 		e = o.Audit.RecordUncounted(o.ConversationID, reqID, o.CustomerID)
@@ -350,8 +367,35 @@ func (w *World) auditClaim(o CertOptions, n int, reqID string, issued time.Time)
 	if !o.NoSignedCounter && !o.Uncounted {
 		payload["conversation_id"], payload["conv_seq"] = e.ConversationID, num(e.ConvSeq)
 	}
-	claimID := fmt.Sprintf("clm_synthetic-audit-%04d", n)
 	ts := issued.Add(-1 * time.Second).Format("2006-01-02T15:04:05.000000000Z")
+	claim, err := w.signAuditClaim(fmt.Sprintf("clm_synthetic-audit-%04d", n), reqID, ts, payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	claims := []map[string]any{claim}
+	if o.ExtraAuditSeq != 0 {
+		// A second, equally valid audit-signed claim for the SAME audit row
+		// that signs another number.
+		extra := map[string]any{}
+		for k, v := range payload {
+			extra[k] = v
+		}
+		extra["conversation_id"], extra["conv_seq"] = e.ConversationID, num(o.ExtraAuditSeq)
+		c2, err := w.signAuditClaim(fmt.Sprintf("clm_synthetic-audit-%04d-b", n), reqID, ts, extra)
+		if err != nil {
+			return nil, nil, err
+		}
+		claims = append(claims, c2)
+	}
+	if o.Uncounted {
+		return claims, nil, nil
+	}
+	return claims, &e, nil
+}
+
+// signAuditClaim builds one dsa-audit EVENTS_RECORDED claim over payload,
+// signed with the synthetic audit key.
+func (w *World) signAuditClaim(claimID, reqID, ts string, payload map[string]any) (map[string]any, error) {
 	dataSeen, dataNotSeen := []string{"event_hashes"}, []string{"pii", "context", "inference_result"}
 	canon, err := verify.CanonicalLexeme(map[string]any{
 		"claim_id": claimID, "request_id": reqID, "service_id": AuditService,
@@ -359,19 +403,15 @@ func (w *World) auditClaim(o CertOptions, n int, reqID string, issued time.Time)
 		"payload": payload, "timestamp": ts,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	claim := map[string]any{
+	return map[string]any{
 		"claim_id": claimID, "request_id": reqID, "service_id": AuditService,
 		"claim_type": "CLAIM_TYPE_EVENTS_RECORDED", "data_seen": dataSeen, "data_not_seen": dataNotSeen,
 		"canonical_payload": base64.StdEncoding.EncodeToString(canon),
 		"signature":         base64.StdEncoding.EncodeToString(ed25519.Sign(w.Services[AuditService], canon)),
 		"timestamp":         ts,
-	}
-	if o.Uncounted {
-		return claim, nil, nil
-	}
-	return claim, &e, nil
+	}, nil
 }
 
 // AnchorRoot converts a published root into the verifier's input form.

@@ -18,7 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the signed root artifact only. A certificate removed together with its
   manifest line is now reported. Printed limits: a cut-off tail and the hour
   before a root is anchored. Format-1 bundles verify as before; older builds
-  read format-2 bundles as TAMPERED.
+  read format-2 bundles as TAMPERED. Each `audit/*.json` file is one object
+  with one named array key and inclusion paths are lowercase hex (any other
+  form is TAMPERED); a counter entry is accepted only for a certificate whose
+  signed audit claim states that conversation and number, and every signed
+  counter claim needs its entry; a format-2 bundle without a certificate is
+  TAMPERED.
 
 - **`lucairn-bundle-verify` (Go, `go/cmd/lucairn-bundle-verify`): offline verifier for
   per-conversation evidence bundles (bundle format 1).** Checks the manifest,
@@ -102,6 +107,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same strict parser as every other read.
 
 ### Changed
+- **`lucairn-bundle-verify`: the stored Rekor inclusion-proof JSON is read
+  strictly** (certificates and audit roots): a duplicate key, a key other than
+  `checkpoint` / `hashes` / `logIndex` / `rootHash` / `treeSize`
+  (case-sensitive), a non-integer index or size, or data after the object now
+  fails the Rekor step. Entries as Rekor returns them are unaffected.
 - **`lucairn-bundle-verify`: ASCII-only text output.** The text report, usage
   and error messages no longer contain non-ASCII characters (a default Windows
   console garbled them when piped): step lines read `PASS - detail` instead of

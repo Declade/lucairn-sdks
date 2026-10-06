@@ -271,55 +271,81 @@ func (a *auditVerifier) cert(scope string, ca certAudit, issuedAt time.Time) {
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("this certificate carries no %s-signed %s claim, so its counter entry (seq %d) is not tied to it by a signature", AuditClaimService, AuditClaimType, e.ConvSeq), true)
 	default:
 		st, detail := matchAuditClaim(ca.claims, e, len(a.d.events))
-		r.add(scope, StepAuditCounter, st, detail)
+		// A SKIPPED counter step always blocks: the entry is not tied to the
+		// certificate, so the bundle is not complete.
+		a.emit(scope, StepAuditCounter, st, detail, true)
 	}
 	st, detail, blocks := a.inclusion(e, issuedAt)
 	a.emit(scope, StepAuditInclusion, st, detail, blocks)
 }
 
-// matchAuditClaim is check A: one of the certificate's audit-signed claims
-// names exactly this counter entry (its event_hash). A claim that signs the
-// counter itself (design D3: conversation_id + conv_seq in the claim payload
-// of every counted request) must name this entry and state the same
-// conversation and seq.
+// matchAuditClaim is check A for a certificate whose request HAS a counter
+// entry e (found by request id; there is at most one entry per request).
+//
+// Whether a request was counted is what its audit-signed claim says: the
+// audit service puts conversation_id + conv_seq into the EVENTS_RECORDED
+// claim of every counted request (design D3) and into no other. So:
+//
+//   - EVERY claim that signs a counter must be this entry: same request id,
+//     event_hash, conversation and number. A claim that signs a number the
+//     bundle has no entry for is TAMPERED, also when another claim of the
+//     same certificate matches (two claims signing seq 1 and seq 2 with one
+//     entry: FAIL);
+//   - no claim signs a counter, and none names the entry's event_hash ->
+//     TAMPERED: the entry asserts a number for this request that no signature
+//     of the certificate covers;
+//   - no claim signs a counter, but one names the entry's event_hash -> "not
+//     tracked", SKIPPED and blocking (INCOMPLETE): the certificate itself
+//     does not say it was counted, so the entry is not accepted on the hash
+//     alone and the bundle is not VALID.
+//
+// PASS therefore always means: a signature states this conversation and this
+// number, and no signature of the certificate states another.
 func matchAuditClaim(claims []auditClaim, e *AuditEvent, total int) (Status, string) {
-	var m *auditClaim
-	for i := range claims {
-		c := &claims[i]
+	for _, c := range claims {
 		if c.seqMalformed {
 			return Fail, "the signed audit claim carries a conv_seq that is not a positive integer"
 		}
-		if c.eventHash == e.EventHash && e.EventHash != "" {
-			if m == nil {
-				m = c
-			}
+	}
+	counted, hashOnly := 0, false
+	for i := range claims {
+		c := &claims[i]
+		if !c.hasSeq {
+			hashOnly = hashOnly || (c.eventHash == e.EventHash && e.EventHash != "")
 			continue
 		}
-		if c.hasSeq {
+		counted++
+		if c.eventHash != e.EventHash || e.EventHash == "" {
 			return Fail, fmt.Sprintf("the %s-signed %s claim of this certificate states it was counted as seq %d with event_hash %s, the counter entry for this request is seq %d with event_hash %s",
 				AuditClaimService, AuditClaimType, c.seq, quotedShort(c.eventHash), e.ConvSeq, quotedShort(e.EventHash))
 		}
-	}
-	if m == nil {
-		return Fail, fmt.Sprintf("the %s-signed %s claim of this certificate names event_hash %s, the counter entry for this request (seq %d) has %s: the entry is not the audit row this certificate was issued for",
-			AuditClaimService, AuditClaimType, quotedShort(claims[0].eventHash), e.ConvSeq, quotedShort(e.EventHash))
-	}
-	for _, f := range []struct{ name, signed, entry string }{
-		{"event_id", m.eventID, e.EventID}, {"event_type", m.eventType, e.EventType}, {"source_service", m.sourceService, e.SourceService},
-		{"conversation_id", m.conversationID, e.ConversationID},
-	} {
-		if f.signed != "" && f.signed != f.entry {
-			return Fail, fmt.Sprintf("the signed audit claim states %s %s, the counter entry (seq %d) says %s", f.name, quotedShort(f.signed), e.ConvSeq, quotedShort(f.entry))
+		if c.seq != e.ConvSeq {
+			return Fail, fmt.Sprintf("the %s-signed %s claim of this certificate states it was counted as seq %d, the counter entry for this request says seq %d (every signed counter claim needs its own counter entry)",
+				AuditClaimService, AuditClaimType, c.seq, e.ConvSeq)
+		}
+		for _, f := range []struct {
+			name, signed, entry string
+			required            bool
+		}{
+			{"conversation_id", c.conversationID, e.ConversationID, true},
+			{"request_id", c.requestID, e.RequestID, false},
+			{"event_id", c.eventID, e.EventID, false}, {"event_type", c.eventType, e.EventType, false}, {"source_service", c.sourceService, e.SourceService, false},
+		} {
+			if (f.required || f.signed != "") && f.signed != f.entry {
+				return Fail, fmt.Sprintf("the signed audit claim (seq %d) states %s %s, the counter entry says %s", c.seq, f.name, quotedShort(f.signed), quotedShort(f.entry))
+			}
 		}
 	}
-	if m.hasSeq && m.seq != e.ConvSeq {
-		return Fail, fmt.Sprintf("the signed audit claim states seq %d, the counter entry says seq %d", m.seq, e.ConvSeq)
+	switch {
+	case counted > 0:
+		return Pass, fmt.Sprintf("seq %d (of %d counted in this bundle): the %s-signed %s claim names this entry's event_hash and itself signs this conversation and seq",
+			e.ConvSeq, total, AuditClaimService, AuditClaimType)
+	case hashOnly:
+		return Skipped, fmt.Sprintf("not tracked: the %s-signed %s claim of this certificate carries no counter (no conversation_id + conv_seq), although the bundle lists a counter entry (seq %d) with its event_hash. The claim of a counted request always signs its number, so this entry is not accepted for this certificate",
+			AuditClaimService, AuditClaimType, e.ConvSeq)
 	}
-	detail := fmt.Sprintf("seq %d (of %d counted in this bundle): the %s-signed %s claim names this entry's event_hash", e.ConvSeq, total, AuditClaimService, AuditClaimType)
-	if m.hasSeq && m.conversationID != "" {
-		detail += " and itself signs this conversation and seq"
-	}
-	return Pass, detail
+	return Fail, fmt.Sprintf("the %s-signed %s claim of this certificate names event_hash %s and carries no counter, the counter entry for this request (seq %d) has %s: the entry asserts a number that no signature of this certificate covers",
+		AuditClaimService, AuditClaimType, quotedShort(claims[0].eventHash), e.ConvSeq, quotedShort(e.EventHash))
 }
 
 // noCounterEntry reports a certificate whose request has no counter entry
@@ -329,8 +355,9 @@ func matchAuditClaim(claims []auditClaim, e *AuditEvent, total int) (Status, str
 // puts conversation_id + conv_seq into the EVENTS_RECORDED claim of every
 // counted request (design D3) and into no other. So:
 //
-//   - the claim signs a seq and a format-2 bundle has no entry for it ->
-//     TAMPERED: the entry was removed;
+//   - a claim signs a seq and a format-2 bundle has no entry for it ->
+//     TAMPERED: the entry was removed (every signed counter claim needs its
+//     entry);
 //   - the claim signs a seq and the bundle is format 1 (no audit/ folder: a
 //     format-2 bundle downgraded, or an export that could not fetch the
 //     counter) -> INCOMPLETE: such a bundle must not pass as complete;

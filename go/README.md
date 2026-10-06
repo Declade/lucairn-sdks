@@ -453,8 +453,11 @@ What it recomputes, from the bundle's files and keys built into the binary
   public-good key, the RFC 6962 inclusion proof and its signed checkpoint
   (required: a proof without one is FAIL), a proof index no higher than the
   signed log index, and that the witness key made the entry (Ed25519ph over
-  the logged SHA-512 digest). `--online` fetches the log's current copy to
-  CONFIRM the stored entry; the stored proof is still the one verified.
+  the logged SHA-512 digest). The stored inclusion-proof JSON is read as one
+  strict document: a duplicate key, a key that is not one of Rekor's five
+  (`checkpoint`, `hashes`, `logIndex`, `rootHash`, `treeSize`, case-sensitive)
+  or data after the object is FAIL. `--online` fetches the log's current copy
+  to CONFIRM the stored entry; the stored proof is still the one verified.
 
 **Anchor binding.** Certificates anchored with *anchor binding v1* (marked
 `attestation.timestamp.hash_algorithm = "lucairn.anchor-binding/v1"`) have
@@ -528,10 +531,15 @@ required files, `audit/events.json`, `audit/proofs.json` and
 `audit/roots.json`. They hold, for the conversation: one entry per counted
 request (the audit service numbers the requests of a conversation 1, 2, 3...),
 an inclusion path per entry into the audit log's Merkle tree, and the audit
-roots those paths lead to. The exact shape of the three files is documented in
-[`internal/bundle/audit.go`](internal/bundle/audit.go); any other key, a number
-written as a string, or a hash in another spelling is TAMPERED. Format-1
-bundles are checked exactly as before.
+roots those paths lead to. Each file is one JSON object with exactly one key
+holding an array — `{"events":[...]}`, `{"proofs":[...]}`, `{"roots":[...]}`
+(an empty list is `[]`) — and every inclusion path element is 64 lowercase hex
+characters. The exact shape is documented in
+[`internal/bundle/audit.go`](internal/bundle/audit.go); a bare array, any
+other key, a number written as a string, or a hash in another spelling (base64,
+upper-case hex) is TAMPERED. Format-1 bundles are checked exactly as before. A
+format-2 bundle without any certificate is TAMPERED, as in format 1 (a bundle
+holds at least one certificate), whatever its `audit/` folder says.
 
 Nothing in `audit/` is trusted as such. An entry counts because of two
 signatures the tool checks under pinned keys:
@@ -552,7 +560,7 @@ The steps (each `PASS`, `FAIL` or `SKIPPED(reason)`):
 | `audit-event-hash` | each entry's `event_hash` recomputes from its fields: `sha256(previous_event_hash + "lucairn.audit-event/v2\n" + L(event_id) L(event_type) L(source_service) L(actor) L(payload_sha256) L(request_id) L(conversation_id) L(conv_seq))`, `L(x)` = byte length, `:`, `x` | TAMPERED |
 | `audit-continuity` | the numbers are exactly 1..N: no gap, no duplicate, in order | TAMPERED, e.g. `seq gap at 2` |
 | `audit-root` | each root: canonical artifact, signature under the pinned `dsa-audit` key, Rekor entry (signed entry timestamp, inclusion proof, signed checkpoint) made by that key for exactly this artifact | TAMPERED |
-| `audit-counter` (per certificate) | the certificate's signed audit claim names its counter entry: same `event_hash`, and the same conversation and number where the claim signs them | TAMPERED on a mismatch, and when the claim says "counted, seq k" but the bundle has no entry; INCOMPLETE "not tracked" when the claim carries no counter (the request was recorded before counting started) |
+| `audit-counter` (per certificate) | every signed audit claim of the certificate that carries a counter names the certificate's one counter entry: same request, `event_hash`, conversation and number | TAMPERED on any mismatch, when a claim says "counted, seq k" but the bundle has no entry for it (also when another claim of the same certificate matches), and when an entry gives a number to a request whose claim carries no counter and names another `event_hash`; INCOMPLETE "not tracked" when no claim carries a counter (the request was recorded before counting started) — also when the bundle lists an entry with the claim's `event_hash` |
 | `audit-inclusion` (per counted request) | the entry's `event_hash` is leaf `leaf_index` of the tree whose size and root the signed root artifact states | TAMPERED; INCOMPLETE "not yet anchored" for a request newer than the latest anchored root (a root covering new rows is published hourly: export the bundle again) |
 | `audit-certs` | every counted request has its certificate in the bundle | INCOMPLETE `request seq 3 has no certificate` |
 
@@ -565,9 +573,13 @@ Two rules worth knowing:
   are never used in its place. Paths carry no left/right flags: index and size
   decide the side (RFC 9162 section 2.1.3.2).
 - **Whether a request was counted is what its certificate's signed claim
-  says**, not a date in the tool. A format-1 bundle whose certificates say
-  "counted" (a format-2 bundle with `audit/` removed and the version rewritten,
-  or an export that could not fetch the counter) is INCOMPLETE.
+  says**, not a date in the tool and not the `audit/` folder. A counter entry
+  is accepted only for a certificate whose claim signs that conversation and
+  number; an entry that merely carries the `event_hash` of a claim without a
+  counter leaves the certificate "not tracked" (INCOMPLETE). A format-1 bundle
+  whose certificates say "counted" (a format-2 bundle with `audit/` removed
+  and the version rewritten, or an export that could not fetch the counter) is
+  INCOMPLETE.
 
 A certificate removed together with its manifest line — invisible in format 1
 — now shows as `audit-certs` INCOMPLETE, or as `seq gap at N` if its counter
