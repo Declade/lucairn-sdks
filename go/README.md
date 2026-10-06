@@ -458,6 +458,15 @@ RFC3339` sets one for another deployment. Bundles of certificates issued after
 the cutover need this version of the tool: older builds report their
 content-bound anchors as FAIL.
 
+A binding-v1 certificate whose timestamp rail failed keeps `cert_hash` and the
+marker on its timestamp half, without a token: its Rekor entry is still checked
+`PASS (content-bound)`, and the missing timestamp is `SKIPPED(not anchored)`
+(INCOMPLETE with the built-in pins, which require both anchors). A timestamp
+that declares the legacy form while the certificate's Rekor entry logs
+`sha512(cert_hash)` is TAMPERED: a legacy entry logs a digest of the stored
+certificate bytes, so that entry can only be another certificate's binding-v1
+anchor relabelled as legacy.
+
 Every certificate's own chain verdict and its `user_unredacted` value are
 printed on their own `INFO` lines. VALID is a statement about the bundle's
 integrity (intact, signed by the pinned keys, this conversation and account);

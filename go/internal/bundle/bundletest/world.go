@@ -196,6 +196,9 @@ type Cert struct {
 	// to H = anchor.DigestV1(sha256(Raw), signed v3 signable).
 	Raw []byte
 	Doc map[string]any
+	// H is the binding-v1 digest the anchors commit to (Bound certificates
+	// only; nil otherwise).
+	H []byte
 }
 
 // CertOptions shape one certificate.
@@ -303,6 +306,7 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		if o.Bound {
 			h := anchor.DigestV1(digest[:], v3b)
 			imprint, artifact, marker = h, h, anchor.HashAlgorithmV1
+			c.H = h
 		}
 		tok, err := w.Timestamp(imprint, at)
 		if err != nil {

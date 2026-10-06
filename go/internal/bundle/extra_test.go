@@ -357,3 +357,117 @@ func TestBoundCertWithoutPinnedWitnessIsNotPassed(t *testing.T) {
 		t.Fatalf("bound cert without a pinned witness key: exit %d %+v", rep.ExitCode, s)
 	}
 }
+
+// T-1231 S2a fix round — Sol #747 P1 shape (gate "Round-1 verdict S2a"):
+// another bound certificate's anchors relabelled legacy with cert_hash := its
+// binding digest. After the cutover the downgrade guard makes it TAMPERED
+// (exit 1); before the cutover the Rekor entry for sha512(cert_hash) gives it
+// away (exit 1); with that entry dropped the hosted policy reports the
+// missing anchor (exit 2).
+func TestSolP1RelabelledAnchors_ExitCodes(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct {
+		exit int
+		step string
+	}{
+		"S2a-10-solp1-relabelled-post-cutover": {1, "timestamp"},
+		"S2a-11-solp1-relabelled-pre-cutover":  {1, "rekor"},
+		"S2a-12-solp1-pre-cutover-tsa-only":    {2, "rekor"},
+	}
+	seen := 0
+	for _, c := range co.Cases {
+		w, ok := want[c.Name]
+		if !ok {
+			continue
+		}
+		seen++
+		rep := bundle.Verify(c.Name+".zip", c.Zip, bundle.Options{Roots: co.World.Roots()})
+		if rep.ExitCode != w.exit {
+			var buf strings.Builder
+			rep.WriteText(&buf)
+			t.Errorf("%s: exit %d, want %d\n%s", c.Name, rep.ExitCode, w.exit, buf.String())
+			continue
+		}
+		bad := false
+		for _, s := range rep.Steps {
+			if s.Name == w.step && (s.Status == bundle.Fail || (w.exit == 2 && s.Status == bundle.Skipped && s.Incomplete)) {
+				bad = true
+			}
+		}
+		if !bad {
+			t.Errorf("%s: no %s step carries the finding", c.Name, w.step)
+		}
+	}
+	if seen != len(want) {
+		t.Fatalf("corpus has %d of the %d Sol P1 cases", seen, len(want))
+	}
+}
+
+// T-1231 S2a fix round (D3): a binding-v1 certificate whose TSA rail failed
+// keeps cert_hash + the marker without a token. Its Rekor entry is still
+// content-bound. With anchors not required (--allow-unanchored) the bundle is
+// VALID; under the hosted policy the missing timestamp is INCOMPLETE.
+func TestRekorOnlyBoundCertificate(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ro := co.RekorOnly
+	if ro == nil {
+		t.Fatal("corpus lacks its Rekor-only certificate")
+	}
+	f := bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvA, CustomerID: bundletest.Customer, Certs: []*bundletest.Cert{ro}})
+	roots := co.World.Roots()
+	for _, tc := range []struct {
+		name    string
+		require bool
+		exit    int
+	}{{"anchors not required", false, 0}, {"hosted policy", true, 2}} {
+		roots.RequireAnchors = tc.require
+		rep := bundle.Verify("ro.zip", f.Zip(), bundle.Options{Roots: roots})
+		var buf strings.Builder
+		rep.WriteText(&buf)
+		if rep.ExitCode != tc.exit {
+			t.Fatalf("%s: exit %d, want %d\n%s", tc.name, rep.ExitCode, tc.exit, buf.String())
+		}
+		if s := stepOf(rep, ro.RequestID, "rekor"); s == nil || s.Status != bundle.PassContentBound {
+			t.Fatalf("%s: rekor must be PASS (content-bound), got %+v\n%s", tc.name, s, buf.String())
+		}
+		if s := stepOf(rep, ro.RequestID, "timestamp"); s == nil || s.Status != bundle.Skipped {
+			t.Fatalf("%s: timestamp must be SKIPPED (not anchored), got %+v", tc.name, s)
+		}
+	}
+	// Tamper: the recorded cert_hash is an input to H — the entry no longer matches.
+	edited := bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvA, CustomerID: bundletest.Customer, Certs: []*bundletest.Cert{ro}})
+	p := bundle.DirCertificates + ro.RequestID + ".json"
+	var doc map[string]any
+	if err := json.Unmarshal(edited[p], &doc); err != nil {
+		t.Fatal(err)
+	}
+	ts := doc["attestation"].(map[string]any)["timestamp"].(map[string]any)
+	h, _ := base64.StdEncoding.DecodeString(ts["cert_hash"].(string))
+	h[0] ^= 1
+	ts["cert_hash"] = base64.StdEncoding.EncodeToString(h)
+	edited[p], _ = json.Marshal(doc)
+	edited.Rehash()
+	roots.RequireAnchors = false
+	if rep := bundle.Verify("ro-t.zip", edited.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != 1 {
+		t.Fatalf("edited cert_hash on a Rekor-only certificate: exit %d, want 1", rep.ExitCode)
+	}
+	// Downgrade on a Rekor-only certificate issued after the cutover: the
+	// marker stripped to legacy is TAMPERED even though the remaining Rekor
+	// entry is the bound one (found by the execution proof; a994d083 said VALID).
+	stripped := bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvA, CustomerID: bundletest.Customer, Certs: []*bundletest.Cert{ro}})
+	if err := json.Unmarshal(stripped[p], &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["attestation"].(map[string]any)["timestamp"].(map[string]any)["hash_algorithm"] = "SHA-256"
+	stripped[p], _ = json.Marshal(doc)
+	stripped.Rehash()
+	if rep := bundle.Verify("ro-s.zip", stripped.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != 1 {
+		t.Fatalf("binding marker stripped on a post-cutover Rekor-only certificate: exit %d, want 1", rep.ExitCode)
+	}
+}

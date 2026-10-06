@@ -475,6 +475,8 @@ type certBinding struct {
 	// h is the binding-v1 digest recomputed from the recorded cert_hash and
 	// the signature-verified signable; nil when either is unavailable.
 	h []byte
+	// certHash is the recorded cert_hash when it is 32 bytes, else nil.
+	certHash []byte
 	// required: the downgrade guard applies (signed issued_at after
 	// Roots.BindingRequiredAfter), so only binding-v1 anchors can pass.
 	required       bool
@@ -498,8 +500,11 @@ func (v *certVerifier) bindingOf(att map[string]any, si signedInput) certBinding
 			cb.form = formUnknown
 		}
 	}
-	if certHash, ok := b64(ts["cert_hash"]); ok && len(certHash) == sha256.Size && len(si.signable) > 0 {
-		cb.h = anchor.DigestV1(certHash, si.signable)
+	if certHash, ok := b64(ts["cert_hash"]); ok && len(certHash) == sha256.Size {
+		cb.certHash = certHash
+		if len(si.signable) > 0 {
+			cb.h = anchor.DigestV1(certHash, si.signable)
+		}
 	}
 	cut := v.opt.Roots.BindingRequiredAfter
 	cb.required = !cut.IsZero() && !si.issuedAt.IsZero() && si.issuedAt.After(cut)
@@ -625,7 +630,13 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 		r.add(scope, "rekor", Fail, "the Rekor entry predates the certificate it is attached to")
 		return
 	}
-	if p := v.bindingProblem(cb); p != "" && cb.form == formUnknown {
+	// Any binding problem fails this step too, not only an unknown marker: a
+	// certificate issued after the cutover whose timestamp half does not
+	// declare binding v1 has had its (unsigned) marker edited, even when its
+	// Rekor entry happens to be the bound one — e.g. a Rekor-only certificate
+	// (TSA rail failed) with its marker stripped. Same rule as the timestamp
+	// step and the witness's /verify.
+	if p := v.bindingProblem(cb); p != "" {
 		r.add(scope, "rekor", Fail, p)
 		return
 	}
@@ -646,6 +657,14 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 		// A legacy-marked timestamp with a binding-v1 log entry: an anchoring
 		// run resumed across the witness upgrade. The entry itself is bound.
 		status = PassContentBound
+	case cb.form == formLegacy && cb.certHash != nil && strings.EqualFold(res.ArtifactSHA512, anchor.RekorDigestV1(cb.certHash)):
+		// A legacy entry logs sha512(certificate_raw), and the legacy
+		// cert_hash is sha256(certificate_raw): they coincide only if the
+		// stored bytes were their own SHA-256. An entry for sha512(cert_hash)
+		// is a binding-v1 anchor (H = cert_hash) of ANOTHER certificate,
+		// relabelled as legacy (T-1231 S2a, Sol #747 P1 shape).
+		r.add(scope, "rekor", Fail, "the timestamp declares the legacy form, but the Rekor entry is for sha512(cert_hash): a binding-v1 anchor of another certificate relabelled as legacy")
+		return
 	default:
 		r.notContentBound = true
 	}

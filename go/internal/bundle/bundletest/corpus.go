@@ -48,6 +48,9 @@ type Corpus struct {
 	// Entries are the synthetic log's entries for the clean bundle's
 	// certificates, by global log index (what --online fetches).
 	Entries map[int64]*bundle.FetchedEntry
+	// RekorOnly is a binding-v1 certificate whose TSA rail failed (cert_hash
+	// + marker kept, no token), for tests under another anchor policy.
+	RekorOnly *Cert
 }
 
 // Fetcher serves Entries in-process (the tests' stand-in for --online).
@@ -127,6 +130,9 @@ func NewCorpus() (*Corpus, error) {
 	laterBound := mkB(ConvC, Customer, bbase.Add(48*time.Hour))
 	postCutoverUnbound := mk(ConvA, Customer, bbase.Add(3*time.Minute))
 	preCutoverBound := mkB(ConvA, Customer, base.Add(2*time.Minute))
+	// Fix round (gate "Round-1 verdict S2a"): a binding-v1 certificate whose
+	// TSA rail failed — Rekor only, cert_hash + marker kept (D3).
+	rekorOnly := mkB(ConvA, Customer, bbase.Add(4*time.Minute))
 	if err != nil {
 		return nil, err
 	}
@@ -547,6 +553,60 @@ func NewCorpus() (*Corpus, error) {
 		edit(f, a[0], func(d map[string]any) { ts(d)["hash_algorithm"] = "lucairn.anchor-binding/v1" })
 		f.Rehash()
 		add("S2a-09-binding-marker-on-legacy-anchors", "pre-cutover legacy certificate relabelled binding v1 (anchors are over cert_hash, not the binding digest); manifest re-hashed", ExpectDetected, f)
+	}
+
+	// ---- T-1231 S2a fix round (Sol #747 P1, D3) ----
+	// Sol P1 shape: a genuine certificate carries ANOTHER bound certificate's
+	// anchors, relabelled legacy (hash_algorithm "SHA-256") with
+	// cert_hash := that certificate's binding digest H — the legacy checks
+	// alone would accept the TSA token (imprint == recorded cert_hash).
+	relabel := func(donor *Cert) func(d map[string]any) {
+		return func(d map[string]any) {
+			var at map[string]any
+			b, _ := json.Marshal(donor.Doc["attestation"])
+			_ = json.Unmarshal(b, &at)
+			ts := at["timestamp"].(map[string]any)
+			ts["hash_algorithm"] = "SHA-256"
+			ts["cert_hash"] = base64.StdEncoding.EncodeToString(donor.H)
+			d["attestation"] = at
+		}
+	}
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[0], relabel(laterBound))
+		f.Rehash()
+		add("S2a-10-solp1-relabelled-post-cutover", "Sol #747 P1: a later bound certificate's anchors relabelled legacy with cert_hash := its binding digest, on a certificate issued after the cutover; manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := clean.Clone()
+		edit(f, a[2], relabel(preCutoverBound))
+		f.Rehash()
+		add("S2a-11-solp1-relabelled-pre-cutover", "Sol #747 P1 before the cutover: a later bound certificate's anchors relabelled legacy on a legacy certificate; caught by the Rekor entry logging sha512(cert_hash); manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := clean.Clone()
+		edit(f, a[2], func(d map[string]any) {
+			relabel(preCutoverBound)(d)
+			delete(att(d), "transparency_log")
+		})
+		f.Rehash()
+		add("S2a-12-solp1-pre-cutover-tsa-only", "Sol #747 P1 before the cutover with the Rekor entry dropped: only the relabelled token is left (hosted policy: a missing anchor is INCOMPLETE); manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		ro := *rekorOnly
+		var doc map[string]any
+		b, _ := json.Marshal(rekorOnly.Doc)
+		_ = json.Unmarshal(b, &doc)
+		ts := doc["attestation"].(map[string]any)["timestamp"].(map[string]any)
+		ts["timestamp_token"], ts["provider"] = "", ""
+		doc["anchor_status"] = map[string]any{"status": "ANCHOR_STATUS_FAILED", "attempts": 3}
+		ro.Doc = doc
+		if err := ro.Remarshal(); err != nil {
+			return nil, err
+		}
+		co.RekorOnly = &ro
+		add("S2a-13-rekor-only-hosted-incomplete", "a binding-v1 certificate whose TSA rail failed (cert_hash + marker kept, no token): Rekor PASS (content-bound), the missing timestamp is INCOMPLETE under the hosted policy (VALID with --allow-unanchored, see TestRekorOnlyBoundCertificate)", ExpectDetected,
+			Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: []*Cert{ab[0], &ro}}))
 	}
 	return co, nil
 }
