@@ -111,6 +111,22 @@ func NewCorpus() (*Corpus, error) {
 	b := []*Cert{mk(ConvB, Customer, base.Add(30*time.Minute))}
 	other := mk(ConvA, Customer2, base.Add(time.Minute))
 	later := mk(ConvC, Customer, base.Add(48*time.Hour))
+	// T-1231 S2a: certificates of the binding-v1 witness, issued after the
+	// synthetic cutover (CorpusCutover), plus edge cases around it. Minted
+	// AFTER the S1 certificates so those stay byte-identical.
+	mkB := func(conv, cust string, at time.Time) *Cert {
+		c, err2 := w.NewCert(CertOptions{ConversationID: conv, CustomerID: cust, IssuedAt: at, Bound: true})
+		if err2 != nil {
+			err = err2
+		}
+		return c
+	}
+	// Must stay in the past: tokens dated in the future FAIL.
+	bbase := CorpusCutover.Add(24*time.Hour + 9*time.Hour)
+	ab := []*Cert{mkB(ConvA, Customer, bbase), mkB(ConvA, Customer, bbase.Add(40*time.Second)), mkB(ConvA, Customer, bbase.Add(95*time.Second))}
+	laterBound := mkB(ConvC, Customer, bbase.Add(48*time.Hour))
+	postCutoverUnbound := mk(ConvA, Customer, bbase.Add(3*time.Minute))
+	preCutoverBound := mkB(ConvA, Customer, base.Add(2*time.Minute))
 	if err != nil {
 		return nil, err
 	}
@@ -467,13 +483,70 @@ func NewCorpus() (*Corpus, error) {
 		f := clean.Clone()
 		edit(f, a[2], func(d map[string]any) { d["attestation"] = later.Doc["attestation"] })
 		f.Rehash()
-		add("G2-anchors-from-later-cert", "both anchors copied from a genuine certificate of the same witness issued LATER (content binding is not provable from the bundle)", ExpectKnownGap, f)
+		add("G2-anchors-from-later-cert", "both anchors copied from a genuine certificate of the same witness issued LATER — pre-binding certificates only (issued before the cutover, anchors without binding v1); closed for binding-v1 certificates, see S2a-01", ExpectKnownGap, f)
 	}
 	{
 		f := clean.Clone()
 		f[bundle.PathReportExternal] = append(append([]byte(nil), SyntheticPDF...), []byte("% a different report body\n")...)
 		f.Rehash()
 		add("G3-report-replaced-and-rehashed", "report-external.pdf replaced AND its manifest digest updated (the manifest is unsigned in format 1; reported as 'report content not authenticated')", ExpectKnownGap, f)
+	}
+
+	// ---- T-1231 S2a: content-bound anchors (binding v1) ----
+	cleanBound := Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: ab})
+	ts := func(doc map[string]any) map[string]any { return att(doc)["timestamp"].(map[string]any) }
+	add("S2a-00-clean-bound", "untouched bundle of 3 binding-v1 certificates issued after the cutover", ExpectValid, cleanBound.Clone())
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[2], func(d map[string]any) { d["attestation"] = laterBound.Doc["attestation"] })
+		f.Rehash()
+		add("S2a-01-G2-anchors-from-later-bound-cert", "G2 on binding-v1 certificates: both anchors (and their cert_hash) copied from a genuine bound certificate of the same witness issued LATER; manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[0], func(d map[string]any) { ts(d)["hash_algorithm"] = "SHA-256" })
+		f.Rehash()
+		add("S2a-02-binding-marker-stripped", "post-cutover certificate: binding marker rewritten to the legacy SHA-256; manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[1], func(d map[string]any) { delete(ts(d), "hash_algorithm") })
+		f.Rehash()
+		add("S2a-03-binding-marker-removed", "post-cutover certificate: binding marker removed; manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[2], func(d map[string]any) { ts(d)["hash_algorithm"] = "lucairn.anchor-binding/v2" })
+		f.Rehash()
+		add("S2a-04-unknown-binding-version", "binding marker changed to an unknown version (v2); manifest re-hashed", ExpectDetected, f)
+	}
+	add("S2a-05-post-cutover-unbound-anchors", "a genuine certificate issued after the cutover but anchored WITHOUT binding v1 (downgrade)", ExpectDetected,
+		Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: []*Cert{ab[0], ab[1], postCutoverUnbound}}))
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[1], func(d map[string]any) {
+			h, _ := base64.StdEncoding.DecodeString(ts(d)["cert_hash"].(string))
+			h[0] ^= 1
+			ts(d)["cert_hash"] = base64.StdEncoding.EncodeToString(h)
+		})
+		f.Rehash()
+		add("S2a-06-bound-cert-hash-edited", "binding-v1 certificate: recorded cert_hash edited (an input to the binding digest); manifest re-hashed", ExpectDetected, f)
+	}
+	{
+		f := cleanBound.Clone()
+		edit(f, ab[1], func(d map[string]any) {
+			att(d)["transparency_log"] = laterBound.Doc["attestation"].(map[string]any)["transparency_log"]
+		})
+		f.Rehash()
+		add("S2a-07-rekor-from-later-bound-cert", "binding-v1 certificate: only the Rekor entry copied from a later bound certificate; manifest re-hashed", ExpectDetected, f)
+	}
+	add("S2a-08-pre-cutover-bound-valid", "a binding-v1 certificate issued BEFORE the cutover (deploy-to-cutover window) next to a legacy one: content-bound + not-content-bound lines", ExpectValid,
+		Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: []*Cert{a[0], preCutoverBound}}))
+	{
+		f := clean.Clone()
+		edit(f, a[0], func(d map[string]any) { ts(d)["hash_algorithm"] = "lucairn.anchor-binding/v1" })
+		f.Rehash()
+		add("S2a-09-binding-marker-on-legacy-anchors", "pre-cutover legacy certificate relabelled binding v1 (anchors are over cert_hash, not the binding digest); manifest re-hashed", ExpectDetected, f)
 	}
 	return co, nil
 }

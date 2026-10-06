@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/declade/lucairn-sdks/go/internal/anchor"
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
 	"github.com/declade/lucairn-sdks/go/internal/bundle/bundletest"
 )
@@ -226,17 +227,19 @@ func TestTimestampRejectsNonCriticalEKU(t *testing.T) {
 	}
 }
 
-// Anchor honesty (gap G2): a passing timestamp or rekor step is ALWAYS the
-// not-content-bound state, its reason sentence is printed under it, the
-// result summary carries the limitation, and no bare PASS is ever printed
-// for those two steps — in every corpus case, clean or mutated.
+// Anchor honesty (gap G2): a passing timestamp or rekor step is ALWAYS one
+// of the two labelled states — PASS (genuine anchor, not content-bound) or,
+// for binding-v1 anchors (T-1231 S2a), PASS (content-bound) — never a bare
+// PASS. Whenever a not-content-bound step passed, its reason sentence is
+// printed under it and the summary carries the limitation; a run whose
+// anchors are ALL content-bound carries no such limitation.
 func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
 	co, err := bundletest.NewCorpus()
 	if err != nil {
 		t.Fatal(err)
 	}
 	bare := regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+—|\s*$)`)
-	sawAnchorPass := false
+	sawAnchorPass, sawBoundPass := false, false
 	for _, c := range co.Cases {
 		rep := bundle.Verify(c.Name+".zip", c.Zip, bundle.Options{Roots: co.World.Roots()})
 		var buf strings.Builder
@@ -245,7 +248,7 @@ func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
 		if bare.MatchString(out) {
 			t.Fatalf("%s: bare PASS printed for an anchor step:\n%s", c.Name, out)
 		}
-		ran := false
+		notBound, bound := false, false
 		for _, s := range rep.Steps {
 			if s.Name != "timestamp" && s.Name != "rekor" {
 				continue
@@ -253,25 +256,35 @@ func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
 			if s.Status == bundle.Pass {
 				t.Fatalf("%s: %s step has status PASS", c.Name, s.Name)
 			}
-			if s.Status == bundle.PassNotContentBound || s.Status == bundle.Fail {
-				ran = true
-			}
 			if s.Status == bundle.PassNotContentBound {
-				sawAnchorPass = true
+				sawAnchorPass, notBound = true, true
 				line := "  " + fmt.Sprintf("%-16s", s.Name) + " " + bundle.NotContentBoundLabel
 				if !strings.Contains(out, line) {
 					t.Fatalf("%s: missing %q", c.Name, line)
 				}
 			}
+			if s.Status == bundle.PassContentBound {
+				sawBoundPass, bound = true, true
+				line := "  " + fmt.Sprintf("%-16s", s.Name) + " " + bundle.ContentBoundLabel
+				if !strings.Contains(out, line) {
+					t.Fatalf("%s: missing %q", c.Name, line)
+				}
+			}
 		}
-		if ran {
+		if notBound {
 			if !strings.Contains(out, "LIMITATION: "+bundle.NotContentBoundReason) || len(rep.Limitations) == 0 {
-				t.Fatalf("%s: anchor step ran but the summary lacks the limitation", c.Name)
+				t.Fatalf("%s: a not-content-bound anchor passed but the summary lacks the limitation", c.Name)
 			}
 			if n := strings.Count(out, bundle.NotContentBoundReason); n < 2 {
 				t.Fatalf("%s: reason printed %d times, want under the step(s) and in the summary", c.Name, n)
 			}
 		}
+		if bound && !notBound && rep.ExitCode == 0 && strings.Contains(out, bundle.NotContentBoundReason) {
+			t.Fatalf("%s: every anchor is content-bound, yet the not-content-bound limitation is printed", c.Name)
+		}
+	}
+	if !sawBoundPass {
+		t.Fatal("corpus produced no content-bound anchor step")
 	}
 	if !sawAnchorPass {
 		t.Fatal("corpus produced no passing anchor step")
@@ -310,4 +323,37 @@ func TestTimestampLinePrintsSignerCNOnly(t *testing.T) {
 		}
 	}
 	t.Fatal("no valid case with a timestamp step")
+}
+
+// T-1231 S2a: the built-in hosted pins carry the binding cutover.
+func TestProductionRootsCarryTheBindingCutover(t *testing.T) {
+	roots, err := bundle.ProductionRoots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !roots.BindingRequiredAfter.Equal(anchor.BindingV1Cutover) {
+		t.Fatalf("hosted roots cutover %v, want %v", roots.BindingRequiredAfter, anchor.BindingV1Cutover)
+	}
+}
+
+// T-1231 S2a: a binding-v1 certificate whose witness key is not pinned
+// cannot be content-checked: its timestamp is SKIPPED (blocking), never a
+// pass — the binding digest needs the signature-verified signable.
+func TestBoundCertWithoutPinnedWitnessIsNotPassed(t *testing.T) {
+	w, err := bundletest.NewWorld("bound-nokey")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := w.NewCert(bundletest.CertOptions{ConversationID: "conv-b", CustomerID: "cust-b", IssuedAt: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC), Bound: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := bundletest.Build(bundletest.Spec{ConversationID: "conv-b", CustomerID: "cust-b", Certs: []*bundletest.Cert{c}})
+	roots := w.Roots()
+	roots.WitnessKeys = nil
+	rep := bundle.Verify("b.zip", f.Zip(), bundle.Options{Roots: roots})
+	s := stepOf(rep, c.RequestID, "timestamp")
+	if s == nil || s.Status != bundle.Skipped || !s.Incomplete || rep.ExitCode != 2 {
+		t.Fatalf("bound cert without a pinned witness key: exit %d %+v", rep.ExitCode, s)
+	}
 }

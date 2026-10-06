@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/declade/lucairn-sdks/go/internal/anchor"
 )
 
 // Status of one check.
@@ -14,12 +16,18 @@ const (
 	Pass    Status = "PASS"
 	Fail    Status = "FAIL"
 	Skipped Status = "SKIPPED"
-	// PassNotContentBound is the ONLY passing state of the timestamp and
-	// rekor steps: the anchor is genuine (trusted TSA / public log, made for
+	// PassNotContentBound is the passing state of the timestamp and rekor
+	// steps for anchors WITHOUT binding v1 (certificates anchored before
+	// T-1231 S2a): the anchor is genuine (trusted TSA / public log, made for
 	// the digest the certificate records), but it cannot be tied to this
 	// exported certificate's content. It never blocks VALID, and it is never
 	// printed as a bare PASS.
 	PassNotContentBound Status = "PASS_NOT_CONTENT_BOUND"
+	// PassContentBound is the passing state for binding-v1 anchors: the
+	// timestamp / log entry commits to a digest this tool recomputed from the
+	// certificate's signature-verified content (anchor.DigestV1). Also never
+	// printed as a bare PASS.
+	PassContentBound Status = "PASS_CONTENT_BOUND"
 	// Info reports what a certificate itself states (its own chain verdict,
 	// user_unredacted). It is not a check and never changes the verdict.
 	Info Status = "INFO"
@@ -39,6 +47,9 @@ const AnchorsNotRequiredReason = "anchors were not required: a certificate witho
 
 // NotContentBoundLabel is how PassNotContentBound is printed.
 const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
+
+// ContentBoundLabel is how PassContentBound is printed.
+const ContentBoundLabel = "PASS (content-bound)"
 
 // NotContentBoundReason is printed under every PassNotContentBound step and
 // in the result summary whenever an anchor step ran. The website's verify
@@ -81,7 +92,8 @@ type Report struct {
 	Online             bool   `json:"online"`
 	Steps              []Step `json:"steps"`
 	// Limitations lists result-level caveats that apply to THIS run
-	// (NotContentBoundReason whenever an anchor step ran).
+	// (NotContentBoundReason whenever an anchor without binding v1 was
+	// checked).
 	Limitations []string `json:"limitations"`
 	Verdict     string   `json:"verdict"`
 	ExitCode    int      `json:"exit_code"`
@@ -89,6 +101,8 @@ type Report struct {
 
 	reportUnauthenticated bool
 	anchorsNotRequired    bool
+	// notContentBound: an anchor without binding v1 was checked on this run.
+	notContentBound bool
 }
 
 func (r *Report) add(scope, name string, st Status, detail string) {
@@ -106,10 +120,10 @@ func (r *Report) skip(scope, name, reason string, blocks bool) {
 // finish computes the verdict: any FAIL → TAMPERED (1); otherwise any
 // blocking SKIPPED → INCOMPLETE (2); otherwise VALID (0).
 func (r *Report) finish() {
-	fail, incomplete, anchorRan := false, false, false
+	fail, incomplete := false, false
 	for _, s := range r.Steps {
-		if (s.Name == "timestamp" || s.Name == "rekor") && (s.Status == PassNotContentBound || s.Status == Fail) {
-			anchorRan = true
+		if (s.Name == "timestamp" || s.Name == "rekor") && s.Status == PassNotContentBound {
+			r.notContentBound = true
 		}
 		switch {
 		case s.Status == Fail:
@@ -119,7 +133,7 @@ func (r *Report) finish() {
 		}
 	}
 	r.Limitations = nil
-	if anchorRan {
+	if r.notContentBound {
 		r.Limitations = append(r.Limitations, NotContentBoundReason)
 	}
 	if r.reportUnauthenticated {
@@ -141,7 +155,7 @@ func (r *Report) finish() {
 // NotCoveredV1 is printed on every run: what a v1 bundle cannot show.
 var NotCoveredV1 = []string{
 	"Completeness: v1 bundles carry no per-conversation request counter, so a certificate removed TOGETHER WITH its manifest entry is not detectable (planned: audit counter, bundle format 2).",
-	"Anchor content binding: the timestamp and the Rekor entry commit to a digest of the witness's stored certificate bytes, which are not in the bundle. The tool checks that a trusted timestamp authority and the public Rekor log committed to the digest the certificate RECORDS, and that the witness key made the Rekor entry; it cannot recompute that digest from the certificate JSON.",
+	"Anchor content binding, OLDER certificates only: certificates anchored before anchor binding v1 (Lucairn-hosted: issued before " + anchor.BindingV1Cutover.Format("2006-01-02 15:04 MST") + ") have a timestamp and Rekor entry over a digest of the witness's stored certificate bytes, which are not in the bundle. For those the tool checks that a trusted timestamp authority and the public Rekor log committed to the digest the certificate RECORDS, and that the witness key made the Rekor entry; it cannot recompute that digest from the certificate JSON. Certificates with binding v1 are checked content-bound.",
 	"PDF content: the reports are integrity-checked against the manifest only. Their text is not compared with the certificates; the verify page prints the certificate-set digest so a reader can match them by hand.",
 	"Report authenticity: the manifest is unsigned in this bundle version, so the reports, verification.json and README.txt are consistent with it but not authenticated by any signature. Someone who replaces a report and updates its manifest digest is not detected; only the certificates are signed.",
 	"Sanitization: a VALID result is about the bundle's integrity. Whether a turn was sanitized is what each certificate's own chain verdict says, printed per certificate.",
@@ -183,6 +197,10 @@ func (r *Report) WriteText(w io.Writer) {
 		if s.Status == PassNotContentBound {
 			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, NotContentBoundLabel, s.Detail)
 			fmt.Fprintf(w, "  %-16s   %s\n", "", NotContentBoundReason)
+			continue
+		}
+		if s.Status == PassContentBound {
+			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, ContentBoundLabel, s.Detail)
 			continue
 		}
 		if s.Status == Skipped {

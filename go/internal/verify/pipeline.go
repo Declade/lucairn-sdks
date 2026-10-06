@@ -33,6 +33,10 @@ type Result struct {
 	// on a successful default-mode verification (the stripping guard rejects
 	// such certs before reaching this point).
 	V3SignatureStripped bool
+	// SignedBytes are the canonical signable bytes the verified signature
+	// covers (v3 or v2 per SignableVersion). Internal: the bundle verifier
+	// recomputes the content-bound anchor digest from them (T-1231 S2a).
+	SignedBytes []byte
 }
 
 // FailureReason matches lucairn.VerifyCertificateFailureReason literals.
@@ -330,5 +334,6 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		OverallVerdict:      parsed.OverallVerdict,
 		SignableVersion:     signableVersion,
 		V3SignatureStripped: v3SignatureStripped,
+		SignedBytes:         signedBytes,
 	}, nil
 }

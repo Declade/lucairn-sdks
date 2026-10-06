@@ -10,7 +10,14 @@
 //   - that the signed claims name the bundle's conversation and customer;
 //   - every RFC 3161 timestamp token against the pinned TSA root;
 //   - every Sigstore Rekor entry (signed entry timestamp, inclusion proof,
-//     checkpoint, and that the witness key made the entry).
+//     checkpoint, and that the witness key made the entry);
+//   - for certificates with anchor binding v1, that both anchors commit to a
+//     digest recomputed from the certificate's signature-verified content
+//     (PASS (content-bound)); older anchors print PASS (genuine anchor, not
+//     content-bound). With the built-in pins, a certificate whose signed
+//     issued_at is after the hosted binding cutover must be content-bound,
+//     otherwise it is TAMPERED (--require-binding-after sets the same guard
+//     for another deployment).
 //
 // With the built-in pins every certificate must be anchored (a missing
 // timestamp or Rekor entry is INCOMPLETE); --allow-unanchored relaxes that
@@ -28,7 +35,7 @@
 //	2  INCOMPLETE  nothing failed, but something that must be checked could
 //	               not be (also: unreadable input, usage errors)
 //
-// PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slice 1).
+// PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slices 1, 2a).
 package main
 
 import (
@@ -43,6 +50,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/anchor"
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
@@ -72,6 +80,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	printRoots := fs.Bool("print-trust-roots", false, "print the built-in trust roots and exit")
 	requireAnchors := fs.Bool("require-anchors", false, "a certificate without a timestamp or Rekor entry makes the result INCOMPLETE (the default with the built-in pins; use it with --witness-key for an anchored self-hosted deployment)")
 	allowUnanchored := fs.Bool("allow-unanchored", false, "a certificate without a timestamp or Rekor entry is reported SKIPPED(not anchored) without blocking VALID (self-hosted deployments without anchoring)")
+	requireBindingAfter := fs.String("require-binding-after", "", "RFC 3339 time: a certificate whose signed issued_at is later must have content-bound (binding v1) anchors, otherwise TAMPERED (built in for the Lucairn-hosted pins; use it with --witness-key for a self-hosted deployment that knows its own cutover)")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	fs.Var(&witnessKeys, "witness-key", "KEY_ID=BASE64 witness Ed25519 key to trust INSTEAD of the built-in one (repeatable; self-hosted deployments)")
 	fs.Var(&serviceKeys, "service-key", "SERVICE_ID=BASE64 claim-signing key to trust INSTEAD of the built-in set (repeatable)")
@@ -110,11 +119,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return bundle.ExitIncomplete
 	}
 	if len(witnessKeys) > 0 {
-		// Another deployment: it may run without anchoring (air-gapped kit).
+		// Another deployment: it may run without anchoring (air-gapped kit),
+		// and it upgrades its witness to anchor binding v1 on its own schedule.
 		roots.RequireAnchors = false
 		if !*requireAnchors && !*allowUnanchored {
 			custom = append(custom, "unanchored certificates allowed")
 		}
+		roots.BindingRequiredAfter = time.Time{}
+	}
+	if *requireBindingAfter != "" {
+		t, err := time.Parse(time.RFC3339, *requireBindingAfter)
+		if err != nil {
+			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-binding-after must be an RFC 3339 time, e.g. 2026-11-01T00:00:00Z")
+			return bundle.ExitIncomplete
+		}
+		roots.BindingRequiredAfter = t.UTC()
+		custom = append(custom, "binding required after "+t.UTC().Format(time.RFC3339))
 	}
 	if *requireAnchors {
 		roots.RequireAnchors = true
@@ -250,5 +270,6 @@ func printTrustRoots(w io.Writer, roots bundle.TrustRoots) {
 	}
 	fmt.Fprintf(w, "  tsa      FreeTSA root CA          sha256(pem) %s\n", anchor.FreeTSARootSHA256)
 	fmt.Fprintf(w, "  rekor    public-good log          log id %s\n", roots.Rekor.LogID)
+	fmt.Fprintf(w, "  binding  content-bound anchors required for certificates issued after %s\n", roots.BindingRequiredAfter.Format(time.RFC3339))
 	fmt.Fprintln(w, "Compare with https://lucairn.eu/.well-known/lucairn-service-keys.json out of band.")
 }

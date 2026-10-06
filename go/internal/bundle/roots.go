@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/anchor"
 )
@@ -26,6 +27,14 @@ type TrustRoots struct {
 	// anchors), unless --require-anchors. --allow-unanchored turns it off.
 	// The certificate's own anchor_status is never trusted to relax this.
 	RequireAnchors bool
+	// BindingRequiredAfter is the anchor-binding downgrade guard (T-1231
+	// S2a): a certificate whose SIGNED issued_at is after it must carry
+	// binding-v1 anchors, otherwise it is TAMPERED. Zero = no guard (binding
+	// v1 is still recognised and checked wherever the certificate declares
+	// it). The built-in hosted pins set anchor.BindingV1Cutover; a custom
+	// witness key clears it unless --require-binding-after is given, because
+	// another deployment upgrades its witness on its own schedule.
+	BindingRequiredAfter time.Time
 	// Label is printed on every run ("Lucairn-hosted pins" or "CUSTOM …").
 	Label string
 }
@@ -78,6 +87,8 @@ func ProductionRoots() (TrustRoots, error) {
 		TSARoots:       pool,
 		Rekor:          rk,
 		RequireAnchors: true,
-		Label:          "built-in Lucairn-hosted pins (witness_v1, 6 service keys, FreeTSA root, Rekor public-good key)",
+		// Hosted certificates issued after the cutover are content-bound.
+		BindingRequiredAfter: anchor.BindingV1Cutover,
+		Label:                "built-in Lucairn-hosted pins (witness_v1, 6 service keys, FreeTSA root, Rekor public-good key)",
 	}, nil
 }

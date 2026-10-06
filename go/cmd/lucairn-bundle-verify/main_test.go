@@ -71,13 +71,21 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 			t.Errorf("%s: the built binary printed a bare PASS for an anchor step\n%s", c.Name, out.String())
 		}
 		if c.Expect == bundletest.ExpectValid {
-			for _, want := range []string{
-				"LIMITATION: " + bundle.NotContentBoundReason,
+			wants := []string{
 				"LIMITATION: " + bundle.ReportNotAuthenticatedReason, // G3 (F4)
 				bundle.ValidMeaning,          // F8
 				"  chain-verdict    INFO — ", // F8
 				"  user-unredacted  INFO — ", // F8
-			} {
+			}
+			// The not-content-bound limitation belongs to runs where such an
+			// anchor passed; a run with content-bound anchors prints that label.
+			if strings.Contains(out.String(), bundle.NotContentBoundLabel) {
+				wants = append(wants, "LIMITATION: "+bundle.NotContentBoundReason)
+			}
+			if strings.HasPrefix(c.Name, "S2a-") {
+				wants = append(wants, bundle.ContentBoundLabel)
+			}
+			for _, want := range wants {
 				if !strings.Contains(out.String(), want) {
 					t.Errorf("%s: clean run lacks %q", c.Name, want)
 				}
@@ -179,6 +187,57 @@ func TestAnchorPolicyFlags(t *testing.T) {
 		{"custom witness + --require-anchors", base, 2},
 		{"--allow-unanchored", append(append([]string{}, custom...), "--allow-unanchored"), 0},
 		{"both flags", append(append([]string{}, base...), "--allow-unanchored"), 2},
+	} {
+		out.Reset()
+		if code := run(append(append([]string{}, tc.args...), zipPath), &out, &errb); code != tc.want {
+			t.Errorf("%s: exit %d, want %d\n%s", tc.name, code, tc.want, out.String())
+		}
+	}
+}
+
+// TestBindingCutoverFlag (T-1231 S2a): the downgrade guard. A genuine
+// certificate issued after the cutover but anchored WITHOUT binding v1 is
+// TAMPERED when the cutover applies (built in for the hosted pins, or
+// --require-binding-after), and not otherwise: a custom witness key clears
+// the hosted cutover, because another deployment upgrades on its own
+// schedule. A malformed flag value is a usage error.
+func TestBindingCutoverFlag(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	tsa, rekor := filepath.Join(dir, "tsa.pem"), filepath.Join(dir, "rekor.pem")
+	_ = os.WriteFile(tsa, co.World.TSARootPEM(), 0o644)
+	_ = os.WriteFile(rekor, co.World.RekorPEM(), 0o644)
+	var zipPath string
+	for _, c := range co.Cases {
+		if c.Name == "S2a-05-post-cutover-unbound-anchors" {
+			zipPath = filepath.Join(dir, "s2a05.zip")
+			_ = os.WriteFile(zipPath, c.Zip, 0o644)
+		}
+	}
+	if zipPath == "" {
+		t.Fatal("corpus lacks the S2a-05 case")
+	}
+	var noGuard []string
+	base := co.World.CLIFlags(tsa, rekor)
+	for i := 0; i < len(base); i++ {
+		if base[i] == "--require-binding-after" {
+			i++
+			continue
+		}
+		noGuard = append(noGuard, base[i])
+	}
+	var out, errb bytes.Buffer
+	for _, tc := range []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"with the cutover", base, 1},
+		{"custom witness, no cutover", noGuard, 0},
+		{"bad cutover value", append(append([]string{}, noGuard...), "--require-binding-after", "next tuesday"), 2},
 	} {
 		out.Reset()
 		if code := run(append(append([]string{}, tc.args...), zipPath), &out, &errb); code != tc.want {
