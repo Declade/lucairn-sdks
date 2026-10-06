@@ -35,7 +35,7 @@ const ValidMeaning = "VALID means the certificates are intact, signed by the pin
 // AnchorsNotRequiredReason is printed whenever the trust roots do not require
 // anchoring (custom --witness-key without --require-anchors, or
 // --allow-unanchored).
-const AnchorsNotRequiredReason = "anchors were not required: a certificate without a timestamp or Rekor entry was allowed (SKIPPED(not anchored) does not block VALID)"
+const AnchorsNotRequiredReason = "anchors were not required: a certificate without a timestamp or Rekor entry would not have blocked VALID (it is reported as SKIPPED(not anchored))"
 
 // NotContentBoundLabel is how PassNotContentBound is printed.
 const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
