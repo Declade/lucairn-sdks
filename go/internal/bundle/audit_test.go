@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/anchor"
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
@@ -201,6 +202,8 @@ func TestSelfHostedWithoutAuditRoots(t *testing.T) {
 // certificate's signed audit claim (conversation_id + conv_seq), not by a
 // date in the tool:
 //   - claim without a counter, no entry  -> "not tracked", INCOMPLETE;
+//   - claim without a counter, an entry with the claim's event_hash -> "not
+//     tracked", INCOMPLETE (never VALID on the hash alone; Sol #79 T8);
 //   - claim with a counter, no entry, format 2 -> TAMPERED;
 //   - claim with a counter, format 1 (downgraded) -> INCOMPLETE;
 //   - format 1, claim without a counter  -> as before (VALID).
@@ -256,11 +259,88 @@ func TestCountedIsWhatTheSignedClaimSays(t *testing.T) {
 	if rep.ExitCode != 0 || counterStep(rep, sc.Uncounted) != nil {
 		t.Errorf("format-1 bundle, claim without a counter: exit %d %+v", rep.ExitCode, failing(rep))
 	}
-	// Counted certificates whose claims do NOT sign the counter (not what the
-	// audit service emits): the event_hash still ties entry and certificate.
+	// Certificates whose claims do NOT sign the counter (not what the audit
+	// service emits for a counted request), with genuine entries, proofs and
+	// roots whose event_hash equals each claim's: the signed claim does not
+	// say "counted", so the entry is not accepted on the hash alone. Every
+	// certificate is "not tracked" and the bundle is INCOMPLETE — while every
+	// other audit check (hashes, continuity, roots, inclusion) passes, so the
+	// counter step alone decides.
 	_, hashOnly, r2 := auditWorld(t, bundletest.ScenarioOptions{NoSignedCounter: true})
-	if rep := bundle.Verify("x.zip", hashOnly.Clean.Zip(), bundle.Options{Roots: r2}); rep.ExitCode != 0 {
-		t.Errorf("hash-only binding: exit %d %+v", rep.ExitCode, failing(rep))
+	rep = bundle.Verify("x.zip", hashOnly.Clean.Zip(), bundle.Options{Roots: r2})
+	if rep.ExitCode != bundle.ExitIncomplete {
+		t.Errorf("entries for certificates whose claims sign no counter: exit %d, want 2: %+v", rep.ExitCode, failing(rep))
+	}
+	for _, c := range hashOnly.Certs {
+		if s := counterStep(rep, c); s == nil || s.Status != bundle.Skipped || !s.Incomplete || !strings.HasPrefix(s.Detail, "not tracked") {
+			t.Errorf("claim without a counter, entry with its event_hash: %+v", s)
+		}
+	}
+	for _, s := range failing(rep) {
+		if s.Name != bundle.StepAuditCounter {
+			t.Errorf("hash-only scenario: unrelated step %s reports %s %s", s.Name, s.Status, s.Detail)
+		}
+	}
+}
+
+// Every audit-signed counter claim of a certificate needs its own counter
+// entry (Sol #79 T1): two valid claims for one audit row signing seq 1 and
+// seq 2, one entry -> TAMPERED, in whichever order the claims are listed.
+func TestEverySignedCounterClaimNeedsItsEntry(t *testing.T) {
+	w, err := bundletest.NewWorld("two-claims")
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := w.Roots()
+	roots.RequireAnchors = true
+	at := bundletest.CorpusCutover.Add(41 * time.Hour)
+	for name, extra := range map[string]uint64{"entry is the first claim's": 2, "same number twice": 1} {
+		log := w.NewAuditLog()
+		log.Filler(4)
+		c, err := w.NewCert(bundletest.CertOptions{ConversationID: bundletest.ConvG, CustomerID: bundletest.Customer, IssuedAt: at, Bound: true, Audit: log, ExtraAuditSeq: extra})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := log.Publish(at.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		f := bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvG, CustomerID: bundletest.Customer, Certs: []*bundletest.Cert{c}, Audit: log.Evidence(bundletest.ConvG)})
+		rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots})
+		s := stepOf(rep, c.RequestID, bundle.StepAuditCounter)
+		if cl := stepOf(rep, c.RequestID, "claims"); cl == nil || cl.Status != bundle.Pass {
+			t.Fatalf("%s: premise - both claims must be valid signed claims: %+v", name, cl)
+		}
+		if extra == 1 {
+			// Two claims that state the SAME entry are consistent.
+			if rep.ExitCode != 0 || s == nil || s.Status != bundle.Pass {
+				t.Errorf("%s: exit %d %+v %+v", name, rep.ExitCode, s, failing(rep))
+			}
+			continue
+		}
+		if rep.ExitCode != bundle.ExitTampered || s == nil || s.Status != bundle.Fail || !strings.Contains(s.Detail, "counted as seq 2") {
+			t.Errorf("%s: exit %d %+v", name, rep.ExitCode, s)
+		}
+		if n := len(failing(rep)); n != 1 {
+			t.Errorf("%s: %d steps report it, want the counter step alone: %+v", name, n, failing(rep))
+		}
+	}
+}
+
+// A format-2 bundle without any certificate is TAMPERED, as in format 1 (a
+// bundle holds at least one certificate) — whatever its audit/ folder says.
+func TestFormat2BundleWithoutCertificates(t *testing.T) {
+	_, sc, roots := auditWorld(t, bundletest.ScenarioOptions{})
+	f := sc.Clean.Clone()
+	for _, c := range sc.Certs {
+		f.RemoveCert(c)
+	}
+	rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots})
+	if s := stepOf(rep, "bundle", "certificate-list"); rep.ExitCode != bundle.ExitTampered || s == nil || s.Status != bundle.Fail || !strings.Contains(s.Detail, "contains no certificate") {
+		t.Errorf("format 2, zero certificates: exit %d %+v", rep.ExitCode, s)
+	}
+	roots.RequireAnchors = false
+	if rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != bundle.ExitTampered {
+		t.Errorf("format 2, zero certificates, anchors not required: exit %d, want 1", rep.ExitCode)
 	}
 }
 
@@ -314,35 +394,97 @@ func TestTreeSizeComesFromTheSignedArtifactOnly(t *testing.T) {
 	}
 }
 
-// Both spellings the reader accepts for one file and one hash produce the
-// same verdict as the gateway's own (a bare array, base64 path elements).
-func TestAuditFileSpellings(t *testing.T) {
+// Each audit file has ONE form and each path element ONE spelling
+// (api-contract.md section 2a): a top-level object with the file's single
+// named key, lowercase-hex path elements. Every other form the same content
+// could be written in is TAMPERED and reported by audit-files.
+func TestAuditFileFormIsPinned(t *testing.T) {
 	_, sc, roots := auditWorld(t, bundletest.ScenarioOptions{})
-	f := sc.Clean.Clone()
+	// The pinned form, byte level: one object, one key, an array.
 	for path, key := range map[string]string{bundle.PathAuditEvents: "events", bundle.PathAuditProofs: "proofs", bundle.PathAuditRoots: "roots"} {
-		f[path] = []byte(`{"` + key + `":` + string(f[path]) + `}`)
+		if bundle.AuditListKeys[path] != key {
+			t.Errorf("%s: pinned key %q, contract says %q", path, bundle.AuditListKeys[path], key)
+		}
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal(sc.Clean[path], &doc); err != nil || len(doc) != 1 || len(doc[key]) == 0 || doc[key][0] != '[' {
+			t.Errorf("%s: the clean fixture is not {%q:[...]}: %v", path, key, err)
+		}
 	}
-	f.Rehash()
-	if rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != 0 {
-		t.Errorf("arrays wrapped in a single-key object: exit %d %+v", rep.ExitCode, failing(rep))
-	}
-	f = sc.Clean.Clone()
-	f.EditList(bundle.PathAuditProofs, func(l []any) []any {
-		for _, o := range l {
-			m := o.(map[string]any)
-			for i, h := range m["path"].([]any) {
-				b, _ := base64.StdEncoding.DecodeString(h.(string))
-				m["path"].([]any)[i] = hex.EncodeToString(b)
+	for _, p := range sc.Clean.List(bundle.PathAuditProofs) {
+		for _, h := range p.(map[string]any)["path"].([]any) {
+			if b, err := hex.DecodeString(h.(string)); err != nil || len(b) != 32 || h.(string) != strings.ToLower(h.(string)) {
+				t.Errorf("clean fixture path element %q is not 64 lowercase hex characters", h)
 			}
 		}
-		return l
+	}
+	bare := func(f bundletest.Files, path string) []byte {
+		b, err := json.Marshal(f.List(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	respell := func(fn func([]byte) string) func(f bundletest.Files) {
+		return func(f bundletest.Files) {
+			f.EditList(bundle.PathAuditProofs, func(l []any) []any {
+				m := l[0].(map[string]any)
+				for i, h := range m["path"].([]any) {
+					b, _ := hex.DecodeString(h.(string))
+					m["path"].([]any)[i] = fn(b)
+				}
+				return l
+			})
+		}
+	}
+	cases := map[string]func(f bundletest.Files){}
+	for _, path := range bundle.AuditPaths {
+		path, key := path, bundle.AuditListKeys[path]
+		cases["bare array "+path] = func(f bundletest.Files) { f[path] = bare(f, path) }
+		cases["capitalised key "+path] = func(f bundletest.Files) {
+			f[path] = []byte(`{"` + strings.ToUpper(key[:1]) + key[1:] + `":` + string(bare(f, path)) + `}`)
+		}
+		cases["key \"data\" "+path] = func(f bundletest.Files) { f[path] = []byte(`{"data":` + string(bare(f, path)) + `}`) }
+		cases["second key "+path] = func(f bundletest.Files) {
+			f[path] = []byte(`{"` + key + `":` + string(bare(f, path)) + `,"conversation_id":"` + bundletest.ConvD + `"}`)
+		}
+		cases["null list "+path] = func(f bundletest.Files) { f[path] = []byte(`{"` + key + `":null}`) }
+		cases["empty object "+path] = func(f bundletest.Files) { f[path] = []byte(`{}`) }
+		cases["array in an array "+path] = func(f bundletest.Files) { f[path] = []byte(`[` + string(bare(f, path)) + `]`) }
+	}
+	cases["another file's key"] = func(f bundletest.Files) {
+		f[bundle.PathAuditProofs] = []byte(`{"events":` + string(bare(f, bundle.PathAuditProofs)) + `}`)
+	}
+	cases["path as standard base64"] = respell(base64.StdEncoding.EncodeToString)
+	cases["path as unpadded base64"] = respell(base64.RawStdEncoding.EncodeToString)
+	cases["path as URL-safe base64"] = respell(base64.URLEncoding.EncodeToString)
+	cases["path as upper-case hex"] = respell(func(b []byte) string { return strings.ToUpper(hex.EncodeToString(b)) })
+	cases["path as mixed-case hex"] = respell(func(b []byte) string {
+		h := hex.EncodeToString(b)
+		return strings.ToUpper(h[:1]) + h[1:31] + "A" + h[32:]
 	})
-	f.Rehash()
-	if rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != 0 {
-		t.Errorf("hex path elements: exit %d %+v", rep.ExitCode, failing(rep))
+	cases["path with a 0x prefix"] = respell(func(b []byte) string { return "0x" + hex.EncodeToString(b) })
+	cases["path element as an array of numbers"] = func(f bundletest.Files) {
+		f.EditList(bundle.PathAuditProofs, func(l []any) []any {
+			l[0].(map[string]any)["path"] = []any{[]any{json.Number("1")}}
+			return l
+		})
+	}
+	for name, mutate := range cases {
+		f := sc.Clean.Clone()
+		mutate(f)
+		f.Rehash()
+		rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots})
+		s := stepsNamed(rep, bundle.StepAuditFiles)
+		if rep.ExitCode != bundle.ExitTampered || len(s) != 1 || s[0].Status != bundle.Fail {
+			t.Errorf("%s: exit %d %s, audit-files %+v; want TAMPERED by audit-files", name, rep.ExitCode, rep.Verdict, s)
+		}
+	}
+	// The "mixed-case" premise: the respelling really is the same 32 bytes.
+	if b, err := hex.DecodeString(strings.Repeat("Ab", 32)); err != nil || len(b) != 32 {
+		t.Fatal("premise: Go's hex decoder accepts mixed case")
 	}
 	// An explicit "no proof" entry for a not-yet-anchored event reads as none.
-	f = bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvD, CustomerID: bundletest.Customer, Certs: sc.Certs, Audit: sc.BeforeR2})
+	f := bundletest.Build(bundletest.Spec{ConversationID: bundletest.ConvD, CustomerID: bundletest.Customer, Certs: sc.Certs, Audit: sc.BeforeR2})
 	f.EditList(bundle.PathAuditProofs, func(l []any) []any {
 		for _, e := range sc.BeforeR2.Events[2:] {
 			l = append(l, bundletest.ProofJSON(e.ConvSeq, bundle.AuditProof{LeafIndex: e.LeafIndex}))
@@ -353,28 +495,53 @@ func TestAuditFileSpellings(t *testing.T) {
 	if rep := bundle.Verify("x.zip", f.Zip(), bundle.Options{Roots: roots}); rep.ExitCode != bundle.ExitIncomplete || len(stepsNamed(rep, bundle.StepAuditFiles)) != 1 || stepsNamed(rep, bundle.StepAuditFiles)[0].Status != bundle.Pass {
 		t.Errorf("explicit no-proof entries: exit %d %+v", rep.ExitCode, failing(rep))
 	}
+	// A deployment without anchoring writes {"proofs":[]} and {"roots":[]}.
+	_, self, selfRoots := auditWorld(t, bundletest.ScenarioOptions{SelfHosted: true, Conversation: bundletest.ConvF})
+	for _, path := range []string{bundle.PathAuditProofs, bundle.PathAuditRoots} {
+		if got := strings.Join(strings.Fields(string(self.Clean[path])), ""); got != `{"`+bundle.AuditListKeys[path]+`":[]}` {
+			t.Errorf("%s of a deployment without anchoring: %s", path, got)
+		}
+	}
+	if rep := bundle.Verify("self.zip", self.Clean.Zip(), bundle.Options{Roots: selfRoots}); rep.ExitCode != 0 {
+		t.Errorf("empty proofs and roots lists: exit %d %+v", rep.ExitCode, failing(rep))
+	}
 }
 
-// D3: when the audit-signed claim itself carries the counter, it must equal
-// the entry's; when it does not, only the event_hash binds.
+// D3: the audit-signed claim of a counted request carries the counter, and
+// it must equal the entry's. A claim without a counter never makes an entry
+// PASS: SKIPPED "not tracked" when it names the entry's event_hash, FAIL when
+// it names another. With several claims, every one that signs a counter must
+// be the entry.
 func TestSignedCounterInClaim(t *testing.T) {
 	e := bundle.AuditEvent{ConvSeq: 3, ConversationID: bundletest.ConvD, EventHash: strings.Repeat("ab", 32)}
+	type cl = bundle.AuditClaimForTest
+	other := strings.Repeat("cd", 32)
 	for name, c := range map[string]struct {
-		hash string
-		seq  uint64
-		conv string
-		want bundle.Status
+		claims []cl
+		want   bundle.Status
 	}{
-		"hash only":             {e.EventHash, 0, "", bundle.Pass},
-		"hash + matching seq":   {e.EventHash, 3, bundletest.ConvD, bundle.Pass},
-		"other seq":             {e.EventHash, 2, bundletest.ConvD, bundle.Fail},
-		"other conversation":    {e.EventHash, 3, bundletest.ConvE, bundle.Fail},
-		"other hash":            {strings.Repeat("cd", 32), 3, bundletest.ConvD, bundle.Fail},
-		"other hash, no seq":    {strings.Repeat("cd", 32), 0, "", bundle.Fail},
-		"empty hash in a claim": {"", 3, bundletest.ConvD, bundle.Fail},
+		"hash only":                           {[]cl{{e.EventHash, 0, ""}}, bundle.Skipped},
+		"hash + conversation, no seq":         {[]cl{{e.EventHash, 0, bundletest.ConvD}}, bundle.Skipped},
+		"hash + matching seq":                 {[]cl{{e.EventHash, 3, bundletest.ConvD}}, bundle.Pass},
+		"seq without a conversation":          {[]cl{{e.EventHash, 3, ""}}, bundle.Fail},
+		"other seq":                           {[]cl{{e.EventHash, 2, bundletest.ConvD}}, bundle.Fail},
+		"other conversation":                  {[]cl{{e.EventHash, 3, bundletest.ConvE}}, bundle.Fail},
+		"other hash":                          {[]cl{{other, 3, bundletest.ConvD}}, bundle.Fail},
+		"other hash, no seq":                  {[]cl{{other, 0, ""}}, bundle.Fail},
+		"empty hash in a claim":               {[]cl{{"", 3, bundletest.ConvD}}, bundle.Fail},
+		"empty hash, no seq":                  {[]cl{{"", 0, ""}}, bundle.Fail},
+		"two claims, seq 3 then seq 4":        {[]cl{{e.EventHash, 3, bundletest.ConvD}, {e.EventHash, 4, bundletest.ConvD}}, bundle.Fail},
+		"two claims, seq 4 then seq 3":        {[]cl{{e.EventHash, 4, bundletest.ConvD}, {e.EventHash, 3, bundletest.ConvD}}, bundle.Fail},
+		"two claims, second on another row":   {[]cl{{e.EventHash, 3, bundletest.ConvD}, {other, 4, bundletest.ConvD}}, bundle.Fail},
+		"two identical counter claims":        {[]cl{{e.EventHash, 3, bundletest.ConvD}, {e.EventHash, 3, bundletest.ConvD}}, bundle.Pass},
+		"counter claim + uncounted other row": {[]cl{{other, 0, ""}, {e.EventHash, 3, bundletest.ConvD}}, bundle.Pass},
+		"hash-only + uncounted other row":     {[]cl{{other, 0, ""}, {e.EventHash, 0, ""}}, bundle.Skipped},
+		"hash-only + counter on another row":  {[]cl{{e.EventHash, 0, ""}, {other, 4, bundletest.ConvD}}, bundle.Fail},
 	} {
-		if st, detail := bundle.AuditCounterStepForTest(c.hash, c.seq, c.conv, e); st != c.want {
+		if st, detail := bundle.AuditCounterStepForTest(e, c.claims...); st != c.want {
 			t.Errorf("%s: %s (%s), want %s", name, st, detail, c.want)
+		} else if st == bundle.Skipped && !strings.HasPrefix(detail, "not tracked") {
+			t.Errorf("%s: SKIPPED without the not-tracked reason: %s", name, detail)
 		}
 	}
 	claim := func(seq any) map[string]map[string]any {
@@ -447,14 +614,17 @@ func TestAuditFilesAreStrict(t *testing.T) {
 				return l
 			})
 		},
-		"wrapper with a second key": func(f bundletest.Files) { f[ev] = []byte(`{"events":` + string(f[ev]) + `,"Events":[]}`) },
-		"wrapper with another key":  func(f bundletest.Files) { f[ev] = []byte(`{"Events":` + string(f[ev]) + `}`) },
+		"wrapper with a second key": func(f bundletest.Files) { f[ev] = []byte(`{"events":[],"Events":[]}`) },
+		"wrapper with another key":  func(f bundletest.Files) { f[ev] = []byte(`{"Events":[]}`) },
 		"top-level string":          func(f bundletest.Files) { f[ev] = []byte(`"events"`) },
 		"duplicate top-level key":   func(f bundletest.Files) { f[pr] = []byte(`{"proofs":[],"proofs":[]}`) },
 		"trailing data":             func(f bundletest.Files) { f[pr] = append(f[pr], []byte(`{}`)...) },
-		"path element too short":    func(f bundletest.Files) { f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{"abcd"} })) },
+		"path element 31 bytes": func(f bundletest.Files) {
+			f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{strings.Repeat("ab", 31)} }))
+		},
+		"path element too short": func(f bundletest.Files) { f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{"abcd"} })) },
 		"path element 33 bytes": func(f bundletest.Files) {
-			f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{base64.StdEncoding.EncodeToString(make([]byte, 33))} }))
+			f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{strings.Repeat("ab", 33)} }))
 		},
 		"path element uppercase hex": func(f bundletest.Files) {
 			f.EditList(pr, first(func(o map[string]any) { o["path"] = []any{strings.Repeat("AB", 32)} }))

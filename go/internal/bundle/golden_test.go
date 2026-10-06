@@ -25,7 +25,21 @@ import (
 // audit service on main, its port on the pilot lineage, and this tool. If a
 // vector does not reproduce here, the CODE is wrong (or the vectors moved):
 // never edit the file to make this test pass.
-const goldenVectorsSHA256 = "73d62a842894fb74331b7113b1d7668c7589e45286cb97f7d118fa3597e08bd0"
+//
+// Re-pinned in fix round 1 (additive: 5 -> 7 rows / roots, 4 -> 7 proofs; the
+// first file was 73d62a84...e08bd0). goldenFirstRowsSHA256 pins the rows of
+// that first file, which must never change.
+const goldenVectorsSHA256 = "9e9c8dedd80e547cd4bab421c5f6e14b0bca2b649080340c66c587e23445d634"
+
+// goldenFirstEventHashes are the event hashes of the five rows of the first
+// golden file (sha256 73d62a84...e08bd0), in order.
+var goldenFirstEventHashes = [5]string{
+	"9e6082ba8d60996b238221af9298237c6a0401438947746ededc1cd1b81f1e7e",
+	"d94229488afb49cd4031e9cfd89eec12ba54e24245bf0cf3db796d8120c635f9",
+	"2a2c74e1868fafc6f9c89dad7f9eb8c5664e996fac6c560171d60d194ebdcf94",
+	"cf304a165171c12433a0e6dd87347dfe68e5760bf1d490aa74d17acc299745b5",
+	"518623f2bb64c79b6de00af0a87e53a4794f5e762322494dbd1f09c20eccc0b8",
+}
 
 type goldenVectors struct {
 	Format string `json:"format"`
@@ -101,8 +115,31 @@ func TestS2bGoldenVectors(t *testing.T) {
 	if err := json.Unmarshal(raw, &g); err != nil {
 		t.Fatal(err)
 	}
-	if g.Format != "lucairn.audit-s2b-golden/v1" || len(g.Rows) != 5 || len(g.RootsBySize) != 5 || len(g.InclusionProofs) < 4 {
+	if g.Format != "lucairn.audit-s2b-golden/v1" || len(g.Rows) < 7 || len(g.RootsBySize) != len(g.Rows) || len(g.InclusionProofs) < 7 {
 		t.Fatalf("unexpected golden file: format %q, %d rows, %d roots, %d proofs", g.Format, len(g.Rows), len(g.RootsBySize), len(g.InclusionProofs))
+	}
+	// The vectors only ever grow: the five rows of the first file are the
+	// first five rows of this one, hash for hash.
+	for i, want := range goldenFirstEventHashes {
+		if g.Rows[i].EventHash != want {
+			t.Fatalf("row %d of the first golden file changed: %s, was %s", i, g.Rows[i].EventHash, want)
+		}
+	}
+	// The two cases the first file did not have (ToB #749 INFO-08): a v2 row
+	// with a non-ASCII hashed field (the length prefix counts BYTES, not
+	// characters) and a v2 row with a multi-digit conv_seq.
+	nonASCII, multiDigit := false, false
+	for _, r := range g.Rows {
+		if r.Kind != "v2" {
+			continue
+		}
+		for _, f := range []string{r.EventID, r.EventType, r.SourceService, r.Actor, r.RequestID} {
+			nonASCII = nonASCII || len(f) != len([]rune(f))
+		}
+		multiDigit = multiDigit || r.ConvSeq >= 10
+	}
+	if !nonASCII || !multiDigit {
+		t.Fatalf("golden rows lack a v2 row with a non-ASCII hashed field (%v) or a multi-digit conv_seq (%v)", nonASCII, multiDigit)
 	}
 
 	lp := func(s string) string { return strconv.Itoa(len(s)) + ":" + s }

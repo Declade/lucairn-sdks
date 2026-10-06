@@ -229,8 +229,13 @@ type CertOptions struct {
 	Uncounted bool
 	// NoSignedCounter leaves conversation_id + conv_seq OUT of the signed
 	// audit claim payload of a counted request. The audit service always
-	// signs them (design D3); this is for tests of the hash-only binding.
+	// signs them (design D3); a certificate without them is "not tracked", even
+	// when the bundle lists a counter entry with its event_hash.
 	NoSignedCounter bool
+	// ExtraAuditSeq, when not 0, adds a SECOND valid dsa-audit EVENTS_RECORDED
+	// claim for the same audit row (same event_hash) that signs this other
+	// conv_seq: a certificate with two signed counter claims.
+	ExtraAuditSeq uint64
 }
 
 // NewCert mints one fully signed, anchored certificate.
@@ -275,11 +280,14 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 	claimIDs, claims := []any{claimID}, []any{claim}
 	var event *bundle.AuditEvent
 	if o.Audit != nil {
-		ac, ev, err := w.auditClaim(o, n, reqID, issued)
+		acs, ev, err := w.auditClaim(o, n, reqID, issued)
 		if err != nil {
 			return nil, err
 		}
-		claimIDs, claims, event = append(claimIDs, ac["claim_id"]), append(claims, ac), ev
+		for _, ac := range acs {
+			claimIDs, claims = append(claimIDs, ac["claim_id"]), append(claims, ac)
+		}
+		event = ev
 	}
 	v2 := map[string]any{
 		"certificate_id": certID, "request_id": reqID, "protocol_version": json.Number("2"),

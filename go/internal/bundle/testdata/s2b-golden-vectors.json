@@ -11,7 +11,8 @@
     "inclusion path = RFC 6962 audit path, leaf to root ; verify with RFC 9162 section 2.1.3.2 using leaf_index and tree_size",
     "root artifact = 'lucairn.audit-root/v1\\n' + decimal(tree_size) + '\\n' + lowercase hex(root) + '\\n'",
     "root signature = Ed25519ph (RFC 8032, pre-hash SHA-512, empty context) over the artifact, i.e. over sha512(artifact)",
-    "hashedrekord body = RFC 8785 canonical JSON; publicKey.content = base64(PEM(SPKI DER)); signature.content = base64(signature)"
+    "hashedrekord body = RFC 8785 canonical JSON; publicKey.content = base64(PEM(SPKI DER)); signature.content = base64(signature)",
+    "rows after the fifth were added later and only extend the chain and the tree: root_artifact and signed_root stay at tree size 5; in those rows conv_seq is a byte-rule input and need not be the next number of its conversation within this file"
   ],
   "rows": [
     {
@@ -93,6 +94,38 @@
       "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000323:MCP_INFERENCE_COMPLETED7:gateway10:cust_other64:29df530cbdc570b26fda9e71c2d535076782de276026c0f9f37d3f8a3fa5dd1b0:32:fedcba9876543210fedcba98765432101:1",
       "event_hash": "518623f2bb64c79b6de00af0a87e53a4794f5e762322494dbd1f09c20eccc0b8",
       "leaf_hash": "0a907ff8482e0a5c178b117b12cfd2959990c734bb17f94ffe704d6141ce5163"
+    },
+    {
+      "kind": "v2",
+      "previous_event_hash": "518623f2bb64c79b6de00af0a87e53a4794f5e762322494dbd1f09c20eccc0b8",
+      "event_id": "evt_completion_golden_0004",
+      "event_type": "PROXY_INFERENCE_STREAM_FAILED",
+      "source_service": "gateway",
+      "actor": "kunde:müller-straße-東京",
+      "payload_utf8": "{\"conversation_id\":\"fedcba9876543210fedcba9876543210\",\"customer_id\":\"cust_other\",\"error_type\":\"zeitüberschreitung\",\"request_id\":\"req_golden_0004\"}",
+      "payload_sha256": "35af4d1830e0aea0c974208e44fc3758efc2e9135b04e6fa767ba240461ef3ec",
+      "request_id": "req_golden_0004",
+      "conversation_id": "fedcba9876543210fedcba9876543210",
+      "conv_seq": 2,
+      "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000429:PROXY_INFERENCE_STREAM_FAILED7:gateway28:kunde:müller-straße-東京64:35af4d1830e0aea0c974208e44fc3758efc2e9135b04e6fa767ba240461ef3ec15:req_golden_000432:fedcba9876543210fedcba98765432101:2",
+      "event_hash": "a8dc09b4932eb056993a7f80ae1ab9edf5cceff06fc9de0c7a60ffe350d22757",
+      "leaf_hash": "280233dd02e1993ea9eb4b72bc0768da963f436c85226ac12bed29d0c1c909d3"
+    },
+    {
+      "kind": "v2",
+      "previous_event_hash": "a8dc09b4932eb056993a7f80ae1ab9edf5cceff06fc9de0c7a60ffe350d22757",
+      "event_id": "evt_completion_golden_0005",
+      "event_type": "PROXY_INFERENCE_COMPLETED",
+      "source_service": "gateway",
+      "actor": "cust_golden",
+      "payload_utf8": "{\"conversation_id\":\"00112233445566778899aabbccddeeff\",\"customer_id\":\"cust_golden\",\"request_id\":\"req_golden_0005\",\"status\":\"completed\"}",
+      "payload_sha256": "85d0d12f0abbb15f2940633644baf4e0462110c9901b74c3ad6e8a6a52f4b0b6",
+      "request_id": "req_golden_0005",
+      "conversation_id": "00112233445566778899aabbccddeeff",
+      "conv_seq": 1234567890,
+      "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000525:PROXY_INFERENCE_COMPLETED7:gateway11:cust_golden64:85d0d12f0abbb15f2940633644baf4e0462110c9901b74c3ad6e8a6a52f4b0b615:req_golden_000532:00112233445566778899aabbccddeeff10:1234567890",
+      "event_hash": "cbc705bf84d3ae9a067e08a7695a426d3b323deba4ea12eeed7d282b24e19f18",
+      "leaf_hash": "c191d05a40e337452cf6114b484c8d3f22299f7130f5d1a4f5e0c65a5961bafb"
     }
   ],
   "roots_by_size": [
@@ -100,7 +133,9 @@
     "e2f3f467055d42150566aff15f58d6972930ece7d126b21cef81eecafa7e2beb",
     "df9c9d9e09fb4650417dadb5fc35ec417b20ecbc8fda2d2aff6f3f900a6b7f0d",
     "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c",
-    "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f"
+    "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f",
+    "eb36ac24a7746c2dad1eb204153a43d23ffd1efc2725b8687fd5c2e20b67f92f",
+    "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223"
   ],
   "inclusion_proofs": [
     {
@@ -138,6 +173,37 @@
       "leaf_hash": "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213",
       "path": [],
       "root": "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213"
+    },
+    {
+      "leaf_index": 5,
+      "tree_size": 6,
+      "leaf_hash": "280233dd02e1993ea9eb4b72bc0768da963f436c85226ac12bed29d0c1c909d3",
+      "path": [
+        "0a907ff8482e0a5c178b117b12cfd2959990c734bb17f94ffe704d6141ce5163",
+        "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c"
+      ],
+      "root": "eb36ac24a7746c2dad1eb204153a43d23ffd1efc2725b8687fd5c2e20b67f92f"
+    },
+    {
+      "leaf_index": 6,
+      "tree_size": 7,
+      "leaf_hash": "c191d05a40e337452cf6114b484c8d3f22299f7130f5d1a4f5e0c65a5961bafb",
+      "path": [
+        "42f57972a12c9b17994fe985d5e2a4a4ed0958d45b94e9d2cd816705f842c80f",
+        "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c"
+      ],
+      "root": "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223"
+    },
+    {
+      "leaf_index": 1,
+      "tree_size": 7,
+      "leaf_hash": "ea7a1e500e0bedd71b545d0985402bfa24f9a7ffc127ff8a917cc7cef56f4e71",
+      "path": [
+        "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213",
+        "c03b66f83db87966e6979d84e27ade170b46aec9086d38b3e72ef3a9c501b3b0",
+        "7d33f94c3709b4cf5ad01b9c7d3b16e1196ae1f4bdc64f16de563fbfba740aeb"
+      ],
+      "root": "2382722e3708075b9146350027c10ff960774f390b0a18503de0f008b80b5223"
     }
   ],
   "root_artifact": {

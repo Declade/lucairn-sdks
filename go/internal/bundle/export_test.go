@@ -29,12 +29,22 @@ func FormNameForTest(hashAlgorithm any) string {
 // QuotedShortForTest exposes quotedShort.
 func QuotedShortForTest(s string) string { return quotedShort(s) }
 
+// AuditClaimForTest is one audit-signed claim as check A sees it: its
+// event_hash and, when Seq > 0, the counter it signs (design D3).
+type AuditClaimForTest struct {
+	Hash string
+	Seq  uint64
+	Conv string
+}
+
 // AuditCounterStepForTest runs check A (matchAuditClaim) for one counter
-// entry against one audit-signed claim: its event_hash and, when claimSeq > 0
-// / claimConv != "", the counter the claim itself signs (design D3).
-func AuditCounterStepForTest(claimHash string, claimSeq uint64, claimConv string, e AuditEvent) (Status, string) {
-	c := auditClaim{eventHash: claimHash, conversationID: claimConv, hasSeq: claimSeq > 0, seq: claimSeq}
-	return matchAuditClaim([]auditClaim{c}, &e, 1)
+// entry against the audit-signed claims of its certificate.
+func AuditCounterStepForTest(e AuditEvent, claims ...AuditClaimForTest) (Status, string) {
+	cs := make([]auditClaim, len(claims))
+	for i, c := range claims {
+		cs[i] = auditClaim{requestID: e.RequestID, eventHash: c.Hash, conversationID: c.Conv, hasSeq: c.Seq > 0, seq: c.Seq}
+	}
+	return matchAuditClaim(cs, &e, 1)
 }
 
 // AuditClaimsForTest reads the audit claims out of verified claim values and
