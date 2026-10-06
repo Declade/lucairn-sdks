@@ -1,6 +1,6 @@
-// Command lucairn-verify checks a Lucairn evidence bundle offline.
+// Command lucairn-bundle-verify checks a Lucairn evidence bundle offline.
 //
-//	lucairn-verify [flags] bundle.zip
+//	lucairn-bundle-verify [flags] bundle.zip
 //
 // It recomputes, from the files in the bundle and keys built into this
 // binary (or given on the command line — never taken from the bundle):
@@ -52,7 +52,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("lucairn-verify", flag.ContinueOnError)
+	fs := flag.NewFlagSet("lucairn-bundle-verify", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var witnessKeys, serviceKeys kvList
 	jsonOut := fs.Bool("json", false, "print the report as JSON")
@@ -65,7 +65,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&witnessKeys, "witness-key", "KEY_ID=BASE64 witness Ed25519 key to trust INSTEAD of the built-in one (repeatable; self-hosted deployments)")
 	fs.Var(&serviceKeys, "service-key", "SERVICE_ID=BASE64 claim-signing key to trust INSTEAD of the built-in set (repeatable)")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: lucairn-verify [flags] bundle.zip")
+		fmt.Fprintln(stderr, "usage: lucairn-bundle-verify [flags] bundle.zip")
 		fmt.Fprintln(stderr, "exit codes: 0 VALID · 1 TAMPERED · 2 INCOMPLETE")
 		fs.PrintDefaults()
 	}
@@ -73,12 +73,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return bundle.ExitIncomplete
 	}
 	if *showVersion {
-		fmt.Fprintln(stdout, "lucairn-verify", version)
+		fmt.Fprintln(stdout, "lucairn-bundle-verify", version)
 		return 0
 	}
 	roots, err := bundle.ProductionRoots()
 	if err != nil {
-		fmt.Fprintln(stderr, "lucairn-verify:", err)
+		fmt.Fprintln(stderr, "lucairn-bundle-verify:", err)
 		return bundle.ExitIncomplete
 	}
 	if *printRoots {
@@ -91,7 +91,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	custom, err := applyOverrides(&roots, witnessKeys, serviceKeys, *tsaRoot, *rekorKey)
 	if err != nil {
-		fmt.Fprintln(stderr, "lucairn-verify:", err)
+		fmt.Fprintln(stderr, "lucairn-bundle-verify:", err)
 		return bundle.ExitIncomplete
 	}
 	if len(custom) > 0 {
@@ -100,7 +100,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	path := fs.Arg(0)
 	data, err := readBounded(path)
 	if err != nil {
-		fmt.Fprintln(stderr, "lucairn-verify:", err)
+		fmt.Fprintln(stderr, "lucairn-bundle-verify:", err)
 		return bundle.ExitIncomplete
 	}
 	opt := bundle.Options{Roots: roots}

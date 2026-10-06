@@ -1,10 +1,10 @@
-// Command bundlecorpus writes the SYNTHETIC lucairn-verify tamper corpus to a
-// directory, for cmd/lucairn-verify/scripts/tamper-corpus.sh to run against
+// Command bundlecorpus writes the SYNTHETIC lucairn-bundle-verify tamper corpus to a
+// directory, for cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh to run against
 // the built binary:
 //
 //	<out>/cases/<name>.zip      one bundle per case
 //	<out>/expected.tsv          name, expectation, description
-//	<out>/flags.txt             lucairn-verify flags that trust the synthetic world
+//	<out>/flags.txt             lucairn-bundle-verify flags that trust the synthetic world
 //	<out>/trust/*.pem           synthetic TSA root + leaf, synthetic Rekor key
 //	<out>/clean-certs/          the clean bundle's certificates + meta.json, so
 //	                            another bundle WRITER (the website's) can be

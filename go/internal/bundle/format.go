@@ -1,6 +1,6 @@
 // Package bundle verifies a Lucairn evidence bundle (format
 // lucairn-evidence-bundle, version 1): one zip per conversation, produced by
-// the Lucairn account website, checked offline by cmd/lucairn-verify.
+// the Lucairn account website, checked offline by cmd/lucairn-bundle-verify.
 //
 // PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md
 // (Slice 1). The website writer is theveil-website

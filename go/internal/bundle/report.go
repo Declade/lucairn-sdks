@@ -14,7 +14,21 @@ const (
 	Pass    Status = "PASS"
 	Fail    Status = "FAIL"
 	Skipped Status = "SKIPPED"
+	// PassNotContentBound is the ONLY passing state of the timestamp and
+	// rekor steps: the anchor is genuine (trusted TSA / public log, made for
+	// the digest the certificate records), but it cannot be tied to this
+	// exported certificate's content. It never blocks VALID, and it is never
+	// printed as a bare PASS.
+	PassNotContentBound Status = "PASS_NOT_CONTENT_BOUND"
 )
+
+// NotContentBoundLabel is how PassNotContentBound is printed.
+const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
+
+// NotContentBoundReason is printed under every PassNotContentBound step and
+// in the result summary whenever an anchor step ran. The website's verify
+// page and README.txt carry the same sentence.
+const NotContentBoundReason = "The timestamp and log entry cover the certificate as stored by Lucairn, which contains original data and is not exported, so this tool cannot tie them to this exact certificate."
 
 // Verdicts and their exit codes.
 const (
@@ -41,16 +55,19 @@ type Step struct {
 
 // Report is the result of verifying one bundle.
 type Report struct {
-	Bundle             string   `json:"bundle"`
-	ConversationID     string   `json:"conversation_id,omitempty"`
-	Certificates       int      `json:"certificates"`
-	CertificatesDigest string   `json:"certificates_digest,omitempty"`
-	TrustRoots         string   `json:"trust_roots"`
-	Online             bool     `json:"online"`
-	Steps              []Step   `json:"steps"`
-	Verdict            string   `json:"verdict"`
-	ExitCode           int      `json:"exit_code"`
-	NotCovered         []string `json:"not_covered"`
+	Bundle             string `json:"bundle"`
+	ConversationID     string `json:"conversation_id,omitempty"`
+	Certificates       int    `json:"certificates"`
+	CertificatesDigest string `json:"certificates_digest,omitempty"`
+	TrustRoots         string `json:"trust_roots"`
+	Online             bool   `json:"online"`
+	Steps              []Step `json:"steps"`
+	// Limitations lists result-level caveats that apply to THIS run
+	// (NotContentBoundReason whenever an anchor step ran).
+	Limitations []string `json:"limitations"`
+	Verdict     string   `json:"verdict"`
+	ExitCode    int      `json:"exit_code"`
+	NotCovered  []string `json:"not_covered"`
 }
 
 func (r *Report) add(scope, name string, st Status, detail string) {
@@ -64,14 +81,21 @@ func (r *Report) skip(scope, name, reason string, blocks bool) {
 // finish computes the verdict: any FAIL → TAMPERED (1); otherwise any
 // blocking SKIPPED → INCOMPLETE (2); otherwise VALID (0).
 func (r *Report) finish() {
-	fail, incomplete := false, false
+	fail, incomplete, anchorRan := false, false, false
 	for _, s := range r.Steps {
+		if (s.Name == "timestamp" || s.Name == "rekor") && (s.Status == PassNotContentBound || s.Status == Fail) {
+			anchorRan = true
+		}
 		switch {
 		case s.Status == Fail:
 			fail = true
 		case s.Status == Skipped && s.Incomplete:
 			incomplete = true
 		}
+	}
+	r.Limitations = nil
+	if anchorRan {
+		r.Limitations = append(r.Limitations, NotContentBoundReason)
 	}
 	switch {
 	case fail:
@@ -93,7 +117,7 @@ var NotCoveredV1 = []string{
 
 // WriteText renders the report for a terminal.
 func (r *Report) WriteText(w io.Writer) {
-	fmt.Fprintf(w, "lucairn-verify — %s\n", r.Bundle)
+	fmt.Fprintf(w, "lucairn-bundle-verify — %s\n", r.Bundle)
 	if r.ConversationID != "" {
 		fmt.Fprintf(w, "conversation      %s\n", r.ConversationID)
 	}
@@ -119,6 +143,11 @@ func (r *Report) WriteText(w io.Writer) {
 			}
 		}
 		status := string(s.Status)
+		if s.Status == PassNotContentBound {
+			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, NotContentBoundLabel, s.Detail)
+			fmt.Fprintf(w, "  %-16s   %s\n", "", NotContentBoundReason)
+			continue
+		}
 		if s.Status == Skipped {
 			status = "SKIPPED(" + s.Detail + ")"
 			if s.Incomplete {
@@ -140,6 +169,9 @@ func (r *Report) WriteText(w io.Writer) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "RESULT: %s (exit %d)\n", r.Verdict, r.ExitCode)
+	for _, l := range r.Limitations {
+		fmt.Fprintf(w, "LIMITATION: %s\n", l)
+	}
 	switch r.Verdict {
 	case VerdictTampered:
 		fmt.Fprintln(w, "At least one check FAILED: the bundle does not match what Lucairn issued.")

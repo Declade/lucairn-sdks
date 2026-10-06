@@ -26,7 +26,7 @@ func (f Files) Clone() Files {
 
 // SyntheticPDF is a stand-in report (the corpus never parses PDFs; only the
 // manifest digest covers them).
-var SyntheticPDF = []byte("%PDF-1.4\n% synthetic report stand-in for the lucairn-verify corpus\n%%EOF\n")
+var SyntheticPDF = []byte("%PDF-1.4\n% synthetic report stand-in for the lucairn-bundle-verify corpus\n%%EOF\n")
 
 // Spec describes one bundle.
 type Spec struct {
@@ -40,7 +40,7 @@ type Spec struct {
 // Build produces the files of a well-formed v1 bundle.
 func Build(s Spec) Files {
 	f := Files{
-		bundle.PathReadme:         []byte("Synthetic evidence bundle for the lucairn-verify test corpus.\n"),
+		bundle.PathReadme:         []byte("Synthetic evidence bundle for the lucairn-bundle-verify test corpus.\n"),
 		bundle.PathReportExternal: SyntheticPDF,
 		bundle.PathVerification:   []byte(`{"note":"informational export-time record (synthetic)"}` + "\n"),
 	}

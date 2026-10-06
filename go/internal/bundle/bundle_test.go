@@ -8,7 +8,7 @@ import (
 )
 
 // TestCorpusInProcess runs every corpus case through bundle.Verify. The same
-// corpus runs against the BUILT binary in cmd/lucairn-verify.
+// corpus runs against the BUILT binary in cmd/lucairn-bundle-verify.
 func TestCorpusInProcess(t *testing.T) {
 	co, err := bundletest.NewCorpus()
 	if err != nil {

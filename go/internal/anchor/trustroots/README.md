@@ -1,4 +1,4 @@
-# Pinned trust roots for lucairn-verify
+# Pinned trust roots for lucairn-bundle-verify
 
 Embedded into the binary at build time; nothing is fetched at verify time.
 
