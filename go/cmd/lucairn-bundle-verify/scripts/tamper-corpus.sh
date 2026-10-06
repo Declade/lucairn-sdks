@@ -32,9 +32,20 @@ bad=0
 printf '%-40s %-14s %-5s %s\n' CASE EXPECT EXIT RESULT
 while IFS=$'\t' read -r name expect what extra; do
   extra_args=()
-  for a in ${extra:-}; do extra_args+=("${a//@REKOR_URL@/$rekor_url}"); done
+  allow=no
+  for a in ${extra:-}; do
+    extra_args+=("${a//@REKOR_URL@/$rekor_url}")
+    [ "$a" = "--allow-unanchored" ] && allow=yes
+  done
+  # A case run with --allow-unanchored drops the corpus's --require-anchors
+  # (the two exclude each other) — the same rule as bundletest.CaseArgs.
+  base=()
+  for f in "${flags[@]}"; do
+    [ "$allow" = yes ] && [ "$f" = "--require-anchors" ] && continue
+    base+=("$f")
+  done
   set +e
-  out="$("$work/lucairn-bundle-verify" "${flags[@]}" ${extra_args[@]+"${extra_args[@]}"} "$work/corpus/cases/$name.zip" 2>&1)"
+  out="$("$work/lucairn-bundle-verify" "${base[@]}" ${extra_args[@]+"${extra_args[@]}"} "$work/corpus/cases/$name.zip" 2>&1)"
   code=$?
   set -e
   verdict="$(printf '%s\n' "$out" | sed -n 's/^RESULT: \([A-Z]*\).*/\1/p')"
@@ -42,6 +53,8 @@ while IFS=$'\t' read -r name expect what extra; do
   case "$expect" in
     'VALID(0)'|'KNOWN-GAP(0)') [ "$code" -eq 0 ] || ok=no ;;
     'DETECTED(1|2)') [ "$code" -eq 1 ] || [ "$code" -eq 2 ] || ok=no ;;
+    'TAMPERED(1)') [ "$code" -eq 1 ] || ok=no ;;
+    *) ok=no ;;
   esac
   [ "$ok" = yes ] || bad=$((bad + 1))
   printf '%-40s %-14s %-5s %s%s\n' "$name" "$expect" "$code" "${verdict:-?}" "$([ "$ok" = yes ] || echo '  <-- UNEXPECTED')"

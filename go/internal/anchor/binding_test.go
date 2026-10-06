@@ -24,6 +24,19 @@ func TestDigestV1_GoldenVector(t *testing.T) {
 	}
 }
 
+// S7 (gate round 2): the hosted cutover is FINAL and equal, literally, to the
+// website's ANCHOR_BINDING_CUTOVER and the hosted witness's
+// WITNESS_ANCHOR_BINDING_REQUIRED_AFTER.
+func TestBindingV1Cutover_FinalLiteral(t *testing.T) {
+	const want = "2026-11-01T00:00:00Z"
+	if BindingV1CutoverRFC3339 != want {
+		t.Fatalf("BindingV1CutoverRFC3339 = %q, want %q", BindingV1CutoverRFC3339, want)
+	}
+	if got := BindingV1Cutover.Format(time.RFC3339); got != want {
+		t.Fatalf("BindingV1Cutover = %s, want %s", got, want)
+	}
+}
+
 func TestBindingV1Cutover_IsUTCAndAfterS1(t *testing.T) {
 	if BindingV1Cutover.Location() != time.UTC {
 		t.Fatal("cutover must be UTC")

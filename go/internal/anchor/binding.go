@@ -25,18 +25,23 @@ const (
 )
 
 // BindingV1Cutover is the moment from which every certificate issued by the
-// Lucairn-HOSTED witness carries binding-v1 anchors. A hosted certificate
-// whose SIGNED issued_at is after it and whose anchors are not binding v1 is
-// TAMPERED (downgrade guard: the binding marker is unsigned, so stripping it
-// must not turn a content-bound certificate into a merely genuine one).
+// Lucairn-HOSTED witness must carry binding-v1 anchors: 2026-11-01T00:00:00Z
+// (final). A hosted certificate whose SIGNED issued_at is after it and whose
+// timestamp does not declare binding v1 is TAMPERED (downgrade guard: the
+// binding marker is unsigned, so stripping it must not turn a content-bound
+// certificate into a merely genuine one).
 //
-// ⚑ PLACEHOLDER — FINALISE AT THE BOX WINDOW. It must be a moment AFTER the
-// binding-v1 witness is live on the hosted box (certificates issued by the
-// old witness after this moment would read TAMPERED). Certificates issued
-// between the deploy and this moment are still recognised as content-bound
-// when their anchors match H. Keep it equal to the website's
-// ANCHOR_BINDING_CUTOVER (src/lib/evidence-bundle/anchor-binding.ts).
+// The hosted witness runs binding v1 before this moment, so certificates
+// issued between that deploy and the cutover are already content-bound
+// whenever their anchors match H; the cutover only arms the guard. The same
+// literal is the website's ANCHOR_BINDING_CUTOVER
+// (src/lib/evidence-bundle/anchor-binding.ts) and the hosted witness's
+// WITNESS_ANCHOR_BINDING_REQUIRED_AFTER; TestBindingV1Cutover_FinalLiteral
+// pins it.
 var BindingV1Cutover = time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+
+// BindingV1CutoverRFC3339 is BindingV1Cutover as published.
+const BindingV1CutoverRFC3339 = "2026-11-01T00:00:00Z"
 
 // DigestV1 is H for a recorded cert_hash and a signed canonical signable.
 func DigestV1(certHash, signable []byte) []byte {

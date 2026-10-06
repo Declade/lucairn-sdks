@@ -44,9 +44,19 @@ func TestExecutionProofOnWitnessMintedCertificates(t *testing.T) {
 	for _, tc := range []struct {
 		name, allow string
 		wantBound   []string // steps that must print PASS (content-bound)
+		// requiredExit >= 0: also run with --require-anchors instead of
+		// --allow-unanchored and expect this exit code.
+		requiredExit int
+		// noAnchors: nothing commits to cert_hash, so editing it is not a
+		// detectable tamper (the marker strip still is).
+		noAnchors bool
 	}{
-		{"bound", "", []string{"timestamp", "rekor"}},
-		{"rekor-only", "--allow-unanchored", []string{"rekor"}},
+		{"bound", "", []string{"timestamp", "rekor"}, -1, false},
+		{"rekor-only", "--allow-unanchored", []string{"rekor"}, 2, false},
+		// X1 (gate round 2): both rails failed on a post-cutover certificate;
+		// the witness kept cert_hash + the v1 marker. Honest: VALID under the
+		// explicit opt-out, INCOMPLETE when anchors are required, never TAMPERED.
+		{"both-failed", "--allow-unanchored", nil, 2, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			src := filepath.Join(root, tc.name)
@@ -119,6 +129,16 @@ func TestExecutionProofOnWitnessMintedCertificates(t *testing.T) {
 			if code != 0 {
 				t.Fatalf("the witness-minted %s certificate must verify VALID offline, exit %d", tc.name, code)
 			}
+			if tc.requiredExit >= 0 {
+				saved := flags
+				flags = append(append([]string{}, flags[:len(flags)-1]...), "--require-anchors")
+				if code, out := runBin(pack(certJSON)); code != tc.requiredExit {
+					t.Fatalf("%s with anchors required: exit %d, want %d\n%s", tc.name, code, tc.requiredExit, out)
+				} else {
+					t.Logf("%s with anchors required: exit %d", tc.name, code)
+				}
+				flags = saved
+			}
 			for _, step := range tc.wantBound {
 				if !strings.Contains(out, "  "+padStep(step)+" "+bundle.ContentBoundLabel) {
 					t.Errorf("%s: missing %q line", step, bundle.ContentBoundLabel)
@@ -127,14 +147,16 @@ func TestExecutionProofOnWitnessMintedCertificates(t *testing.T) {
 
 			// Tamper 1: the recorded cert_hash (an input to H).
 			var d map[string]any
-			_ = json.Unmarshal(certJSON, &d)
-			ts := d["attestation"].(map[string]any)["timestamp"].(map[string]any)
-			h, _ := base64.StdEncoding.DecodeString(ts["cert_hash"].(string))
-			h[0] ^= 1
-			ts["cert_hash"] = base64.StdEncoding.EncodeToString(h)
-			tampered, _ := json.Marshal(d)
-			if code, out := runBin(pack(tampered)); code != 1 {
-				t.Fatalf("edited cert_hash: exit %d, want 1\n%s", code, out)
+			if !tc.noAnchors {
+				_ = json.Unmarshal(certJSON, &d)
+				ts := d["attestation"].(map[string]any)["timestamp"].(map[string]any)
+				h, _ := base64.StdEncoding.DecodeString(ts["cert_hash"].(string))
+				h[0] ^= 1
+				ts["cert_hash"] = base64.StdEncoding.EncodeToString(h)
+				tampered, _ := json.Marshal(d)
+				if code, out := runBin(pack(tampered)); code != 1 {
+					t.Fatalf("edited cert_hash: exit %d, want 1\n%s", code, out)
+				}
 			}
 			// Tamper 2: the binding marker stripped to legacy (downgrade).
 			_ = json.Unmarshal(certJSON, &d)

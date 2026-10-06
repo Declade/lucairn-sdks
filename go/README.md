@@ -437,8 +437,11 @@ both anchors over
 the RFC 3161 imprint is `H` and the Rekor entry logs `sha512(H)`. The tool
 recomputes `H` from the recorded `cert_hash` and the canonical bytes the
 verified witness signature covers, so a passing step is printed as
-`PASS (content-bound)` (JSON `PASS_CONTENT_BOUND`): the anchor belongs to this
-exact certificate, and anchors copied from another certificate FAIL.
+`PASS (content-bound)` (JSON `PASS_CONTENT_BOUND`): the anchor commits to this
+certificate's signed content plus its recorded `cert_hash`, and anchors copied
+from another certificate FAIL. Only when at least one anchor step passed this
+way does the result add a `CONTENT-BOUND:` line (JSON
+`content_bound_anchor_steps`).
 
 Older anchors (without binding v1) cover the certificate as stored by
 Lucairn. A passing step is then printed as `PASS (genuine anchor, not
@@ -449,12 +452,20 @@ cannot tie them to this exact certificate." (JSON status
 `PASS_NOT_CONTENT_BOUND`; it does not block VALID.)
 
 Downgrade guard: with the built-in pins, a certificate whose **signed**
-`issued_at` is after the hosted binding cutover
-(`anchor.BindingV1Cutover`, printed by `--print-trust-roots`) must carry
-binding-v1 anchors; without them (marker removed, or anchors of another
-certificate) it is TAMPERED. An unknown binding marker is TAMPERED too. A
-custom `--witness-key` clears the hosted cutover; `--require-binding-after
-RFC3339` sets one for another deployment. Bundles of certificates issued after
+`issued_at` is after the hosted binding cutover **2026-11-01T00:00:00Z**
+(`anchor.BindingV1Cutover`, printed by `--print-trust-roots`) must declare
+binding v1; without the marker (removed, or anchors of another certificate) it
+is TAMPERED, and that holds with or without anchors and with
+`--allow-unanchored`: removing the anchors together with the marker is
+TAMPERED, not "not anchored". The witness records `cert_hash` and the marker
+when an anchoring run starts and keeps them when both rails fail. Only
+`hash_algorithm` values `"lucairn.anchor-binding/v1"`, `"SHA-256"` and empty
+are known (the witness's set); any other spelling is an unknown marker and
+TAMPERED. If the signed `issued_at` cannot be recovered after the signature
+check while a cutover is set, the step `anchor-binding` is SKIPPED and blocks
+VALID. A custom `--witness-key` clears the hosted cutover and the banner says
+"anchor-binding cutover not enforced"; `--require-binding-after RFC3339` sets
+one for another deployment. Bundles of certificates issued after
 the cutover need this version of the tool: older builds report their
 content-bound anchors as FAIL.
 
