@@ -158,7 +158,7 @@ func TestRekor_RealEntry_SETInclusionCheckpoint(t *testing.T) {
 	if err := VerifySET(e.CanonicalBody, e.IntegratedTime, e.LogIndex, e.SignedEntryTimestamp, rk); err != nil {
 		t.Fatalf("real SET must verify: %v", err)
 	}
-	cp, err := verifyInclusion(e.CanonicalBody, e.InclusionProof, rk)
+	cp, _, err := verifyInclusion(e.CanonicalBody, e.InclusionProof, rk)
 	if err != nil || !cp {
 		t.Fatalf("real inclusion proof + checkpoint must verify: cp=%v err=%v", cp, err)
 	}
@@ -179,7 +179,7 @@ func TestRekor_RealEntry_SETInclusionCheckpoint(t *testing.T) {
 	if VerifySET(body, e.IntegratedTime, e.LogIndex, e.SignedEntryTimestamp, rk) == nil {
 		t.Fatal("SET with altered body must fail")
 	}
-	if _, err := verifyInclusion(body, e.InclusionProof, rk); err == nil {
+	if _, _, err := verifyInclusion(body, e.InclusionProof, rk); err == nil {
 		t.Fatal("inclusion with altered body must fail")
 	}
 }

@@ -10,6 +10,7 @@ package bundle
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -43,6 +44,65 @@ const (
 // certFileName is the only certificate file name shape v1 accepts.
 var certFileName = regexp.MustCompile(`^certificates/[A-Za-z0-9._-]{1,128}\.json$`)
 
+// RequiredPaths must be in every v1 bundle (and listed in the manifest);
+// a bundle without one of them, or without any certificate, is TAMPERED.
+var RequiredPaths = []string{PathManifest, PathReadme, PathReportExternal}
+
+// manifestKeys is the exact (case-sensitive) key set of every object in
+// manifest.json. Go's encoding/json matches keys case-INsensitively and takes
+// the LAST of two case-variant keys, a JavaScript reader takes the first, so
+// an exporter-side reader and this tool could read different values from one
+// manifest. Any key not in this set — a case variant, a typo, an extra
+// field — is a structural failure.
+var manifestKeys = map[string]map[string]bool{
+	"": {"format": true, "format_version": true, "bundle_kind": true, "conversation_id": true, "customer_id": true,
+		"generated_at": true, "generator": true, "completeness": true, "certificates": true, "certificates_digest": true, "files": true},
+	"completeness": {"listing": true, "note": true},
+	"certificates": {"path": true, "request_id": true, "certificate_id": true},
+	"files":        {"path": true, "sha256": true, "size": true},
+}
+
+// manifestKeyProblem returns a description of the first key in the decoded
+// manifest that is not exactly a v1 manifest key, or "".
+func manifestKeyProblem(doc map[string]any) string {
+	check := func(level string, obj map[string]any) string {
+		keys := make([]string, 0, len(obj))
+		for k := range obj {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if !manifestKeys[level][k] {
+				where := "manifest"
+				if level != "" {
+					where = "manifest " + level
+				}
+				return fmt.Sprintf("%s has key %q, which is not a v1 manifest key (keys are case-sensitive)", where, k)
+			}
+		}
+		return ""
+	}
+	if p := check("", doc); p != "" {
+		return p
+	}
+	if c, ok := doc["completeness"].(map[string]any); ok {
+		if p := check("completeness", c); p != "" {
+			return p
+		}
+	}
+	for _, level := range []string{"certificates", "files"} {
+		arr, _ := doc[level].([]any)
+		for _, e := range arr {
+			if o, ok := e.(map[string]any); ok {
+				if p := check(level, o); p != "" {
+					return p
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // AllowedPath reports whether p may appear in a v1 bundle at all. Anything
 // else (an audit/ folder, a nested path, a dot-dot) is a structural failure:
 // v1 has no audit/ folder (Slice 2 adds it with format_version 2).
@@ -58,9 +118,11 @@ func AllowedPath(p string) bool {
 // it as the bundle's table of contents and checks every file against it, and
 // it checks the conversation and customer ids it names against the SIGNED
 // claim payloads of every certificate. A manifest edit can therefore only
-// make the result worse, never better — except dropping a certificate
+// make the result worse, never better — except (G1) dropping a certificate
 // together with its manifest entry, which v1 cannot see (the per-conversation
-// counter of Slice 2 closes that; the tool says so on every run).
+// counter of Slice 2 closes that), and (G3) replacing a report PDF,
+// verification.json or README.txt together with its manifest digest: those
+// files are covered by no signature. The tool says both on every run.
 type Manifest struct {
 	Format             string         `json:"format"`
 	FormatVersion      int            `json:"format_version"`
@@ -75,12 +137,18 @@ type Manifest struct {
 	Files              []ManifestFile `json:"files"`
 }
 
-// Completeness is the exporter's statement about whether every certificate
-// of the conversation is in the bundle. Anything but "complete" makes the
-// result INCOMPLETE.
+// ListingExhausted is the only Completeness.Listing value that does not make
+// the result INCOMPLETE.
+const ListingExhausted = "exhausted"
+
+// Completeness is the exporter's UNSIGNED statement about how its listing of
+// the conversation's certificates ended. "exhausted" means the listing ran
+// to its end; it is NOT a proof that every certificate is in the bundle
+// (v1 cannot prove that — gap G1, closed by the Slice 2 counter). Anything
+// else makes the result INCOMPLETE.
 type Completeness struct {
-	State string `json:"state"`
-	Note  string `json:"note,omitempty"`
+	Listing string `json:"listing"`
+	Note    string `json:"note,omitempty"`
 }
 
 // ManifestCert names one certificate file and the turn it must be.

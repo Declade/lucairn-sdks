@@ -3,12 +3,19 @@
 // the built binary:
 //
 //	<out>/cases/<name>.zip      one bundle per case
-//	<out>/expected.tsv          name, expectation, description
+//	<out>/expected.tsv          name, expectation, description, extra flags
+//	                            (space-separated; @REKOR_URL@ = the -serve URL)
 //	<out>/flags.txt             lucairn-bundle-verify flags that trust the synthetic world
+//	<out>/rekor-entries.json    the synthetic log's entries, for -serve
 //	<out>/trust/*.pem           synthetic TSA root + leaf, synthetic Rekor key
 //	<out>/clean-certs/          the clean bundle's certificates + meta.json, so
 //	                            another bundle WRITER (the website's) can be
 //	                            checked against the same tool
+//
+// bundlecorpus -serve DIR -port-file F serves DIR/rekor-entries.json as a
+// Rekor v1 API on 127.0.0.1 (a free port, written to F) for the --online
+// cases. bundlecorpus -legacy-manifest writes round-1 manifests
+// (completeness.state) for the RED-PROOF run against the pre-fix binary.
 //
 // Synthetic only: its own keys, certificates and anchors. No production data.
 package main
@@ -17,6 +24,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,11 +35,22 @@ import (
 
 func main() {
 	out := flag.String("out", "", "output directory (created)")
+	legacy := flag.Bool("legacy-manifest", false, "write round-1 manifests (completeness.state) for the RED-PROOF run against the pre-fix binary")
+	serve := flag.String("serve", "", "serve DIR/rekor-entries.json as a Rekor v1 API on 127.0.0.1 until killed")
+	portFile := flag.String("port-file", "", "with -serve: write the base URL to this file once listening")
 	flag.Parse()
+	if *serve != "" {
+		if err := serveEntries(*serve, *portFile); err != nil {
+			fmt.Fprintln(os.Stderr, "bundlecorpus:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if *out == "" {
-		fmt.Fprintln(os.Stderr, "usage: bundlecorpus -out DIR")
+		fmt.Fprintln(os.Stderr, "usage: bundlecorpus -out DIR [-legacy-manifest] | -serve DIR -port-file F")
 		os.Exit(2)
 	}
+	bundletest.LegacyManifest = *legacy
 	if err := run(*out); err != nil {
 		fmt.Fprintln(os.Stderr, "bundlecorpus:", err)
 		os.Exit(1)
@@ -58,9 +78,14 @@ func run(out string) error {
 	var tsv strings.Builder
 	for _, c := range co.Cases {
 		writes[filepath.Join(out, "cases", c.Name+".zip")] = c.Zip
-		fmt.Fprintf(&tsv, "%s\t%s\t%s\n", c.Name, c.Expect, c.What)
+		fmt.Fprintf(&tsv, "%s\t%s\t%s\t%s\n", c.Name, c.Expect, c.What, strings.Join(c.Flags, " "))
 	}
 	writes[filepath.Join(out, "expected.tsv")] = []byte(tsv.String())
+	eb, err := json.Marshal(co.Entries)
+	if err != nil {
+		return err
+	}
+	writes[filepath.Join(out, "rekor-entries.json")] = eb
 	meta := co.Clean.Manifest()
 	for _, c := range meta.Certificates {
 		writes[filepath.Join(out, "clean-certs", filepath.Base(c.Path))] = co.Clean[c.Path]
@@ -75,4 +100,25 @@ func run(out string) error {
 		}
 	}
 	return nil
+}
+
+func serveEntries(dir, portFile string) error {
+	b, err := os.ReadFile(filepath.Join(dir, "rekor-entries.json"))
+	if err != nil {
+		return err
+	}
+	co := &bundletest.Corpus{}
+	if err := json.Unmarshal(b, &co.Entries); err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	if portFile != "" {
+		if err := os.WriteFile(portFile, []byte("http://"+ln.Addr().String()+"\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	return http.Serve(ln, co.RekorHandler())
 }

@@ -5,6 +5,9 @@
 #
 #   go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh [WORKDIR]
 #
+# --online cases run against a local fake Rekor (bundlecorpus -serve on
+# 127.0.0.1, synthetic entries only); nothing leaves the machine.
+#
 # PRD specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slice 1).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -12,15 +15,26 @@ gomod="$(cd "$here/../../.." && pwd)"
 work="${1:-$(mktemp -d)}"
 mkdir -p "$work"
 (cd "$gomod" && CGO_ENABLED=0 go build -trimpath -o "$work/lucairn-bundle-verify" ./cmd/lucairn-bundle-verify)
-(cd "$gomod" && go run ./internal/tools/bundlecorpus -out "$work/corpus")
+(cd "$gomod" && go build -o "$work/bundlecorpus" ./internal/tools/bundlecorpus)
+"$work/bundlecorpus" -out "$work/corpus"
 flags=()
 while IFS= read -r line; do [ -n "$line" ] && flags+=("$line"); done < "$work/corpus/flags.txt"
 
+rm -f "$work/rekor-url"
+"$work/bundlecorpus" -serve "$work/corpus" -port-file "$work/rekor-url" &
+srv=$!
+trap 'kill "$srv" 2>/dev/null || true' EXIT
+for _ in $(seq 1 50); do [ -s "$work/rekor-url" ] && break; sleep 0.1; done
+[ -s "$work/rekor-url" ] || { echo "fake Rekor did not start"; exit 1; }
+rekor_url="$(tr -d '\n' < "$work/rekor-url")"
+
 bad=0
-printf '%-36s %-14s %-5s %s\n' CASE EXPECT EXIT RESULT
-while IFS=$'\t' read -r name expect what; do
+printf '%-40s %-14s %-5s %s\n' CASE EXPECT EXIT RESULT
+while IFS=$'\t' read -r name expect what extra; do
+  extra_args=()
+  for a in ${extra:-}; do extra_args+=("${a//@REKOR_URL@/$rekor_url}"); done
   set +e
-  out="$("$work/lucairn-bundle-verify" "${flags[@]}" "$work/corpus/cases/$name.zip" 2>&1)"
+  out="$("$work/lucairn-bundle-verify" "${flags[@]}" ${extra_args[@]+"${extra_args[@]}"} "$work/corpus/cases/$name.zip" 2>&1)"
   code=$?
   set -e
   verdict="$(printf '%s\n' "$out" | sed -n 's/^RESULT: \([A-Z]*\).*/\1/p')"
@@ -30,7 +44,7 @@ while IFS=$'\t' read -r name expect what; do
     'DETECTED(1|2)') [ "$code" -eq 1 ] || [ "$code" -eq 2 ] || ok=no ;;
   esac
   [ "$ok" = yes ] || bad=$((bad + 1))
-  printf '%-36s %-14s %-5s %s%s\n' "$name" "$expect" "$code" "${verdict:-?}" "$([ "$ok" = yes ] || echo '  <-- UNEXPECTED')"
+  printf '%-40s %-14s %-5s %s%s\n' "$name" "$expect" "$code" "${verdict:-?}" "$([ "$ok" = yes ] || echo '  <-- UNEXPECTED')"
 done < "$work/corpus/expected.tsv"
 echo
 if [ "$bad" -ne 0 ]; then

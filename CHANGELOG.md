@@ -14,8 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation/customer binding, RFC 3161 timestamp tokens against the pinned
   FreeTSA root and Sigstore Rekor entries against the pinned public-good key
   (SET, inclusion proof, checkpoint, witness-made entry); optional `--online`
-  Rekor re-fetch. Exit 0 VALID / 1 TAMPERED / 2 INCOMPLETE. Standard library
-  only. Synthetic tamper corpus: `go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh`.
+  Rekor re-fetch that confirms, never replaces, the stored entry. A Rekor
+  proof without a signed checkpoint fails; with the built-in pins an
+  unanchored certificate is INCOMPLETE (`--allow-unanchored` /
+  `--require-anchors`); required files, directory entries and case-variant
+  manifest keys are checked; each certificate's own chain verdict and
+  `user_unredacted` are printed. The manifest is unsigned in format 1, so the
+  reports are reported as not authenticated. Exit 0 VALID / 1 TAMPERED /
+  2 INCOMPLETE. Standard library only. Synthetic tamper corpus:
+  `go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh` (+ `red-proof.sh`).
 - **Optional `cert_tier` on the certificate's verification result.**
   TS `VeilVerificationResult.cert_tier?: VeilCertTier` (new exported type:
   `'full_chain' | 'input_shield' | 'input_shield_two_signer' | ''` plus any string), Python

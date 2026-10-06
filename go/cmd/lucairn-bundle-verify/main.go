@@ -12,7 +12,16 @@
 //   - every Sigstore Rekor entry (signed entry timestamp, inclusion proof,
 //     checkpoint, and that the witness key made the entry).
 //
-// Each step prints PASS, FAIL or SKIPPED(reason). Exit codes:
+// With the built-in pins every certificate must be anchored (a missing
+// timestamp or Rekor entry is INCOMPLETE); --allow-unanchored relaxes that
+// for self-hosted deployments, and a custom --witness-key relaxes it unless
+// --require-anchors is given. The manifest is unsigned in format 1, so the
+// reports, verification.json and README.txt are checked against it but not
+// authenticated (printed as a limitation on every run).
+//
+// Each step prints PASS, FAIL or SKIPPED(reason); INFO lines report what a
+// certificate itself states (its own chain verdict, user_unredacted) and
+// never change the result. Exit codes:
 //
 //	0  VALID       every check that applies passed
 //	1  TAMPERED    at least one check failed
@@ -61,6 +70,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	rekorKey := fs.String("rekor-key", "", "PEM file with the Rekor public key to trust INSTEAD of the built-in public-good key")
 	rekorURL := fs.String("rekor-url", bundle.PublicRekorURL, "Rekor API base for --online")
 	printRoots := fs.Bool("print-trust-roots", false, "print the built-in trust roots and exit")
+	requireAnchors := fs.Bool("require-anchors", false, "a certificate without a timestamp or Rekor entry makes the result INCOMPLETE (the default with the built-in pins; use it with --witness-key for an anchored self-hosted deployment)")
+	allowUnanchored := fs.Bool("allow-unanchored", false, "a certificate without a timestamp or Rekor entry is reported SKIPPED(not anchored) without blocking VALID (self-hosted deployments without anchoring)")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	fs.Var(&witnessKeys, "witness-key", "KEY_ID=BASE64 witness Ed25519 key to trust INSTEAD of the built-in one (repeatable; self-hosted deployments)")
 	fs.Var(&serviceKeys, "service-key", "SERVICE_ID=BASE64 claim-signing key to trust INSTEAD of the built-in set (repeatable)")
@@ -93,6 +104,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(stderr, "lucairn-bundle-verify:", err)
 		return bundle.ExitIncomplete
+	}
+	if *requireAnchors && *allowUnanchored {
+		fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-anchors and --allow-unanchored exclude each other")
+		return bundle.ExitIncomplete
+	}
+	if len(witnessKeys) > 0 {
+		// Another deployment: it may run without anchoring (air-gapped kit).
+		roots.RequireAnchors = false
+	}
+	if *requireAnchors {
+		roots.RequireAnchors = true
+	}
+	if *allowUnanchored {
+		roots.RequireAnchors = false
+		custom = append(custom, "unanchored certificates allowed")
 	}
 	if len(custom) > 0 {
 		roots.Label = "CUSTOM (given on the command line, not the Lucairn-hosted pins): " + strings.Join(custom, ", ")

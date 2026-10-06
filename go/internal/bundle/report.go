@@ -20,7 +20,17 @@ const (
 	// exported certificate's content. It never blocks VALID, and it is never
 	// printed as a bare PASS.
 	PassNotContentBound Status = "PASS_NOT_CONTENT_BOUND"
+	// Info reports what a certificate itself states (its own chain verdict,
+	// user_unredacted). It is not a check and never changes the verdict.
+	Info Status = "INFO"
 )
+
+// ReportNotAuthenticatedReason (gap G3) is printed on every run that got
+// past the manifest: the manifest is unsigned in format 1.
+const ReportNotAuthenticatedReason = "Report content not authenticated: report-external.pdf, report-internal.pdf, verification.json and README.txt match the manifest digests, but the manifest itself is unsigned, so no signature covers these files. Only the certificates are signed."
+
+// ValidMeaning is printed under a VALID result.
+const ValidMeaning = "VALID means the certificates are intact, signed by the pinned keys and belong to this conversation and account. It is a statement about the bundle's integrity, not that every turn was sanitized: read each certificate's chain-verdict and user-unredacted lines."
 
 // NotContentBoundLabel is how PassNotContentBound is printed.
 const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
@@ -68,10 +78,16 @@ type Report struct {
 	Verdict     string   `json:"verdict"`
 	ExitCode    int      `json:"exit_code"`
 	NotCovered  []string `json:"not_covered"`
+
+	reportUnauthenticated bool
 }
 
 func (r *Report) add(scope, name string, st Status, detail string) {
 	r.Steps = append(r.Steps, Step{Scope: scope, Name: name, Status: st, Detail: detail})
+}
+
+func (r *Report) info(scope, name, detail string) {
+	r.Steps = append(r.Steps, Step{Scope: scope, Name: name, Status: Info, Detail: detail})
 }
 
 func (r *Report) skip(scope, name, reason string, blocks bool) {
@@ -97,6 +113,9 @@ func (r *Report) finish() {
 	if anchorRan {
 		r.Limitations = append(r.Limitations, NotContentBoundReason)
 	}
+	if r.reportUnauthenticated {
+		r.Limitations = append(r.Limitations, ReportNotAuthenticatedReason)
+	}
 	switch {
 	case fail:
 		r.Verdict, r.ExitCode = VerdictTampered, ExitTampered
@@ -112,6 +131,8 @@ var NotCoveredV1 = []string{
 	"Completeness: v1 bundles carry no per-conversation request counter, so a certificate removed TOGETHER WITH its manifest entry is not detectable (planned: audit counter, bundle format 2).",
 	"Anchor content binding: the timestamp and the Rekor entry commit to a digest of the witness's stored certificate bytes, which are not in the bundle. The tool checks that a trusted timestamp authority and the public Rekor log committed to the digest the certificate RECORDS, and that the witness key made the Rekor entry; it cannot recompute that digest from the certificate JSON.",
 	"PDF content: the reports are integrity-checked against the manifest only. Their text is not compared with the certificates; the verify page prints the certificate-set digest so a reader can match them by hand.",
+	"Report authenticity: the manifest is unsigned in this bundle version, so the reports, verification.json and README.txt are consistent with it but not authenticated by any signature. Someone who replaces a report and updates its manifest digest is not detected; only the certificates are signed.",
+	"Sanitization: a VALID result is about the bundle's integrity. Whether a turn was sanitized is what each certificate's own chain verdict says, printed per certificate.",
 	"verification.json is Lucairn's export-time record. It is never used as evidence; every check above is recomputed.",
 }
 
@@ -143,6 +164,10 @@ func (r *Report) WriteText(w io.Writer) {
 			}
 		}
 		status := string(s.Status)
+		if s.Status == Info {
+			fmt.Fprintf(w, "  %-16s INFO — %s\n", s.Name, s.Detail)
+			continue
+		}
 		if s.Status == PassNotContentBound {
 			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, NotContentBoundLabel, s.Detail)
 			fmt.Fprintf(w, "  %-16s   %s\n", "", NotContentBoundReason)
@@ -173,6 +198,8 @@ func (r *Report) WriteText(w io.Writer) {
 		fmt.Fprintf(w, "LIMITATION: %s\n", l)
 	}
 	switch r.Verdict {
+	case VerdictValid:
+		fmt.Fprintln(w, ValidMeaning)
 	case VerdictTampered:
 		fmt.Fprintln(w, "At least one check FAILED: the bundle does not match what Lucairn issued.")
 	case VerdictIncomplete:

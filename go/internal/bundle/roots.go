@@ -19,6 +19,13 @@ type TrustRoots struct {
 	ServiceKeys map[string]ed25519.PublicKey
 	TSARoots    *x509.CertPool
 	Rekor       *anchor.RekorKey
+	// RequireAnchors: a certificate without a timestamp token or Rekor entry
+	// makes the result INCOMPLETE. True for the built-in Lucairn-hosted pins
+	// (every hosted certificate is anchored); false for a self-hosted
+	// deployment given with its own witness key (an air-gapped kit has no
+	// anchors), unless --require-anchors. --allow-unanchored turns it off.
+	// The certificate's own anchor_status is never trusted to relax this.
+	RequireAnchors bool
 	// Label is printed on every run ("Lucairn-hosted pins" or "CUSTOM …").
 	Label string
 }
@@ -66,10 +73,11 @@ func ProductionRoots() (TrustRoots, error) {
 		svc[id] = mustKey(h)
 	}
 	return TrustRoots{
-		WitnessKeys: map[string]ed25519.PublicKey{productionWitnessKeyID: mustKey(productionWitnessKeyHex)},
-		ServiceKeys: svc,
-		TSARoots:    pool,
-		Rekor:       rk,
-		Label:       "built-in Lucairn-hosted pins (witness_v1, 6 service keys, FreeTSA root, Rekor public-good key)",
+		WitnessKeys:    map[string]ed25519.PublicKey{productionWitnessKeyID: mustKey(productionWitnessKeyHex)},
+		ServiceKeys:    svc,
+		TSARoots:       pool,
+		Rekor:          rk,
+		RequireAnchors: true,
+		Label:          "built-in Lucairn-hosted pins (witness_v1, 6 service keys, FreeTSA root, Rekor public-good key)",
 	}, nil
 }

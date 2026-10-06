@@ -33,7 +33,7 @@ type Spec struct {
 	ConversationID string
 	CustomerID     string
 	Certs          []*Cert
-	Completeness   string // default "complete"
+	Listing        string // default bundle.ListingExhausted
 	WithInternal   bool
 }
 
@@ -53,29 +53,72 @@ func Build(s Spec) Files {
 		f[p] = c.JSON
 		entries = append(entries, bundle.ManifestCert{Path: p, RequestID: c.RequestID, CertificateID: c.CertificateID})
 	}
-	state := s.Completeness
-	if state == "" {
-		state = "complete"
+	listing := s.Listing
+	if listing == "" {
+		listing = bundle.ListingExhausted
 	}
 	m := bundle.Manifest{
 		Format: bundle.FormatName, FormatVersion: bundle.FormatVersion, BundleKind: bundle.KindConversation,
 		ConversationID: s.ConversationID, CustomerID: s.CustomerID,
 		GeneratedAt:  time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		Generator:    "bundletest (synthetic)",
-		Completeness: bundle.Completeness{State: state},
+		Completeness: bundle.Completeness{Listing: listing},
 		Certificates: entries,
 	}
 	f.WriteManifest(m)
 	return f
 }
 
+// LegacyManifest, when true, makes every manifest this package writes use
+// the ROUND-1 shape (completeness.state "complete" | "partial" instead of
+// completeness.listing). It exists ONLY for the RED-PROOF run of the corpus
+// against the pre-fix binary (head 0811712b), which rejects the new field;
+// the tests of the current tool never set it.
+var LegacyManifest bool
+
 // Manifest decodes manifest.json.
 func (f Files) Manifest() bundle.Manifest {
+	raw := f[bundle.PathManifest]
+	if LegacyManifest {
+		var g map[string]any
+		if err := json.Unmarshal(raw, &g); err != nil {
+			panic(err)
+		}
+		if c, ok := g["completeness"].(map[string]any); ok {
+			if c["state"] == "complete" {
+				c["listing"] = bundle.ListingExhausted
+			} else {
+				c["listing"] = c["state"]
+			}
+			delete(c, "state")
+		}
+		raw, _ = json.Marshal(g)
+	}
 	var m bundle.Manifest
-	if err := json.Unmarshal(f[bundle.PathManifest], &m); err != nil {
+	if err := json.Unmarshal(raw, &m); err != nil {
 		panic(err)
 	}
 	return m
+}
+
+func encodeManifest(m bundle.Manifest) []byte {
+	b, _ := json.MarshalIndent(m, "", "  ")
+	if !LegacyManifest {
+		return b
+	}
+	var g map[string]any
+	if err := json.Unmarshal(b, &g); err != nil {
+		panic(err)
+	}
+	c := g["completeness"].(map[string]any)
+	state := "partial"
+	if c["listing"] == bundle.ListingExhausted {
+		state = "complete"
+	}
+	delete(c, "listing")
+	c["state"] = state
+	b, _ = json.MarshalIndent(g, "", "  ")
+	return b
 }
 
 // WriteManifest recomputes every digest (the "attacker re-hashes" step) and
@@ -100,8 +143,7 @@ func (f Files) WriteManifest(m bundle.Manifest) {
 		}
 	}
 	m.CertificatesDigest = bundle.CertificatesDigest(byReq)
-	b, _ := json.MarshalIndent(m, "", "  ")
-	f[bundle.PathManifest] = b
+	f[bundle.PathManifest] = encodeManifest(m)
 }
 
 // Rehash rewrites the manifest digests for the current file contents,
@@ -111,7 +153,11 @@ func (f Files) Rehash() {
 }
 
 // Zip serializes the files (sorted, deterministic, deflate).
-func (f Files) Zip() []byte {
+func (f Files) Zip() []byte { return f.ZipWithDirs() }
+
+// ZipWithDirs is Zip plus empty DIRECTORY entries (names ending in "/")
+// written first — the shape a re-zipped folder or a crafted archive has.
+func (f Files) ZipWithDirs(dirs ...string) []byte {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	paths := make([]string, 0, len(f))
@@ -119,6 +165,11 @@ func (f Files) Zip() []byte {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
+	for _, d := range dirs {
+		if _, err := zw.CreateHeader(&zip.FileHeader{Name: d, Method: zip.Store, Modified: time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)}); err != nil {
+			panic(err)
+		}
+	}
 	for _, p := range paths {
 		w, err := zw.CreateHeader(&zip.FileHeader{Name: p, Method: zip.Deflate, Modified: time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)})
 		if err != nil {
