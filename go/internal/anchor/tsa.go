@@ -169,7 +169,9 @@ type signingCertificateV2 struct {
 // TimestampResult is what a successfully verified token states.
 type TimestampResult struct {
 	GenTime time.Time
-	Signer  string // subject of the TSA signing certificate
+	Signer  string // full subject DN of the TSA signing certificate
+	// SignerCN is the signer's common name (falls back to the full DN).
+	SignerCN string
 	// ChainValidNow is false when the signing chain was valid at GenTime but
 	// is no longer valid today (expired). Revocation is not checked offline.
 	ChainValidNow bool
@@ -304,6 +306,7 @@ func VerifyTimestamp(token, expectedDigest []byte, roots *x509.CertPool, now tim
 	return &TimestampResult{
 		GenTime:       tst.GenTime.UTC(),
 		Signer:        signer.Subject.String(),
+		SignerCN:      signerCN(signer),
 		ChainValidNow: verifyAt(now) == nil,
 	}, nil
 }
@@ -544,4 +547,13 @@ func hasPrefix(oid, prefix asn1.ObjectIdentifier) bool {
 		return false
 	}
 	return oid[:len(prefix)].Equal(prefix)
+}
+
+// signerCN returns the signer certificate's common name, or the full subject
+// DN when it has none.
+func signerCN(c *x509.Certificate) string {
+	if c.Subject.CommonName != "" {
+		return c.Subject.CommonName
+	}
+	return c.Subject.String()
 }

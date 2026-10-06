@@ -448,7 +448,10 @@ timestamp or Rekor entry is INCOMPLETE, whatever the certificate's own
 pass their own keys with `--witness-key`, `--service-key`, `--tsa-root` and
 `--rekor-key`; the report then says the trust roots are custom, and with a
 custom witness key an unanchored certificate is `SKIPPED(not anchored)`
-without blocking VALID unless `--require-anchors` is given.
+without blocking VALID unless `--require-anchors` is given; the banner then says
+"unanchored certificates allowed" and the summary adds a `LIMITATION` line saying
+anchors were not required. The timestamp line names only the TSA signer's common
+name; `--json` keeps the full distinguished name as `signer_dn`.
 `--allow-unanchored` relaxes the rule explicitly.
 
 What a version-1 bundle cannot show is printed on every run: a certificate

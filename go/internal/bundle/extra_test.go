@@ -1,6 +1,7 @@
 package bundle_test
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -275,4 +276,38 @@ func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
 	if !sawAnchorPass {
 		t.Fatal("corpus produced no passing anchor step")
 	}
+}
+
+// The timestamp line names only the signer's common name; the full DN stays
+// in the JSON step.
+func TestTimestampLinePrintsSignerCNOnly(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := co.World.Roots()
+	roots.RequireAnchors = true
+	for _, c := range co.Cases {
+		if c.Expect != bundletest.ExpectValid {
+			continue
+		}
+		rep := bundle.Verify(c.Name+".zip", c.Zip, bundle.Options{Roots: roots})
+		for _, s := range rep.Steps {
+			if s.Name != "timestamp" || s.Status != bundle.PassNotContentBound {
+				continue
+			}
+			if !strings.Contains(s.Detail, "signer Synthetic TSA (test only)") || strings.Contains(s.Detail, "CN=") {
+				t.Fatalf("timestamp detail should carry the CN only: %q", s.Detail)
+			}
+			if !strings.Contains(s.SignerDN, "CN=Synthetic TSA (test only)") {
+				t.Fatalf("signer_dn should keep the full DN: %q", s.SignerDN)
+			}
+			var buf bytes.Buffer
+			if err := rep.WriteJSON(&buf); err != nil || !strings.Contains(buf.String(), `"signer_dn"`) {
+				t.Fatalf("JSON lacks signer_dn: %v", err)
+			}
+			return
+		}
+	}
+	t.Fatal("no valid case with a timestamp step")
 }

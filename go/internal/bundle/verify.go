@@ -50,7 +50,7 @@ func Verify(name string, data []byte, opt Options) *Report {
 	if opt.Now.IsZero() {
 		opt.Now = time.Now()
 	}
-	r := &Report{Bundle: name, TrustRoots: opt.Roots.Label, Online: opt.Fetcher != nil, NotCovered: NotCoveredV1}
+	r := &Report{Bundle: name, TrustRoots: opt.Roots.Label, Online: opt.Fetcher != nil, NotCovered: NotCoveredV1, anchorsNotRequired: !opt.Roots.RequireAnchors}
 	defer r.finish()
 
 	files, ok := readZip(r, data)
@@ -463,11 +463,12 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 		return
 	}
 	v.seenTSA[key] = scope
-	detail := fmt.Sprintf("RFC 3161 token over the recorded digest, genTime %s, signer %s", res.GenTime.Format(time.RFC3339), res.Signer)
+	detail := fmt.Sprintf("RFC 3161 token over the recorded digest, genTime %s, signer %s", res.GenTime.Format(time.RFC3339), res.SignerCN)
 	if !res.ChainValidNow {
 		detail += " (signing chain valid at genTime, expired since; revocation not checked offline)"
 	}
 	r.add(scope, "timestamp", PassNotContentBound, detail)
+	r.Steps[len(r.Steps)-1].SignerDN = res.Signer
 }
 
 func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Time, anchorClaimed bool, wkey ed25519.PublicKey) {

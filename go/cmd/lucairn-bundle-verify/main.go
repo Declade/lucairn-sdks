@@ -112,6 +112,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(witnessKeys) > 0 {
 		// Another deployment: it may run without anchoring (air-gapped kit).
 		roots.RequireAnchors = false
+		if !*requireAnchors && !*allowUnanchored {
+			custom = append(custom, "unanchored certificates allowed")
+		}
 	}
 	if *requireAnchors {
 		roots.RequireAnchors = true
