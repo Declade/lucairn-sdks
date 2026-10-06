@@ -8,14 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **`lucairn-verify` (Go, `go/cmd/lucairn-verify`): offline verifier for
+- **`lucairn-bundle-verify` (Go, `go/cmd/lucairn-bundle-verify`): offline verifier for
   per-conversation evidence bundles (bundle format 1).** Checks the manifest,
   witness and claim signatures (existing SDK verifiers), the signed
   conversation/customer binding, RFC 3161 timestamp tokens against the pinned
   FreeTSA root and Sigstore Rekor entries against the pinned public-good key
   (SET, inclusion proof, checkpoint, witness-made entry); optional `--online`
   Rekor re-fetch. Exit 0 VALID / 1 TAMPERED / 2 INCOMPLETE. Standard library
-  only. Synthetic tamper corpus: `go/cmd/lucairn-verify/scripts/tamper-corpus.sh`.
+  only. Synthetic tamper corpus: `go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh`.
 - **Optional `cert_tier` on the certificate's verification result.**
   TS `VeilVerificationResult.cert_tier?: VeilCertTier` (new exported type:
   `'full_chain' | 'input_shield' | 'input_shield_two_signer' | ''` plus any string), Python

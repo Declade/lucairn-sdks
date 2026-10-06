@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/declade/lucairn-sdks/go/internal/bundle"
 	"github.com/declade/lucairn-sdks/go/internal/bundle/bundletest"
 )
 
@@ -22,7 +24,7 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		t.Skip("builds a binary")
 	}
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "lucairn-verify")
+	bin := filepath.Join(dir, "lucairn-bundle-verify")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
@@ -61,6 +63,12 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		} else if err != nil {
 			t.Fatal(err)
 		}
+		if bareAnchorPass.MatchString(out.String()) {
+			t.Errorf("%s: the built binary printed a bare PASS for an anchor step\n%s", c.Name, out.String())
+		}
+		if c.Expect == bundletest.ExpectValid && !strings.Contains(out.String(), "LIMITATION: "+bundle.NotContentBoundReason) {
+			t.Errorf("%s: clean run lacks the not-content-bound limitation", c.Name)
+		}
 		switch c.Expect {
 		case bundletest.ExpectDetected:
 			if code != 1 && code != 2 {
@@ -77,6 +85,8 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		t.Fatalf("corpus has %d must-detect mutations, PRD requires >= 12", detected)
 	}
 }
+
+var bareAnchorPass = regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+—|\s*$)`)
 
 func TestRun_UsageAndVersion(t *testing.T) {
 	var out, errb bytes.Buffer

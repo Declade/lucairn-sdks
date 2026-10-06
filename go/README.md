@@ -389,19 +389,19 @@ Everything a caller displays or decides on (a "sent unredacted" or BYOK mark, a 
 
 Limits: this is the signature of the bytes Lucairn sent. It does not tell you what the model provider received or did. A `VERIFIED` result means "signed with the pinned `dsa-ai` key"; it does not say which Lucairn component held that key. A certificate that carries only the older v2 witness signature verifies under the default policy with only the v2 keys in `Verified.Certificate`; strict callers pass minimum signable version `v3`, which fails every such certificate. The full rules (document grammar, timestamp grammar, canonical JSON and base64, typed-field binding) are implemented in this SDK's source with comments. The 98-case test corpus, its pinned-key vectors and the ordered check table are vendored at [`testdata/parity-corpus/`](https://github.com/Declade/lucairn-sdks/tree/main/testdata/parity-corpus); the TypeScript, Python and Go SDKs return identical results on every case under both policies.
 
-## Offline evidence-bundle verifier: `lucairn-verify`
+## Offline evidence-bundle verifier: `lucairn-bundle-verify`
 
-`go/cmd/lucairn-verify` checks a Lucairn evidence bundle (the per-conversation
+`go/cmd/lucairn-bundle-verify` checks a Lucairn evidence bundle (the per-conversation
 `.zip` downloaded from the Lucairn account pages) without contacting Lucairn.
 It is one static binary with no runtime:
 
 ```bash
 cd go
-CGO_ENABLED=0 go build -trimpath -o lucairn-verify ./cmd/lucairn-verify
-./lucairn-verify bundle.zip            # offline (default)
-./lucairn-verify --online bundle.zip   # also re-fetches every Rekor entry from rekor.sigstore.dev
-./lucairn-verify --json bundle.zip     # machine-readable report
-./lucairn-verify --print-trust-roots   # the keys built into this binary
+CGO_ENABLED=0 go build -trimpath -o lucairn-bundle-verify ./cmd/lucairn-bundle-verify
+./lucairn-bundle-verify bundle.zip            # offline (default)
+./lucairn-bundle-verify --online bundle.zip   # also re-fetches every Rekor entry from rekor.sigstore.dev
+./lucairn-bundle-verify --json bundle.zip     # machine-readable report
+./lucairn-bundle-verify --print-trust-roots   # the keys built into this binary
 ```
 
 Every step prints `PASS`, `FAIL` or `SKIPPED(reason)`. Exit codes: `0` VALID ·
@@ -423,6 +423,13 @@ What it recomputes, from the bundle's files and keys built into the binary
   pinned public-good key, the RFC 6962 inclusion proof, and that the witness
   key made the entry (Ed25519ph over the logged SHA-512 digest).
 
+A passing timestamp or Rekor step is printed as `PASS (genuine anchor,
+not content-bound)` — never a bare `PASS` — with this line under it and in the
+result summary: "The timestamp and log entry cover the certificate as stored
+by Lucairn, which contains original data and is not exported, so this tool
+cannot tie them to this exact certificate." (JSON status
+`PASS_NOT_CONTENT_BOUND`; it does not block VALID.)
+
 It never reads `anchor_status` as evidence; a certificate whose own status says
 "anchored" but which carries no proof is reported INCOMPLETE. Self-hosted
 deployments pass their own keys with `--witness-key`, `--service-key`,
@@ -437,7 +444,7 @@ a technical integrity check, not a certification or legal opinion.
 The synthetic tamper corpus runs against the built binary:
 
 ```bash
-go/cmd/lucairn-verify/scripts/tamper-corpus.sh
+go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh
 ```
 
 ## Per-call options

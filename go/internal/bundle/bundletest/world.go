@@ -1,7 +1,7 @@
-// Package bundletest builds SYNTHETIC evidence bundles for the lucairn-verify
+// Package bundletest builds SYNTHETIC evidence bundles for the lucairn-bundle-verify
 // tests and tamper corpus: its own witness, service, TSA and Rekor keys, its
 // own certificates and anchors. Nothing here is production data, and nothing
-// here is reachable from the lucairn-verify binary.
+// here is reachable from the lucairn-bundle-verify binary.
 package bundletest
 
 import (
@@ -45,7 +45,7 @@ type World struct {
 }
 
 func edKey(seed string) ed25519.PrivateKey {
-	h := sha256.Sum256([]byte("lucairn-verify synthetic " + seed))
+	h := sha256.Sum256([]byte("lucairn-bundle-verify synthetic " + seed))
 	return ed25519.NewKeyFromSeed(h[:])
 }
 
@@ -158,7 +158,7 @@ func (w *World) Roots() bundle.TrustRoots {
 	}
 }
 
-// CLIFlags are the lucairn-verify flags that trust this world, given the
+// CLIFlags are the lucairn-bundle-verify flags that trust this world, given the
 // paths the root PEMs were written to.
 func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	out := []string{"--witness-key", WitnessKeyID + "=" + base64.StdEncoding.EncodeToString(w.Witness.Public().(ed25519.PublicKey))}

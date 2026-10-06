@@ -181,7 +181,7 @@ func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 		return nil, false
 	}
 	if n, _ := gm["format_version"].(json.Number); string(n) != strconv.Itoa(FormatVersion) {
-		r.skip("bundle", "manifest", fmt.Sprintf("bundle format_version %v is not supported by this tool (supports %d); use a newer lucairn-verify", gm["format_version"], FormatVersion), true)
+		r.skip("bundle", "manifest", fmt.Sprintf("bundle format_version %v is not supported by this tool (supports %d); use a newer lucairn-bundle-verify", gm["format_version"], FormatVersion), true)
 		return nil, false
 	}
 	var m Manifest
@@ -437,7 +437,7 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 	if !res.ChainValidNow {
 		detail += " (signing chain valid at genTime, expired since; revocation not checked offline)"
 	}
-	r.add(scope, "timestamp", Pass, detail)
+	r.add(scope, "timestamp", PassNotContentBound, detail)
 }
 
 func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Time, anchorClaimed bool, wkey ed25519.PublicKey) {
@@ -496,7 +496,7 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 	if v.opt.Fetcher != nil {
 		mode = "re-fetched entry"
 	}
-	r.add(scope, "rekor", Pass, fmt.Sprintf("log index %d, integrated %s; SET + inclusion proof verified, %s; entry made by the witness key (%s)",
+	r.add(scope, "rekor", PassNotContentBound, fmt.Sprintf("log index %d, integrated %s; SET + inclusion proof verified, %s; entry made by the witness key (%s)",
 		e.LogIndex, res.IntegratedTime.Format(time.RFC3339), cp, mode))
 }
 

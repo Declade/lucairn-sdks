@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,7 +171,7 @@ func TestRealProductionCertificateWithBuiltInPins(t *testing.T) {
 		t.Fatal(err)
 	}
 	rep := bundle.Verify("real.zip", f.Zip(), bundle.Options{Roots: roots, Now: time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)})
-	want := map[string]bundle.Status{"signature": bundle.Pass, "claims": bundle.Pass, "timestamp": bundle.Pass, "rekor": bundle.Skipped, "binding": bundle.Skipped}
+	want := map[string]bundle.Status{"signature": bundle.Pass, "claims": bundle.Pass, "timestamp": bundle.PassNotContentBound, "rekor": bundle.Skipped, "binding": bundle.Skipped}
 	for n, st := range want {
 		s := stepOf(rep, c.RequestID, n)
 		if s == nil || s.Status != st {
@@ -199,7 +201,7 @@ func TestRealProductionCertificateOnline(t *testing.T) {
 	roots, _ := bundle.ProductionRoots()
 	rep := bundle.Verify("real.zip", f.Zip(), bundle.Options{Roots: roots, Fetcher: bundle.NewHTTPRekorFetcher(bundle.PublicRekorURL)})
 	s := stepOf(rep, c.RequestID, "rekor")
-	if s == nil || s.Status != bundle.Pass {
+	if s == nil || s.Status != bundle.PassNotContentBound {
 		t.Fatalf("rekor online: %+v", s)
 	}
 	t.Logf("rekor online: %s", s.Detail)
@@ -220,5 +222,57 @@ func TestTimestampRejectsNonCriticalEKU(t *testing.T) {
 	rep := bundle.Verify("e.zip", f.Zip(), bundle.Options{Roots: w.Roots()})
 	if s := stepOf(rep, c.RequestID, "timestamp"); s == nil || s.Status != bundle.Fail || rep.ExitCode != 1 {
 		t.Fatalf("non-critical EKU: exit %d %+v", rep.ExitCode, s)
+	}
+}
+
+// Anchor honesty (gap G2): a passing timestamp or rekor step is ALWAYS the
+// not-content-bound state, its reason sentence is printed under it, the
+// result summary carries the limitation, and no bare PASS is ever printed
+// for those two steps — in every corpus case, clean or mutated.
+func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bare := regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+—|\s*$)`)
+	sawAnchorPass := false
+	for _, c := range co.Cases {
+		rep := bundle.Verify(c.Name+".zip", c.Zip, bundle.Options{Roots: co.World.Roots()})
+		var buf strings.Builder
+		rep.WriteText(&buf)
+		out := buf.String()
+		if bare.MatchString(out) {
+			t.Fatalf("%s: bare PASS printed for an anchor step:\n%s", c.Name, out)
+		}
+		ran := false
+		for _, s := range rep.Steps {
+			if s.Name != "timestamp" && s.Name != "rekor" {
+				continue
+			}
+			if s.Status == bundle.Pass {
+				t.Fatalf("%s: %s step has status PASS", c.Name, s.Name)
+			}
+			if s.Status == bundle.PassNotContentBound || s.Status == bundle.Fail {
+				ran = true
+			}
+			if s.Status == bundle.PassNotContentBound {
+				sawAnchorPass = true
+				line := "  " + fmt.Sprintf("%-16s", s.Name) + " " + bundle.NotContentBoundLabel
+				if !strings.Contains(out, line) {
+					t.Fatalf("%s: missing %q", c.Name, line)
+				}
+			}
+		}
+		if ran {
+			if !strings.Contains(out, "LIMITATION: "+bundle.NotContentBoundReason) || len(rep.Limitations) == 0 {
+				t.Fatalf("%s: anchor step ran but the summary lacks the limitation", c.Name)
+			}
+			if n := strings.Count(out, bundle.NotContentBoundReason); n < 2 {
+				t.Fatalf("%s: reason printed %d times, want under the step(s) and in the summary", c.Name, n)
+			}
+		}
+	}
+	if !sawAnchorPass {
+		t.Fatal("corpus produced no passing anchor step")
 	}
 }
