@@ -62,6 +62,10 @@ func Verify(name string, data []byte, opt Options) *Report {
 		return r
 	}
 	r.ConversationID = m.ConversationID
+	withAudit := m.FormatVersion == FormatVersionAudit
+	if withAudit {
+		r.BundleFormat, r.NotCovered, r.auditChecked = FormatVersionAudit, NotCoveredV2, true
+	}
 	if !checkFiles(r, m, files) {
 		return r
 	}
@@ -83,19 +87,38 @@ func Verify(name string, data []byte, opt Options) *Report {
 		r.add("bundle", "certificate-set", Pass, r.CertificatesDigest)
 	}
 
-	if m.Completeness.Listing == ListingExhausted {
+	if m.Completeness.Listing == ListingExhausted && withAudit {
+		r.skip("bundle", "completeness", "the exporter states (unsigned) that its certificate listing for this conversation ran to its end; whether a request is missing is what the audit-* steps check", false)
+	} else if m.Completeness.Listing == ListingExhausted {
 		r.skip("bundle", "completeness", "not provable in this bundle version; the exporter states (unsigned) that its certificate listing for this conversation ran to its end", false)
 	} else {
 		r.skip("bundle", "completeness", "the exporter's certificate listing did not run to its end: "+short(m.Completeness.Listing+" "+m.Completeness.Note), true)
 	}
 
 	v := &certVerifier{r: r, m: m, opt: opt, seenTSA: map[string]string{}, seenRekor: map[string]string{}, seenBody: map[string]string{}}
-	for _, c := range certs {
-		v.verify(c, files[c.Path])
+	// Format 2: the audit/ folder (per-conversation counter, inclusion proofs,
+	// anchored roots). The checks that need no certificate run first.
+	var av *auditVerifier
+	if withAudit {
+		av = newAuditVerifier(r, m, files, opt)
 	}
-
-	r.skip("bundle", "audit-counter", "not in this bundle version", false)
-	r.skip("bundle", "audit-inclusion", "not in this bundle version", false)
+	for _, c := range certs {
+		ca, si := v.verify(c, files[c.Path])
+		if av != nil {
+			av.cert(c.RequestID, ca, si.issuedAt)
+		} else {
+			// Format 1 has no counter. A certificate whose signed audit claim
+			// says its request was counted must still not pass as complete
+			// without one (a format-2 bundle downgraded to format 1).
+			noCounterEntry(r, c.RequestID, ca, false)
+		}
+	}
+	if av != nil {
+		av.finish()
+	} else {
+		r.skip("bundle", "audit-counter", "not in this bundle version", false)
+		r.skip("bundle", "audit-inclusion", "not in this bundle version", false)
+	}
 	r.skip("bundle", "report-content", "reports, verification.json and README.txt are not authenticated: the manifest is unsigned (see LIMITATION)", false)
 	r.reportUnauthenticated = true
 	if _, has := files[PathVerification]; has {
@@ -122,13 +145,17 @@ func readZip(r *Report, data []byte) (map[string][]byte, bool) {
 		r.add("bundle", "structure", Fail, "too many entries")
 		return nil, false
 	}
+	// Which layout applies is the manifest's format_version (the full manifest
+	// check below reads the same value). Anything but a readable "2" keeps the
+	// v1 layout, so a v1 bundle is checked exactly as before.
+	version := sniffFormatVersion(zr)
 	files := map[string][]byte{}
 	var total int64
 	// No entry is skipped before these checks: a directory entry (any name
-	// ending in "/", e.g. "../../outside/") is not a v1 path and fails here.
+	// ending in "/", e.g. "../../outside/") is not a bundle path and fails here.
 	for _, f := range zr.File {
-		if !AllowedPath(f.Name) {
-			r.add("bundle", "structure", Fail, fmt.Sprintf("file %q is not part of the v1 bundle format", f.Name))
+		if !AllowedPathIn(version, f.Name) {
+			r.add("bundle", "structure", Fail, fmt.Sprintf("file %q is not part of the v%d bundle format", f.Name, version))
 			return nil, false
 		}
 		if f.Mode()&^0o777 != 0 && !f.Mode().IsRegular() {
@@ -161,8 +188,43 @@ func readZip(r *Report, data []byte) (map[string][]byte, bool) {
 		}
 		files[f.Name] = b
 	}
-	r.add("bundle", "structure", Pass, fmt.Sprintf("%d files, all in the v1 layout", len(files)))
+	r.add("bundle", "structure", Pass, fmt.Sprintf("%d files, all in the v%d layout", len(files), version))
 	return files, true
+}
+
+// sniffFormatVersion reads manifest.json's format_version ahead of the entry
+// loop, only to pick the path allowlist: FormatVersionAudit when the manifest
+// is one strict JSON object naming this format and version 2, otherwise
+// FormatVersion (1). It validates nothing — every entry, the manifest
+// included, still goes through the full checks.
+func sniffFormatVersion(zr *zip.Reader) int {
+	for _, f := range zr.File {
+		if f.Name != PathManifest {
+			continue
+		}
+		if f.UncompressedSize64 > MaxFileBytes {
+			return FormatVersion
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return FormatVersion
+		}
+		b, err := io.ReadAll(io.LimitReader(rc, MaxFileBytes+1))
+		rc.Close()
+		if err != nil || int64(len(b)) > MaxFileBytes {
+			return FormatVersion
+		}
+		doc, err := verify.DecodeDocument(b)
+		gm, isObj := doc.(map[string]any)
+		if err != nil || !isObj || gm["format"] != FormatName {
+			return FormatVersion
+		}
+		if n, _ := gm["format_version"].(json.Number); string(n) == strconv.Itoa(FormatVersionAudit) {
+			return FormatVersionAudit
+		}
+		return FormatVersion
+	}
+	return FormatVersion
 }
 
 func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
@@ -189,15 +251,25 @@ func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 		r.skip("bundle", "manifest", fmt.Sprintf("unknown bundle format %v", gm["format"]), true)
 		return nil, false
 	}
-	if n, _ := gm["format_version"].(json.Number); string(n) != strconv.Itoa(FormatVersion) {
-		r.skip("bundle", "manifest", fmt.Sprintf("bundle format_version %v is not supported by this tool (supports %d); use a newer lucairn-bundle-verify", gm["format_version"], FormatVersion), true)
+	version := 0
+	switch n, _ := gm["format_version"].(json.Number); string(n) {
+	case strconv.Itoa(FormatVersion):
+		version = FormatVersion
+	case strconv.Itoa(FormatVersionAudit):
+		version = FormatVersionAudit
+	default:
+		r.skip("bundle", "manifest", fmt.Sprintf("bundle format_version %v is not supported by this tool (supports %d and %d); use a newer lucairn-bundle-verify", gm["format_version"], FormatVersion, FormatVersionAudit), true)
 		return nil, false
 	}
 	var m Manifest
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&m); err != nil {
-		r.add("bundle", "manifest", Fail, "manifest.json does not match the v1 schema: "+short(err.Error()))
+	if err := dec.Decode(&m); err != nil || m.FormatVersion != version {
+		msg := "format_version does not decode"
+		if err != nil {
+			msg = short(err.Error())
+		}
+		r.add("bundle", "manifest", Fail, fmt.Sprintf("manifest.json does not match the v%d schema: %s", version, msg))
 		return nil, false
 	}
 	if m.BundleKind != KindConversation || m.ConversationID == "" {
@@ -210,14 +282,14 @@ func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 func checkFiles(r *Report, m *Manifest, files map[string][]byte) bool {
 	listed := map[string]bool{}
 	var problems []string
-	for _, p := range RequiredPaths {
+	for _, p := range RequiredPathsIn(m.FormatVersion) {
 		if _, ok := files[p]; !ok {
 			problems = append(problems, fmt.Sprintf("required file %q is missing", p))
 		}
 	}
 	for _, f := range m.Files {
-		if f.Path == PathManifest || !AllowedPath(f.Path) {
-			problems = append(problems, fmt.Sprintf("manifest lists a path that cannot be in a v1 bundle: %q", f.Path))
+		if f.Path == PathManifest || !AllowedPathIn(m.FormatVersion, f.Path) {
+			problems = append(problems, fmt.Sprintf("manifest lists a path that cannot be in a v%d bundle: %q", m.FormatVersion, f.Path))
 			continue
 		}
 		if listed[f.Path] {
@@ -281,7 +353,7 @@ func checkCertificateList(r *Report, m *Manifest, files map[string][]byte) ([]Ma
 		return nil, false
 	}
 	if len(m.Certificates) == 0 {
-		r.add("bundle", "certificate-list", Fail, "the bundle contains no certificate (a v1 bundle holds at least one)")
+		r.add("bundle", "certificate-list", Fail, fmt.Sprintf("the bundle contains no certificate (a v%d bundle holds at least one)", m.FormatVersion))
 		return nil, false
 	}
 	r.add("bundle", "certificate-list", Pass, fmt.Sprintf("%d certificates, one file each", len(m.Certificates)))
@@ -297,22 +369,26 @@ type certVerifier struct {
 	seenBody  map[string]string
 }
 
-func (v *certVerifier) verify(mc ManifestCert, raw []byte) {
+// verify checks one certificate. It returns what the audit counter checks
+// need from it: its audit-signed claims (from verified, signed bytes only)
+// and the signed input (signed issued_at).
+func (v *certVerifier) verify(mc ManifestCert, raw []byte) (certAudit, signedInput) {
 	scope := mc.RequestID
 	r := v.r
 	doc, err := verify.DecodeCertificate(raw)
 	cm, isObj := doc.(map[string]any)
 	if err != nil || !isObj {
 		r.add(scope, "signature", Fail, "certificate is not one strict JSON object")
-		return
+		return certAudit{}, signedInput{}
 	}
 	wkid, _ := cm["witness_key_id"].(string)
 	wkey, haveKey := v.opt.Roots.WitnessKeys[wkid]
 	var si signedInput
+	var ca certAudit
 	if !haveKey {
 		r.skip(scope, "signature", fmt.Sprintf("no pinned key for witness key id %q (pass --witness-key)", wkid), true)
 	} else {
-		si = v.signature(scope, mc, raw, wkid, wkey)
+		si, ca = v.signature(scope, mc, raw, wkid, wkey)
 	}
 
 	issuedAt, _ := time.Parse(time.RFC3339Nano, str(cm["issued_at"]))
@@ -325,6 +401,7 @@ func (v *certVerifier) verify(mc ManifestCert, raw []byte) {
 	} else {
 		r.skip(scope, "rekor", "no pinned witness key to check the entry's author against", true)
 	}
+	return ca, si
 }
 
 // signedInput is what a verified witness signature authenticates and the
@@ -335,16 +412,16 @@ type signedInput struct {
 	issuedAt time.Time
 }
 
-func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) signedInput {
+func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) (signedInput, certAudit) {
 	r := v.r
 	res, err := lucairn.VerifyCertificate(raw, lucairn.VerifyCertificateKeys{WitnessKeyID: wkid, WitnessPublicKey: []byte(wkey)})
 	if err != nil {
 		r.add(scope, "signature", Fail, "witness signature: "+short(err.Error()))
-		return signedInput{}
+		return signedInput{}, certAudit{}
 	}
 	if res.RequestID != mc.RequestID || res.CertificateID != mc.CertificateID {
 		r.add(scope, "signature", Fail, "the signed request/certificate id is not the one the manifest lists for this file")
-		return signedInput{}
+		return signedInput{}, certAudit{}
 	}
 	r.add(scope, "signature", Pass, fmt.Sprintf("witness %s signature (%s) over %s", wkid, res.SignableVersion, res.CertificateID))
 	si := signedBytesOfFn(raw, wkid, wkey, res.CertificateID)
@@ -356,8 +433,7 @@ func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid
 		r.skip(scope, "anchor-binding", "the signed issued_at could not be recovered after the signature check, so the anchor-binding cutover ("+
 			v.opt.Roots.BindingRequiredAfter.Format(time.RFC3339)+") cannot be applied to this certificate", true)
 	}
-	v.claimChain(scope, mc, raw, wkid, wkey)
-	return si
+	return si, v.claimChain(scope, mc, raw, wkid, wkey)
 }
 
 // signedBytesOfFn is signedBytesOf; a variable so a test can make the second
@@ -384,13 +460,16 @@ func signedBytesOf(raw []byte, wkid string, wkey ed25519.PublicKey, certID strin
 	return signedInput{signable: res.SignedBytes, issuedAt: at.UTC()}
 }
 
-func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) {
+// claimChain verifies every claim signature. The returned certAudit carries
+// the certificate's audit-signed EVENTS_RECORDED claims when (and only when)
+// the chain verified.
+func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) certAudit {
 	r := v.r
 
 	if len(v.opt.Roots.ServiceKeys) == 0 {
 		r.skip(scope, "claims", "no service keys pinned for this deployment (pass --service-key)", true)
 		r.skip(scope, "binding", "claim signatures not checked", true)
-		return
+		return certAudit{}
 	}
 	svc := map[string]any{}
 	for id, k := range v.opt.Roots.ServiceKeys {
@@ -404,25 +483,30 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 	if err != nil {
 		r.skip(scope, "claims", "pinned keys refused: "+short(err.Error()), true)
 		r.skip(scope, "binding", "claim signatures not checked", true)
-		return
+		return certAudit{}
 	}
 	if ch.Verdict == "FAILED" {
 		if ch.Reason == "sealed_failed" {
 			r.skip(scope, "claims", "the witness sealed this certificate with verdict FAILED, so the claim check does not run", true)
 			r.skip(scope, "binding", "claim signatures not checked", true)
-			return
+			return certAudit{}
 		}
 		r.add(scope, "claims", Fail, "claim chain: "+ch.Reason)
-		return
+		return certAudit{}
 	}
 	r.add(scope, "claims", Pass, "every claim signature verifies under its pinned service key")
 	verdictNote := "what this certificate itself attests"
 	if ch.Verdict != "VERIFIED" {
 		verdictNote += "; a VALID bundle does not make it VERIFIED"
 	}
-	r.info(scope, "chain-verdict", fmt.Sprintf("%s (%s; signed tier %s) — %s", ch.Verdict, ch.Reason, ch.SignedCertTier, verdictNote))
+	r.info(scope, "chain-verdict", fmt.Sprintf("%s (%s; signed tier %s) - %s", ch.Verdict, ch.Reason, ch.SignedCertTier, verdictNote))
 	r.info(scope, "user-unredacted", ch.UserUnredacted+userUnredactedNote(ch.UserUnredacted))
 	v.binding(scope, ch)
+	values := map[string]map[string]any{}
+	for k, c := range ch.Verified.Claims {
+		values[k] = c.Values
+	}
+	return certAudit{claimsVerified: true, claims: auditClaimsOf(values)}
 }
 
 // binding checks the SIGNED conversation and customer ids in the claim
@@ -463,11 +547,11 @@ func (v *certVerifier) binding(scope string, ch *lucairn.CertificateChainResult)
 func userUnredactedNote(u string) string {
 	switch u {
 	case "true":
-		return " — the user chose to send this message unredacted"
+		return " - the user chose to send this message unredacted"
 	case "false":
 		return ""
 	}
-	return " — not stated by a signed claim"
+	return " - not stated by a signed claim"
 }
 
 // bindingForm is the anchor form a certificate's timestamp declares on
@@ -727,32 +811,7 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 // from the log — and they must then match the STORED SET. The log's own copy
 // must verify too (SET, proof, checkpoint, witness key).
 func (v *certVerifier) online(stored anchor.RekorEntry, wkey ed25519.PublicKey) (anchor.RekorEntry, error) {
-	f, err := v.opt.Fetcher.Fetch(stored.LogIndex)
-	if err != nil {
-		return stored, fmt.Errorf("online re-fetch of log index %d failed: %w", stored.LogIndex, err)
-	}
-	if f.LogIndex != stored.LogIndex {
-		return stored, errors.New("the log returned a different index")
-	}
-	if len(stored.CanonicalBody) > 0 && !bytes.Equal(stored.CanonicalBody, f.Body) {
-		return stored, errors.New("the stored entry body differs from the log's entry at this index")
-	}
-	if stored.IntegratedTime != 0 && stored.IntegratedTime != f.IntegratedTime {
-		return stored, errors.New("the stored integrated time differs from the log's")
-	}
-	logCopy := anchor.RekorEntry{LogIndex: f.LogIndex, InclusionProof: f.InclusionProof, SignedEntryTimestamp: f.SignedEntryTimestamp,
-		CanonicalBody: f.Body, IntegratedTime: f.IntegratedTime}
-	if _, err := anchor.VerifyRekor(logCopy, v.opt.Roots.Rekor, wkey); err != nil {
-		return stored, fmt.Errorf("the log's current copy of this entry does not verify: %w", err)
-	}
-	out := stored
-	if len(out.CanonicalBody) == 0 {
-		out.CanonicalBody = f.Body
-	}
-	if out.IntegratedTime == 0 {
-		out.IntegratedTime = f.IntegratedTime
-	}
-	return out, nil
+	return confirmOnline(v.opt.Fetcher, v.opt.Roots.Rekor, stored, wkey, "witness")
 }
 
 // notAnchored reports a missing anchor. It is never a PASS. It blocks VALID

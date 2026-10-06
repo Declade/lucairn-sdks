@@ -199,7 +199,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 				Message: fmt.Sprintf(
 					"version downgrade detected: signable_protocol_version_emitted=%d "+
 						"but signable_v3_signature is absent or empty; "+
-						"a legitimate v3 cert always carries the v3 signature — "+
+						"a legitimate v3 cert always carries the v3 signature - "+
 						"missing sig with version=3 is characteristic of a stripping attack "+
 						"targeting the six v3-only fields (api_key_id, client_id, byok_exempt, hash fields)",
 					parsed.SignableProtocolVersionEmitted,

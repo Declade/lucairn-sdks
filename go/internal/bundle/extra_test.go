@@ -238,7 +238,7 @@ func TestAnchorStepsNeverPrintBarePass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bare := regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+—|\s*$)`)
+	bare := regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+-|\s*$)`)
 	sawAnchorPass, sawBoundPass := false, false
 	for _, c := range co.Cases {
 		rep := bundle.Verify(c.Name+".zip", c.Zip, bundle.Options{Roots: co.World.Roots()})

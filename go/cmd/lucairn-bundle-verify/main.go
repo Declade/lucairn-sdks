@@ -19,6 +19,22 @@
 //     otherwise it is TAMPERED (--require-binding-after sets the same guard
 //     for another deployment).
 //
+// A format-2 bundle also carries the audit/ folder, and the tool checks:
+//
+//   - the per-conversation request counter: every counter entry recomputes
+//     its event_hash (conversation and number are inside the hash), the
+//     numbers run 1..N without a gap or duplicate, every certificate's
+//     audit-signed claim names its entry, and every counted request has its
+//     certificate — a certificate removed together with its manifest line is
+//     no longer invisible;
+//   - every counted request's inclusion in the audit log's Merkle tree, at
+//     the tree size and root of a root artifact that the pinned audit key
+//     signed and logged in Rekor.
+//
+// The counter cannot show that request N is the last one (a cut-off tail),
+// and before a root is logged the audit rows rest on the operator's key;
+// both are printed as limitations on every run.
+//
 // With the built-in pins every certificate must be anchored (a missing
 // timestamp or Rekor entry is INCOMPLETE); --allow-unanchored relaxes that
 // for self-hosted deployments, and a custom --witness-key relaxes it unless
@@ -35,7 +51,11 @@
 //	2  INCOMPLETE  nothing failed, but something that must be checked could
 //	               not be (also: unreadable input, usage errors)
 //
-// PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slices 1, 2a).
+// The text report, the usage text and error messages are ASCII-only (a
+// default Windows console garbles piped UTF-8); --json is UTF-8 JSON.
+//
+// PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slices 1, 2a,
+// 2b); design specs/2026-10/design-2026-10-06-t1231-s2b-audit-counter.md.
 package main
 
 import (
@@ -69,6 +89,10 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	// Usage, errors and the text report are ASCII-only (T-1242): a default
+	// Windows console garbles piped UTF-8. The JSON report keeps stdout as is.
+	rawStdout := stdout
+	stdout, stderr = bundle.ASCIIWriter(stdout), bundle.ASCIIWriter(stderr)
 	fs := flag.NewFlagSet("lucairn-bundle-verify", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var witnessKeys, serviceKeys kvList
@@ -86,7 +110,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&serviceKeys, "service-key", "SERVICE_ID=BASE64 claim-signing key to trust INSTEAD of the built-in set (repeatable)")
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "usage: lucairn-bundle-verify [flags] bundle.zip")
-		fmt.Fprintln(stderr, "exit codes: 0 VALID · 1 TAMPERED · 2 INCOMPLETE")
+		fmt.Fprintln(stderr, "exit codes: 0 VALID, 1 TAMPERED, 2 INCOMPLETE")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -163,7 +187,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	rep := bundle.Verify(filepath.Base(path), data, opt)
 	if *jsonOut {
-		if err := rep.WriteJSON(stdout); err != nil {
+		if err := rep.WriteJSON(rawStdout); err != nil {
 			return bundle.ExitIncomplete
 		}
 	} else {
@@ -276,5 +300,6 @@ func printTrustRoots(w io.Writer, roots bundle.TrustRoots) {
 	fmt.Fprintf(w, "  tsa      FreeTSA root CA          sha256(pem) %s\n", anchor.FreeTSARootSHA256)
 	fmt.Fprintf(w, "  rekor    public-good log          log id %s\n", roots.Rekor.LogID)
 	fmt.Fprintf(w, "  binding  content-bound anchors required for certificates issued after %s\n", roots.BindingRequiredAfter.Format(time.RFC3339))
+	fmt.Fprintf(w, "  audit    audit roots and the per-conversation counter are checked under the service key %s\n", anchor.AuditRootSigner)
 	fmt.Fprintln(w, "Compare with https://lucairn.eu/.well-known/lucairn-service-keys.json out of band.")
 }

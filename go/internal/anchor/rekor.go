@@ -95,6 +95,13 @@ var ErrRekorNoBody = errors.New("the entry carries no canonical body or integrat
 //     whose Ed25519ph signature over the SHA-512 digest verifies under it —
 //     i.e. the witness itself logged this digest.
 func VerifyRekor(e RekorEntry, rk *RekorKey, witness ed25519.PublicKey) (*RekorResult, error) {
+	return VerifyRekorBy(e, rk, witness, "witness")
+}
+
+// VerifyRekorBy is VerifyRekor for an entry that must have been made by the
+// pinned key `signer` names ("witness" for certificate anchors, "dsa-audit"
+// for audit roots). The name only appears in error texts.
+func VerifyRekorBy(e RekorEntry, rk *RekorKey, key ed25519.PublicKey, signer string) (*RekorResult, error) {
 	if rk == nil || rk.Public == nil {
 		return nil, errors.New("no Rekor key pinned")
 	}
@@ -119,7 +126,7 @@ func VerifyRekor(e RekorEntry, rk *RekorKey, witness ed25519.PublicKey) (*RekorR
 		return nil, fmt.Errorf("the inclusion proof's tree index %d is above the signed log index %d (proof is not for this entry)", proofIndex, e.LogIndex)
 	}
 	res.Checkpoint = cp
-	digest, err := verifyHashedRekordBody(e.CanonicalBody, witness)
+	digest, err := verifyHashedRekordBody(e.CanonicalBody, key, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -301,10 +308,11 @@ type hashedRekord struct {
 	} `json:"spec"`
 }
 
-// verifyHashedRekordBody checks that the logged entry was made by the
-// witness: its public key is the witness key, and its Ed25519ph signature
-// over the logged SHA-512 digest verifies. Returns the digest (hex).
-func verifyHashedRekordBody(body []byte, witness ed25519.PublicKey) (string, error) {
+// verifyHashedRekordBody checks that the logged entry was made by the pinned
+// key (the witness key for certificate anchors): its public key is that key,
+// and its Ed25519ph signature over the logged SHA-512 digest verifies.
+// Returns the digest (hex). signer names the key in error texts.
+func verifyHashedRekordBody(body []byte, witness ed25519.PublicKey, signer string) (string, error) {
 	var hr hashedRekord
 	if err := json.Unmarshal(body, &hr); err != nil {
 		return "", fmt.Errorf("Rekor entry body does not parse: %w", err)
@@ -333,14 +341,14 @@ func verifyHashedRekordBody(body []byte, witness ed25519.PublicKey) (string, err
 	}
 	ed, ok := pub.(ed25519.PublicKey)
 	if !ok || !bytes.Equal(ed, witness) {
-		return "", errors.New("Rekor entry was not logged by the pinned witness key")
+		return "", fmt.Errorf("Rekor entry was not logged by the pinned %s key", signer)
 	}
 	sig, err := base64.StdEncoding.DecodeString(hr.Spec.Signature.Content)
 	if err != nil {
 		return "", errors.New("Rekor entry signature is not base64")
 	}
 	if err := ed25519.VerifyWithOptions(witness, digest, sig, &ed25519.Options{Hash: crypto.SHA512}); err != nil {
-		return "", errors.New("the witness signature inside the Rekor entry does not verify")
+		return "", fmt.Errorf("the %s signature inside the Rekor entry does not verify", signer)
 	}
 	return hr.Spec.Data.Hash.Value, nil
 }

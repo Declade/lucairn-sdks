@@ -67,6 +67,11 @@ type Case struct {
 	// Flags are extra lucairn-bundle-verify flags for this case only (e.g.
 	// --online --rekor-url @REKOR_URL@).
 	Flags []string
+	// Step and Detail (S2b cases) name the check that must report the
+	// mutation: a step of that name that is FAIL or a blocking SKIPPED, whose
+	// detail contains Detail. The in-process test asserts it, so each case
+	// measures the check it is named for and not an accidental side effect.
+	Step, Detail string
 }
 
 // Corpus is the synthetic world plus every case.
@@ -82,6 +87,9 @@ type Corpus struct {
 	// RekorOnly is a binding-v1 certificate whose TSA rail failed (cert_hash
 	// + marker kept, no token), for tests under another anchor policy.
 	RekorOnly *Cert
+	// Audit and AuditSelfHosted are the format-2 scenarios (T-1231 S2b): the
+	// hosted one and a self-hosted one without anchoring.
+	Audit, AuditSelfHosted *AuditScenario
 }
 
 // Fetcher serves Entries in-process (the tests' stand-in for --online).
@@ -684,6 +692,10 @@ func NewCorpus() (*Corpus, error) {
 			}
 			addF(v.name+pol.suffix, what, ExpectTampered, f, pol.flags...)
 		}
+	}
+	// ---- T-1231 S2b: format 2 (audit counter, inclusion, anchored roots) ----
+	if err := addAuditCases(co); err != nil {
+		return nil, err
 	}
 	return co, nil
 }

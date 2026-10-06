@@ -190,9 +190,9 @@ func validateCanonical(v any, seen map[uintptr]struct{}) error {
 		uint, uint8, uint16, uint32, uint64:
 		return nil
 	case float32, float64:
-		return fmt.Errorf("canonical_json: float %v not permitted — use int for integer leaves", x)
+		return fmt.Errorf("canonical_json: float %v not permitted - use int for integer leaves", x)
 	case []byte:
-		return fmt.Errorf("canonical_json: []byte not permitted — encode as base64 string before passing")
+		return fmt.Errorf("canonical_json: []byte not permitted - encode as base64 string before passing")
 	case []any:
 		for i, item := range x {
 			if err := validateCanonical(item, seen); err != nil {

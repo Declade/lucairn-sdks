@@ -35,9 +35,13 @@ type Spec struct {
 	Certs          []*Cert
 	Listing        string // default bundle.ListingExhausted
 	WithInternal   bool
+	// Audit, when set, makes this a format-2 bundle with the three audit/
+	// files of this evidence (T-1231 S2b).
+	Audit *Evidence
 }
 
-// Build produces the files of a well-formed v1 bundle.
+// Build produces the files of a well-formed bundle: format 1, or format 2
+// when s.Audit is set.
 func Build(s Spec) Files {
 	f := Files{
 		bundle.PathReadme:         []byte("Synthetic evidence bundle for the lucairn-bundle-verify test corpus.\n"),
@@ -57,8 +61,13 @@ func Build(s Spec) Files {
 	if listing == "" {
 		listing = bundle.ListingExhausted
 	}
+	version := bundle.FormatVersion
+	if s.Audit != nil {
+		version = bundle.FormatVersionAudit
+		s.Audit.WriteTo(f)
+	}
 	m := bundle.Manifest{
-		Format: bundle.FormatName, FormatVersion: bundle.FormatVersion, BundleKind: bundle.KindConversation,
+		Format: bundle.FormatName, FormatVersion: version, BundleKind: bundle.KindConversation,
 		ConversationID: s.ConversationID, CustomerID: s.CustomerID,
 		GeneratedAt:  time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		Generator:    "bundletest (synthetic)",

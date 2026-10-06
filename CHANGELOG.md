@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`lucairn-bundle-verify`: bundle format 2 (audit counter).** Reads the
+  `audit/` folder (`events.json`, `proofs.json`, `roots.json`) and checks the
+  per-conversation request counter (event hashes recompute, numbers run 1..N,
+  every certificate's audit-signed claim names its entry, every counted
+  request has its certificate), each counted request's inclusion in the audit
+  log, and the audit roots (signature under the pinned `dsa-audit` key, Rekor
+  entry made by that key for the root artifact). The tree size is taken from
+  the signed root artifact only. A certificate removed together with its
+  manifest line is now reported. Printed limits: a cut-off tail and the hour
+  before a root is anchored. Format-1 bundles verify as before; older builds
+  read format-2 bundles as TAMPERED.
+
 - **`lucairn-bundle-verify` (Go, `go/cmd/lucairn-bundle-verify`): offline verifier for
   per-conversation evidence bundles (bundle format 1).** Checks the manifest,
   witness and claim signatures (existing SDK verifiers), the signed
@@ -88,6 +100,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused as malformed (never read as U+FFFD; corpus v1.2 rule); step 4's "blank" uses Go's `unicode.IsSpace` set; the qi-score
   verdict is upper-cased ASCII-only; the v3 sanitizer-hash lookup uses the
   same strict parser as every other read.
+
+### Changed
+- **`lucairn-bundle-verify`: ASCII-only text output.** The text report, usage
+  and error messages no longer contain non-ASCII characters (a default Windows
+  console garbled them when piped): step lines read `PASS - detail` instead of
+  a long dash, `-> blocks VALID`, `...`; data echoed from a bundle is escaped.
+  The Go SDK's certificate-verification error texts lost their long dashes for
+  the same reason. `--json` is unchanged.
 
 ### Fixed
 - Python chain verifier: every walk over a signed document (canonical form,

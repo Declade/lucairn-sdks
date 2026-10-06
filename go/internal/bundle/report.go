@@ -47,6 +47,16 @@ const ValidMeaning = "VALID means the certificates are intact, signed by the pin
 // --allow-unanchored).
 const AnchorsNotRequiredReason = "anchors were not required: a certificate without a timestamp or Rekor entry would not have blocked VALID (it is reported as SKIPPED(not anchored))"
 
+// CounterTailLimitReason and PreAnchorLimitReason are the accepted limits of
+// the per-conversation counter (design D10, "G4"), printed on every run on a
+// format-2 bundle. NoAuditRootLimitReason replaces the second one when the
+// run verified no anchored audit root.
+const (
+	CounterTailLimitReason = "Counter tail: the counter shows there is no hole between request 1 and request N of this conversation. It cannot show that N is the last request: a bundle cut off after request N (the last certificates and their counter entries removed together) is not detected."
+	PreAnchorLimitReason   = "Hour before anchoring: the operator holds the audit signing key. Until an audit root covering a row is logged in Rekor (hourly, whenever the audit log has new rows), the operator could still rewrite and re-sign that row; once the root is logged it cannot."
+	NoAuditRootLimitReason = "No anchored audit root was verified on this run: the counter entries are tied to the certificates by the audit key's signatures only, and the operator holds that key."
+)
+
 // NotContentBoundLabel is how PassNotContentBound is printed.
 const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
 
@@ -101,8 +111,18 @@ type Report struct {
 	ExitCode    int      `json:"exit_code"`
 	NotCovered  []string `json:"not_covered"`
 
+	// BundleFormat is the bundle's format_version when it is not 1.
+	BundleFormat int `json:"bundle_format_version,omitempty"`
+	// AuditEvents is the number of counter entries (counted requests) in a
+	// format-2 bundle; AuditRoots the number of anchored audit roots that
+	// verified.
+	AuditEvents int `json:"audit_counted_requests,omitempty"`
+	AuditRoots  int `json:"audit_roots_verified,omitempty"`
+
 	reportUnauthenticated bool
 	anchorsNotRequired    bool
+	// auditChecked: a format-2 bundle (the counter limits are printed).
+	auditChecked bool
 	// notContentBound: an anchor without binding v1 was checked on this run.
 	notContentBound bool
 	// ContentBound counts the anchor steps that passed content-bound on this
@@ -152,6 +172,14 @@ func (r *Report) finish() {
 	if r.anchorsNotRequired {
 		r.Limitations = append(r.Limitations, AnchorsNotRequiredReason)
 	}
+	if r.auditChecked {
+		r.Limitations = append(r.Limitations, CounterTailLimitReason)
+		if r.AuditRoots > 0 {
+			r.Limitations = append(r.Limitations, PreAnchorLimitReason)
+		} else {
+			r.Limitations = append(r.Limitations, NoAuditRootLimitReason)
+		}
+	}
 	switch {
 	case fail:
 		r.Verdict, r.ExitCode = VerdictTampered, ExitTampered
@@ -172,13 +200,30 @@ var NotCoveredV1 = []string{
 	"verification.json is Lucairn's export-time record. It is never used as evidence; every check above is recomputed.",
 }
 
+// NotCoveredV2 is printed on every run on a format-2 bundle (with the audit
+// counter): what such a bundle cannot show.
+var NotCoveredV2 = []string{
+	CounterTailLimitReason,
+	PreAnchorLimitReason,
+	"What the counter numbers: the requests recorded under this conversation id that reached the pipeline, in the order their final audit event was stored. A request that failed before the pipeline has no certificate and no number. A certificate whose signed audit claim carries no counter (recorded before counting started) is \"not tracked\": it makes the result INCOMPLETE, not TAMPERED.",
+	"Audit log linkage: each counter entry's previous_event_hash is inside its event_hash, but the neighbouring rows of the audit log are not in the bundle, so the hash chain from row to row is not walked, and two anchored roots are not proven consistent with each other (the bundle carries no consistency proofs). What is checked is that each counted row is a leaf under its anchored root. Whether that root is the EARLIEST one covering the row is not checked.",
+	NotCoveredV1[1],
+	NotCoveredV1[2],
+	NotCoveredV1[3],
+	NotCoveredV1[4],
+	NotCoveredV1[5],
+}
+
 // WriteText renders the report for a terminal.
 func (r *Report) WriteText(w io.Writer) {
-	fmt.Fprintf(w, "lucairn-bundle-verify — %s\n", r.Bundle)
+	fmt.Fprintf(w, "lucairn-bundle-verify - %s\n", r.Bundle)
 	if r.ConversationID != "" {
 		fmt.Fprintf(w, "conversation      %s\n", r.ConversationID)
 	}
 	fmt.Fprintf(w, "certificates      %d\n", r.Certificates)
+	if r.auditChecked {
+		fmt.Fprintf(w, "counted requests  %d (audit counter, bundle format %d)\n", r.AuditEvents, r.BundleFormat)
+	}
 	if r.CertificatesDigest != "" {
 		fmt.Fprintf(w, "certificate set   %s\n", r.CertificatesDigest)
 	}
@@ -201,28 +246,28 @@ func (r *Report) WriteText(w io.Writer) {
 		}
 		status := string(s.Status)
 		if s.Status == Info {
-			fmt.Fprintf(w, "  %-16s INFO — %s\n", s.Name, s.Detail)
+			fmt.Fprintf(w, "  %-16s INFO - %s\n", s.Name, s.Detail)
 			continue
 		}
 		if s.Status == PassNotContentBound {
-			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, NotContentBoundLabel, s.Detail)
+			fmt.Fprintf(w, "  %-16s %s - %s\n", s.Name, NotContentBoundLabel, s.Detail)
 			fmt.Fprintf(w, "  %-16s   %s\n", "", NotContentBoundReason)
 			continue
 		}
 		if s.Status == PassContentBound {
-			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, ContentBoundLabel, s.Detail)
+			fmt.Fprintf(w, "  %-16s %s - %s\n", s.Name, ContentBoundLabel, s.Detail)
 			continue
 		}
 		if s.Status == Skipped {
 			status = "SKIPPED(" + s.Detail + ")"
 			if s.Incomplete {
-				status += " → blocks VALID"
+				status += " -> blocks VALID"
 			}
 			fmt.Fprintf(w, "  %-16s %s\n", s.Name, status)
 			continue
 		}
 		if s.Detail != "" {
-			fmt.Fprintf(w, "  %-16s %s — %s\n", s.Name, status, s.Detail)
+			fmt.Fprintf(w, "  %-16s %s - %s\n", s.Name, status, s.Detail)
 		} else {
 			fmt.Fprintf(w, "  %-16s %s\n", s.Name, status)
 		}
@@ -272,7 +317,7 @@ func quotedShort(s string) string {
 func short(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) > 300 {
-		return s[:300] + "…"
+		return s[:300] + "..."
 	}
 	return s
 }

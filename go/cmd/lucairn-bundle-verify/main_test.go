@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"os"
@@ -74,8 +75,8 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 			wants := []string{
 				"LIMITATION: " + bundle.ReportNotAuthenticatedReason, // G3 (F4)
 				bundle.ValidMeaning,          // F8
-				"  chain-verdict    INFO — ", // F8
-				"  user-unredacted  INFO — ", // F8
+				"  chain-verdict    INFO - ", // F8
+				"  user-unredacted  INFO - ", // F8
 			}
 			// The not-content-bound limitation belongs to runs where such an
 			// anchor passed; a run with content-bound anchors prints that label.
@@ -84,6 +85,15 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 			}
 			if strings.HasPrefix(c.Name, "S2a-") {
 				wants = append(wants, bundle.ContentBoundLabel)
+			}
+			// Format 2: the counter's accepted limits (G4) on every run.
+			if strings.HasPrefix(c.Name, "S2b-") {
+				wants = append(wants, "LIMITATION: "+bundle.CounterTailLimitReason, "  - "+bundle.PreAnchorLimitReason, "audit-continuity ")
+				if strings.Contains(out.String(), "audit-root       PASS") {
+					wants = append(wants, "LIMITATION: "+bundle.PreAnchorLimitReason)
+				} else {
+					wants = append(wants, "LIMITATION: "+bundle.NoAuditRootLimitReason, "audit-root       SKIPPED(not anchored")
+				}
 			}
 			for _, want := range wants {
 				if !strings.Contains(out.String(), want) {
@@ -95,6 +105,11 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		case bundletest.ExpectTampered:
 			if code != 1 {
 				t.Errorf("%s: mutation exit %d, want exactly 1 (TAMPERED)\n%s", c.Name, code, out.String())
+			}
+			detected++
+		case bundletest.ExpectIncomplete:
+			if code != 2 {
+				t.Errorf("%s: exit %d, want exactly 2 (INCOMPLETE)\n%s", c.Name, code, out.String())
 			}
 			detected++
 		case bundletest.ExpectDetected:
@@ -113,7 +128,7 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 	}
 }
 
-var bareAnchorPass = regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+—|\s*$)`)
+var bareAnchorPass = regexp.MustCompile(`(?m)^\s+(timestamp|rekor)\s+PASS(\s+-|\s*$)`)
 
 func TestRun_UsageAndVersion(t *testing.T) {
 	var out, errb bytes.Buffer
@@ -256,5 +271,124 @@ func TestBindingCutoverFlag(t *testing.T) {
 		if tc.checkLabel && strings.Contains(out.String(), notEnforced) != tc.banner {
 			t.Errorf("%s: banner %q present=%v, want %v\n%s", tc.name, notEnforced, !tc.banner, tc.banner, out.String())
 		}
+	}
+}
+
+// TestHumanReadableOutputIsASCII (T-1242): a default Windows console (code
+// page 437/850) shows piped or redirected UTF-8 as garbage ("PASS ΓÇö 7
+// files"). Every byte of the text report (clean and tampered bundles, format
+// 1 and 2), of the usage / --help text, of --print-trust-roots and of error
+// messages is below 0x80 — including what an untrusted bundle makes the tool
+// echo (a file name with non-ASCII characters).
+func TestHumanReadableOutputIsASCII(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	tsa, rekor := filepath.Join(dir, "tsa-root.pem"), filepath.Join(dir, "rekor.pem")
+	if err := os.WriteFile(tsa, co.World.TSARootPEM(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rekor, co.World.RekorPEM(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	flags := co.World.CLIFlags(tsa, rekor)
+	assertASCII := func(what string, b []byte) {
+		t.Helper()
+		if len(b) == 0 {
+			t.Errorf("%s: no output", what)
+		}
+		for i, c := range b {
+			if c >= 0x80 {
+				lo, hi := max(0, i-40), min(len(b), i+20)
+				t.Errorf("%s: byte 0x%02x at offset %d: %q", what, c, i, b[lo:hi])
+				return
+			}
+		}
+	}
+	ran := 0
+	for _, c := range co.Cases {
+		online := false
+		for _, f := range c.Flags {
+			online = online || f == "--online"
+		}
+		if online {
+			continue
+		}
+		p := filepath.Join(dir, c.Name+".zip")
+		if err := os.WriteFile(p, c.Zip, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errb bytes.Buffer
+		code := run(bundletest.CaseArgs(flags, c.Flags, "", p), &out, &errb)
+		assertASCII(c.Name+" (exit "+string(rune('0'+code))+") stdout", out.Bytes())
+		if errb.Len() > 0 {
+			assertASCII(c.Name+" stderr", errb.Bytes())
+		}
+		ran++
+	}
+	if ran < 60 {
+		t.Fatalf("only %d corpus cases ran", ran)
+	}
+	// A bundle that makes the tool echo non-ASCII: an entry name outside the
+	// layout, with a long dash, an accented letter and a non-BMP character.
+	f := co.Clean.Clone()
+	f["certificates/\u2014\u00e9\U0001F600.json"] = []byte("{}")
+	weird := filepath.Join(dir, "weird.zip")
+	if err := os.WriteFile(weird, f.Zip(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := run(append(append([]string{}, flags...), weird), &out, &errb); code != 1 {
+		t.Fatalf("bundle with a non-ASCII entry name: exit %d, want 1\n%s", code, out.String())
+	}
+	assertASCII("non-ASCII entry name", out.Bytes())
+	if !strings.Contains(out.String(), `\u2014\u00e9\U0001f600`) {
+		t.Errorf("the non-ASCII name is not shown escaped:\n%s", out.String())
+	}
+	// Usage (no arguments), --help, a flag error, --print-trust-roots, a
+	// missing file whose name is not ASCII.
+	for name, args := range map[string][]string{
+		"usage": nil, "--help": {"--help"}, "unknown flag": {"--no-such-flag"}, "--print-trust-roots": {"--print-trust-roots"},
+		"missing file": {filepath.Join(dir, "n\u00e3o-existe\u2014.zip")}, "--version": {"--version"},
+	} {
+		var out, errb bytes.Buffer
+		run(args, &out, &errb)
+		assertASCII(name, append(out.Bytes(), errb.Bytes()...))
+	}
+	// The text report says the same as before, with ASCII punctuation.
+	out.Reset()
+	clean := filepath.Join(dir, "clean.zip")
+	if err := os.WriteFile(clean, co.Clean.Zip(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := run(append(append([]string{}, flags...), clean), &out, &errb); code != 0 {
+		t.Fatalf("clean bundle: exit %d", code)
+	}
+	for _, want := range []string{"lucairn-bundle-verify - clean.zip", "  structure        PASS - 7 files, all in the v1 layout", "  chain-verdict    INFO - "} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("clean text report lacks %q:\n%s", want, out.String())
+		}
+	}
+	// --json is not passed through the ASCII writer: it stays valid JSON.
+	out.Reset()
+	if code := run(append(append([]string{"--json"}, flags...), weird), &out, &errb); code != 1 || !json.Valid(out.Bytes()) {
+		t.Fatalf("--json: exit %d, valid JSON %v", code, json.Valid(out.Bytes()))
+	}
+}
+
+func TestASCIIWriter(t *testing.T) {
+	var buf bytes.Buffer
+	w := bundle.ASCIIWriter(&buf)
+	// A character split across two writes, an invalid byte, plain ASCII.
+	dash := []byte("\u2014")
+	for _, chunk := range [][]byte{[]byte("a - b "), dash[:1], dash[1:], {' ', 0xff, ' '}, []byte("\U0001F600 ok\n")} {
+		if n, err := w.Write(chunk); err != nil || n != len(chunk) {
+			t.Fatalf("write %q: %d %v", chunk, n, err)
+		}
+	}
+	if got, want := buf.String(), `a - b \u2014 \xff \U0001f600 ok`+"\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
