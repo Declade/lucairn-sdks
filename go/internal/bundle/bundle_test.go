@@ -14,8 +14,17 @@ func TestCorpusInProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opt := bundle.Options{Roots: co.World.Roots()}
+	// The corpus measures the hosted policy (the binary run passes
+	// --require-anchors, see World.CLIFlags).
+	roots := co.World.Roots()
+	roots.RequireAnchors = true
 	for _, c := range co.Cases {
+		opt := bundle.Options{Roots: roots}
+		for _, fl := range c.Flags {
+			if fl == "--online" {
+				opt.Fetcher = co.Fetcher()
+			}
+		}
 		rep := bundle.Verify(c.Name+".zip", c.Zip, opt)
 		switch c.Expect {
 		case bundletest.ExpectValid, bundletest.ExpectKnownGap:

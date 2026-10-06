@@ -71,7 +71,9 @@ type RekorResult struct {
 	// ArtifactSHA512 is the digest the entry logs (hex), signed by the witness.
 	ArtifactSHA512 string
 	// Checkpoint is true when the inclusion proof carried a Rekor-signed
-	// checkpoint that verified and commits to the proof's root hash.
+	// checkpoint that verified and commits to the proof's root hash. Since
+	// round 2 of T-1231 S1 a proof WITHOUT a signed checkpoint is an error
+	// (an unsigned root proves nothing), so a nil error implies true.
 	Checkpoint bool
 }
 
@@ -84,9 +86,11 @@ var ErrRekorNoBody = errors.New("the entry carries no canonical body or integrat
 //  1. the signed entry timestamp (SET) under the pinned Rekor key, over
 //     {body, integratedTime, logID, logIndex} (RFC 8785 canonical JSON);
 //  2. the inclusion proof: the RFC 6962 leaf hash of the body walks to the
-//     proof's root hash, and — when the proof carries a checkpoint — that
-//     checkpoint is signed by the pinned Rekor key and names the same root
-//     and tree size;
+//     proof's root hash, and the proof's checkpoint — REQUIRED: a root hash
+//     without one is just a number the bundle supplies — is signed by the
+//     pinned Rekor key and names the same root and tree size. The proof's
+//     tree index may not exceed the SET-signed log index (Rekor numbers its
+//     shards so that global index = shard offset + tree index);
 //  3. the body: a hashedrekord v0.0.1 whose public key is the witness key and
 //     whose Ed25519ph signature over the SHA-512 digest verifies under it —
 //     i.e. the witness itself logged this digest.
@@ -107,9 +111,12 @@ func VerifyRekor(e RekorEntry, rk *RekorKey, witness ed25519.PublicKey) (*RekorR
 		return nil, err
 	}
 	res := &RekorResult{IntegratedTime: time.Unix(e.IntegratedTime, 0).UTC()}
-	cp, err := verifyInclusion(e.CanonicalBody, e.InclusionProof, rk)
+	cp, proofIndex, err := verifyInclusion(e.CanonicalBody, e.InclusionProof, rk)
 	if err != nil {
 		return nil, err
+	}
+	if proofIndex > e.LogIndex {
+		return nil, fmt.Errorf("the inclusion proof's tree index %d is above the signed log index %d (proof is not for this entry)", proofIndex, e.LogIndex)
 	}
 	res.Checkpoint = cp
 	digest, err := verifyHashedRekordBody(e.CanonicalBody, witness)
@@ -144,52 +151,55 @@ type inclusionProof struct {
 	TreeSize   *int64   `json:"treeSize"`
 }
 
-func verifyInclusion(body, proofJSON []byte, rk *RekorKey) (bool, error) {
+// verifyInclusion checks the proof and its REQUIRED signed checkpoint. It
+// returns whether the checkpoint verified (always true on a nil error) and
+// the proof's tree index.
+func verifyInclusion(body, proofJSON []byte, rk *RekorKey) (bool, int64, error) {
 	if len(bytes.TrimSpace(proofJSON)) == 0 {
-		return false, errors.New("the entry carries no inclusion proof")
+		return false, 0, errors.New("the entry carries no inclusion proof")
 	}
 	var p inclusionProof
 	dec := json.NewDecoder(bytes.NewReader(proofJSON))
 	if err := dec.Decode(&p); err != nil {
-		return false, fmt.Errorf("inclusion proof does not parse: %w", err)
+		return false, 0, fmt.Errorf("inclusion proof does not parse: %w", err)
 	}
 	if p.LogIndex == nil || p.TreeSize == nil || p.RootHash == "" {
-		return false, errors.New("inclusion proof lacks logIndex, treeSize or rootHash")
+		return false, 0, errors.New("inclusion proof lacks logIndex, treeSize or rootHash")
 	}
 	if *p.TreeSize <= 0 || *p.LogIndex < 0 || *p.LogIndex >= *p.TreeSize {
-		return false, errors.New("inclusion proof index out of range")
+		return false, 0, errors.New("inclusion proof index out of range")
 	}
 	root, err := hex.DecodeString(p.RootHash)
 	if err != nil || len(root) != sha256.Size {
-		return false, errors.New("inclusion proof root hash is not 32 hex bytes")
+		return false, 0, errors.New("inclusion proof root hash is not 32 hex bytes")
 	}
 	path := make([][]byte, len(p.Hashes))
 	for i, h := range p.Hashes {
 		b, err := hex.DecodeString(h)
 		if err != nil || len(b) != sha256.Size {
-			return false, fmt.Errorf("inclusion proof hash %d is not 32 hex bytes", i)
+			return false, 0, fmt.Errorf("inclusion proof hash %d is not 32 hex bytes", i)
 		}
 		path[i] = b
 	}
 	leaf := sha256.Sum256(append([]byte{0x00}, body...))
 	got, err := rootFromInclusionProof(uint64(*p.LogIndex), uint64(*p.TreeSize), leaf[:], path)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if !bytes.Equal(got, root) {
-		return false, errors.New("inclusion proof does not lead from this entry to the stated root")
+		return false, 0, errors.New("inclusion proof does not lead from this entry to the stated root")
 	}
 	if p.Checkpoint == "" {
-		return false, nil
+		return false, 0, errors.New("inclusion proof carries no signed checkpoint, so its root hash is not signed by the log")
 	}
 	size, cpRoot, err := VerifyCheckpoint(p.Checkpoint, rk)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if size != uint64(*p.TreeSize) || !bytes.Equal(cpRoot, root) {
-		return false, errors.New("the signed checkpoint names a different tree than the inclusion proof")
+		return false, 0, errors.New("the signed checkpoint names a different tree than the inclusion proof")
 	}
-	return true, nil
+	return true, *p.LogIndex, nil
 }
 
 // rootFromInclusionProof is RFC 9162 § 2.1.3.2.

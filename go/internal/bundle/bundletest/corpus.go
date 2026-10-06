@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,12 +23,19 @@ const (
 	ExpectKnownGap = "KNOWN-GAP(0)"
 )
 
+// RekorURLPlaceholder in Case.Flags stands for the base URL of the corpus's
+// local fake Rekor server (bundlecorpus -serve).
+const RekorURLPlaceholder = "@REKOR_URL@"
+
 // Case is one corpus entry.
 type Case struct {
 	Name   string
 	What   string
 	Expect string
 	Zip    []byte
+	// Flags are extra lucairn-bundle-verify flags for this case only (e.g.
+	// --online --rekor-url @REKOR_URL@).
+	Flags []string
 }
 
 // Corpus is the synthetic world plus every case.
@@ -37,6 +45,43 @@ type Corpus struct {
 	// Clean is the clean bundle's files; Originals are the synthetic
 	// "original values" no bundle file may contain.
 	Clean Files
+	// Entries are the synthetic log's entries for the clean bundle's
+	// certificates, by global log index (what --online fetches).
+	Entries map[int64]*bundle.FetchedEntry
+}
+
+// Fetcher serves Entries in-process (the tests' stand-in for --online).
+func (co *Corpus) Fetcher() bundle.RekorFetcher { return entryFetcher(co.Entries) }
+
+type entryFetcher map[int64]*bundle.FetchedEntry
+
+func (e entryFetcher) Fetch(i int64) (*bundle.FetchedEntry, error) {
+	if x, ok := e[i]; ok {
+		return x, nil
+	}
+	return nil, fmt.Errorf("no entry %d", i)
+}
+
+// EntryOf is the log's copy of c's Rekor entry, as --online fetches it.
+func EntryOf(c *Cert) (*bundle.FetchedEntry, error) {
+	tl, ok := c.Doc["attestation"].(map[string]any)["transparency_log"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("certificate %s has no Rekor entry", c.RequestID)
+	}
+	dec := func(k string) []byte {
+		b, _ := base64.StdEncoding.DecodeString(tl[k].(string))
+		return b
+	}
+	idx, err := strconv.ParseInt(tl["log_index"].(string), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	it, err := strconv.ParseInt(tl["integrated_time"].(string), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return &bundle.FetchedEntry{Body: dec("canonical_body"), IntegratedTime: it, LogIndex: idx,
+		SignedEntryTimestamp: dec("signed_entry_timestamp"), InclusionProof: dec("inclusion_proof")}, nil
 }
 
 const (
@@ -70,10 +115,18 @@ func NewCorpus() (*Corpus, error) {
 		return nil, err
 	}
 	clean := Build(Spec{ConversationID: ConvA, CustomerID: Customer, Certs: a})
-	co := &Corpus{World: w, Clean: clean}
+	co := &Corpus{World: w, Clean: clean, Entries: map[int64]*bundle.FetchedEntry{}}
+	for _, c := range a {
+		e, err := EntryOf(c)
+		if err != nil {
+			return nil, err
+		}
+		co.Entries[e.LogIndex] = e
+	}
 	add := func(name, what, expect string, f Files) {
 		co.Cases = append(co.Cases, Case{Name: name, What: what, Expect: expect, Zip: f.Zip()})
 	}
+	online := []string{"--online", "--rekor-url", RekorURLPlaceholder}
 	path := func(c *Cert) string { return bundle.DirCertificates + c.RequestID + ".json" }
 	edit := func(f Files, c *Cert, fn func(doc map[string]any)) {
 		var doc map[string]any
@@ -293,7 +346,7 @@ func NewCorpus() (*Corpus, error) {
 	{
 		f := clean.Clone()
 		m := f.Manifest()
-		m.Completeness = bundle.Completeness{State: "partial", Note: "synthetic"}
+		m.Completeness = bundle.Completeness{Listing: "not_exhausted", Note: "synthetic"}
 		f.WriteManifest(m)
 		add("17-completeness-partial", "manifest states the bundle is partial", ExpectDetected, f)
 	}
@@ -307,6 +360,93 @@ func NewCorpus() (*Corpus, error) {
 	// 19. Not a zip.
 	add("19-not-a-zip", "truncated archive", ExpectDetected, Files{"x": nil}) // replaced below
 	co.Cases[len(co.Cases)-1].Zip = clean.Zip()[:200]
+
+	// ---- Round-1 gate (T-1231 S1) reviewer repros: F1, F2, F3, F5, F6, F7 ----
+	// F1: inclusion proof without a checkpoint, root fabricated from the
+	// body alone (a one-leaf "tree") — Sol P1 / ToB P2.
+	{
+		f := clean.Clone()
+		edit(f, a[1], func(d map[string]any) {
+			tl := att(d)["transparency_log"].(map[string]any)
+			body, _ := base64.StdEncoding.DecodeString(tl["canonical_body"].(string))
+			proof, _ := json.Marshal(map[string]any{"hashes": []string{}, "logIndex": 0, "rootHash": LeafHashHex(body), "treeSize": 1})
+			tl["inclusion_proof"] = base64.StdEncoding.EncodeToString(proof)
+		})
+		f.Rehash()
+		add("F1-rekor-no-checkpoint-fabricated-root", "inclusion proof replaced by a one-leaf proof whose root is the entry's own leaf hash, no checkpoint; manifest re-hashed", ExpectDetected, f)
+	}
+	// F2: attestation AND anchor_status removed from EVERY certificate —
+	// bug-hunter P2 / Sol P1 (hosted policy: --require-anchors).
+	{
+		f := clean.Clone()
+		for _, c := range a {
+			edit(f, c, func(d map[string]any) {
+				delete(d, "attestation")
+				delete(d, "anchor_status")
+			})
+		}
+		f.Rehash()
+		add("F2-anchors-and-status-stripped-all", "attestation and anchor_status removed from every certificate; manifest re-hashed", ExpectDetected, f)
+	}
+	// F3: --online with a corrupt STORED inclusion proof; the log serves the
+	// genuine entry — Sol P2.
+	{
+		f := clean.Clone()
+		edit(f, a[0], func(d map[string]any) {
+			att(d)["transparency_log"].(map[string]any)["inclusion_proof"] = base64.StdEncoding.EncodeToString(
+				[]byte(`{"hashes":[],"logIndex":0,"rootHash":"` + strings.Repeat("00", 32) + `","treeSize":1}`))
+		})
+		f.Rehash()
+		add("F3-online-corrupt-stored-proof", "stored inclusion proof corrupted, verified with --online against a log serving the genuine entry; manifest re-hashed", ExpectDetected, f)
+		co.Cases[len(co.Cases)-1].Flags = online
+	}
+	// F5: a required file missing, manifest rewritten to match — Sol P2.
+	for _, rm := range []struct{ name, path string }{
+		{"F5-missing-report-external", bundle.PathReportExternal},
+		{"F5b-missing-readme", bundle.PathReadme},
+	} {
+		f := clean.Clone()
+		delete(f, rm.path)
+		f.Rehash()
+		add(rm.name, rm.path+" removed and its manifest entry dropped (digests recomputed)", ExpectDetected, f)
+	}
+	{
+		f := clean.Clone()
+		delete(f, bundle.PathManifest)
+		add("F5c-missing-manifest", "manifest.json removed", ExpectDetected, f)
+	}
+	{
+		f := clean.Clone()
+		m := f.Manifest()
+		for _, c := range m.Certificates {
+			delete(f, c.Path)
+		}
+		m.Certificates = nil
+		f.WriteManifest(m)
+		add("F5d-no-certificates", "every certificate and certificate entry removed, manifest rewritten", ExpectDetected, f)
+	}
+	// F6: directory entries are never skipped — Sol P2.
+	add("F6-zip-dir-entry-traversal", "clean bundle plus an empty directory entry ../../outside/", ExpectDetected, clean.Clone())
+	co.Cases[len(co.Cases)-1].Zip = clean.ZipWithDirs("../../outside/")
+	add("F6b-zip-dir-entry-certificates", "clean bundle plus an empty directory entry certificates/", ExpectDetected, clean.Clone())
+	co.Cases[len(co.Cases)-1].Zip = clean.ZipWithDirs(bundle.DirCertificates)
+	// F7: case-variant duplicate manifest key: a JavaScript reader takes the
+	// FIRST conversation_id (another conversation), Go took the LAST —
+	// bug-hunter P3.
+	{
+		f := clean.Clone()
+		mb := f[bundle.PathManifest]
+		orig := []byte(`"conversation_id": "` + ConvA + `"`)
+		if !bytes.Contains(mb, orig) {
+			return nil, fmt.Errorf("corpus: manifest lacks %s", orig)
+		}
+		f[bundle.PathManifest] = bytes.Replace(mb, orig, []byte(`"conversation_id": "`+ConvB+`",
+  "Conversation_ID": "`+ConvA+`"`), 1)
+		add("F7-manifest-case-variant-key", "manifest carries conversation_id (another conversation) and a later case-variant Conversation_ID (this one)", ExpectDetected, f)
+	}
+	// The clean bundle with --online must stay VALID.
+	add("00-clean-online", "untouched bundle, --online against the synthetic log", ExpectValid, clean.Clone())
+	co.Cases[len(co.Cases)-1].Flags = online
 
 	// Documented v1 limits — measured, expected to exit 0.
 	{
@@ -328,6 +468,12 @@ func NewCorpus() (*Corpus, error) {
 		edit(f, a[2], func(d map[string]any) { d["attestation"] = later.Doc["attestation"] })
 		f.Rehash()
 		add("G2-anchors-from-later-cert", "both anchors copied from a genuine certificate of the same witness issued LATER (content binding is not provable from the bundle)", ExpectKnownGap, f)
+	}
+	{
+		f := clean.Clone()
+		f[bundle.PathReportExternal] = append(append([]byte(nil), SyntheticPDF...), []byte("% a different report body\n")...)
+		f.Rehash()
+		add("G3-report-replaced-and-rehashed", "report-external.pdf replaced AND its manifest digest updated (the manifest is unsigned in format 1; reported as 'report content not authenticated')", ExpectKnownGap, f)
 	}
 	return co, nil
 }

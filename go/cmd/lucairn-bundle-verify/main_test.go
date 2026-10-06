@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,13 +47,16 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 	flags := co.World.CLIFlags(tsa, rekor)
+	srv := httptest.NewServer(co.RekorHandler())
+	defer srv.Close()
 	detected := 0
 	for _, c := range co.Cases {
 		p := filepath.Join(dir, c.Name+".zip")
 		if err := os.WriteFile(p, c.Zip, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		cmd := exec.Command(bin, append(append([]string{}, flags...), p)...)
+		args := append(append(append([]string{}, flags...), bundletest.ExpandFlags(c.Flags, srv.URL)...), p)
+		cmd := exec.Command(bin, args...)
 		var out bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &out
 		err := cmd.Run()
@@ -66,8 +70,18 @@ func TestTamperCorpusOnBuiltBinary(t *testing.T) {
 		if bareAnchorPass.MatchString(out.String()) {
 			t.Errorf("%s: the built binary printed a bare PASS for an anchor step\n%s", c.Name, out.String())
 		}
-		if c.Expect == bundletest.ExpectValid && !strings.Contains(out.String(), "LIMITATION: "+bundle.NotContentBoundReason) {
-			t.Errorf("%s: clean run lacks the not-content-bound limitation", c.Name)
+		if c.Expect == bundletest.ExpectValid {
+			for _, want := range []string{
+				"LIMITATION: " + bundle.NotContentBoundReason,
+				"LIMITATION: " + bundle.ReportNotAuthenticatedReason, // G3 (F4)
+				bundle.ValidMeaning,          // F8
+				"  chain-verdict    INFO — ", // F8
+				"  user-unredacted  INFO — ", // F8
+			} {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("%s: clean run lacks %q", c.Name, want)
+				}
+			}
 		}
 		switch c.Expect {
 		case bundletest.ExpectDetected:
@@ -105,5 +119,52 @@ func TestRun_UsageAndVersion(t *testing.T) {
 	}
 	if code := run([]string{filepath.Join(t.TempDir(), "missing.zip")}, &out, &errb); code != 2 {
 		t.Fatalf("missing file: exit %d, want 2", code)
+	}
+}
+
+// TestAnchorPolicyFlags (F2): with a custom witness key a certificate
+// without anchors is non-blocking, --require-anchors makes it INCOMPLETE,
+// --allow-unanchored relaxes it again, and the two flags exclude each other.
+// The certificate's own anchor_status is gone in this input, so it cannot
+// be what decides.
+func TestAnchorPolicyFlags(t *testing.T) {
+	co, err := bundletest.NewCorpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	tsa, rekor := filepath.Join(dir, "tsa.pem"), filepath.Join(dir, "rekor.pem")
+	_ = os.WriteFile(tsa, co.World.TSARootPEM(), 0o644)
+	_ = os.WriteFile(rekor, co.World.RekorPEM(), 0o644)
+	var zipPath string
+	for _, c := range co.Cases {
+		if c.Name == "F2-anchors-and-status-stripped-all" {
+			zipPath = filepath.Join(dir, "f2.zip")
+			_ = os.WriteFile(zipPath, c.Zip, 0o644)
+		}
+	}
+	if zipPath == "" {
+		t.Fatal("corpus lacks the F2 case")
+	}
+	base := co.World.CLIFlags(tsa, rekor)
+	custom := base[:len(base)-1] // without --require-anchors
+	if base[len(base)-1] != "--require-anchors" {
+		t.Fatalf("CLIFlags must end with --require-anchors: %v", base)
+	}
+	var out, errb bytes.Buffer
+	for _, tc := range []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"custom witness, no flag", custom, 0},
+		{"custom witness + --require-anchors", base, 2},
+		{"--allow-unanchored", append(append([]string{}, custom...), "--allow-unanchored"), 0},
+		{"both flags", append(append([]string{}, base...), "--allow-unanchored"), 2},
+	} {
+		out.Reset()
+		if code := run(append(append([]string{}, tc.args...), zipPath), &out, &errb); code != tc.want {
+			t.Errorf("%s: exit %d, want %d\n%s", tc.name, code, tc.want, out.String())
+		}
 	}
 }

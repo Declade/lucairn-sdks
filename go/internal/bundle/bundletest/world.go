@@ -165,8 +165,14 @@ func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	for _, id := range []string{"dsa-bridge", "dsa-sanitizer"} {
 		out = append(out, "--service-key", id+"="+base64.StdEncoding.EncodeToString(w.Services[id].Public().(ed25519.PublicKey)))
 	}
-	return append(out, "--tsa-root", tsaRootPath, "--rekor-key", rekorKeyPath)
+	// --require-anchors: the corpus measures the Lucairn-hosted policy (every
+	// certificate must be anchored), which a custom witness key turns off.
+	return append(out, "--tsa-root", tsaRootPath, "--rekor-key", rekorKeyPath, "--require-anchors")
 }
+
+// LeafHashHex is the RFC 6962 leaf hash of b (hex) — what an inclusion proof
+// for an entry with body b starts from.
+func LeafHashHex(b []byte) string { return hex.EncodeToString(leafHash(b)) }
 
 // Cert is one synthetic certificate.
 type Cert struct {

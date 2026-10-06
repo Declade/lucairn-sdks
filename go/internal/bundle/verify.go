@@ -83,10 +83,10 @@ func Verify(name string, data []byte, opt Options) *Report {
 		r.add("bundle", "certificate-set", Pass, r.CertificatesDigest)
 	}
 
-	if m.Completeness.State == "complete" {
-		r.add("bundle", "completeness", Pass, "exporter states every certificate of the conversation is included (unsigned statement; see NOT COVERED)")
+	if m.Completeness.Listing == ListingExhausted {
+		r.skip("bundle", "completeness", "not provable in this bundle version; the exporter states (unsigned) that its certificate listing for this conversation ran to its end", false)
 	} else {
-		r.skip("bundle", "completeness", "exporter did not state the bundle is complete: "+short(m.Completeness.State+" "+m.Completeness.Note), true)
+		r.skip("bundle", "completeness", "the exporter's certificate listing did not run to its end: "+short(m.Completeness.Listing+" "+m.Completeness.Note), true)
 	}
 
 	v := &certVerifier{r: r, m: m, opt: opt, seenTSA: map[string]string{}, seenRekor: map[string]string{}, seenBody: map[string]string{}}
@@ -96,6 +96,8 @@ func Verify(name string, data []byte, opt Options) *Report {
 
 	r.skip("bundle", "audit-counter", "not in this bundle version", false)
 	r.skip("bundle", "audit-inclusion", "not in this bundle version", false)
+	r.skip("bundle", "report-content", "reports, verification.json and README.txt are not authenticated: the manifest is unsigned (see LIMITATION)", false)
+	r.reportUnauthenticated = true
 	if _, has := files[PathVerification]; has {
 		r.skip("bundle", "verification.json", "informational export-time record; never used as evidence", false)
 	}
@@ -108,6 +110,10 @@ func readZip(r *Report, data []byte) (map[string][]byte, bool) {
 		return nil, false
 	}
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if errors.Is(err, zip.ErrInsecurePath) {
+		r.add("bundle", "structure", Fail, "the zip holds an entry with an unsafe path")
+		return nil, false
+	}
 	if err != nil {
 		r.skip("bundle", "structure", "not a readable zip file: "+short(err.Error()), true)
 		return nil, false
@@ -118,10 +124,9 @@ func readZip(r *Report, data []byte) (map[string][]byte, bool) {
 	}
 	files := map[string][]byte{}
 	var total int64
+	// No entry is skipped before these checks: a directory entry (any name
+	// ending in "/", e.g. "../../outside/") is not a v1 path and fails here.
 	for _, f := range zr.File {
-		if strings.HasSuffix(f.Name, "/") && f.UncompressedSize64 == 0 {
-			continue // directory entry
-		}
 		if !AllowedPath(f.Name) {
 			r.add("bundle", "structure", Fail, fmt.Sprintf("file %q is not part of the v1 bundle format", f.Name))
 			return nil, false
@@ -163,7 +168,7 @@ func readZip(r *Report, data []byte) (map[string][]byte, bool) {
 func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 	raw, ok := files[PathManifest]
 	if !ok {
-		r.skip("bundle", "manifest", "no manifest.json", true)
+		r.add("bundle", "manifest", Fail, "required file manifest.json is missing")
 		return nil, false
 	}
 	generic, err := verify.DecodeDocument(raw)
@@ -174,6 +179,10 @@ func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 	gm, isObj := generic.(map[string]any)
 	if !isObj {
 		r.add("bundle", "manifest", Fail, "manifest.json is not a JSON object")
+		return nil, false
+	}
+	if p := manifestKeyProblem(gm); p != "" {
+		r.add("bundle", "manifest", Fail, p)
 		return nil, false
 	}
 	if gm["format"] != FormatName {
@@ -201,6 +210,11 @@ func readManifest(r *Report, files map[string][]byte) (*Manifest, bool) {
 func checkFiles(r *Report, m *Manifest, files map[string][]byte) bool {
 	listed := map[string]bool{}
 	var problems []string
+	for _, p := range RequiredPaths {
+		if _, ok := files[p]; !ok {
+			problems = append(problems, fmt.Sprintf("required file %q is missing", p))
+		}
+	}
 	for _, f := range m.Files {
 		if f.Path == PathManifest || !AllowedPath(f.Path) {
 			problems = append(problems, fmt.Sprintf("manifest lists a path that cannot be in a v1 bundle: %q", f.Path))
@@ -267,7 +281,7 @@ func checkCertificateList(r *Report, m *Manifest, files map[string][]byte) ([]Ma
 		return nil, false
 	}
 	if len(m.Certificates) == 0 {
-		r.skip("bundle", "certificate-list", "the bundle contains no certificates", true)
+		r.add("bundle", "certificate-list", Fail, "the bundle contains no certificate (a v1 bundle holds at least one)")
 		return nil, false
 	}
 	r.add("bundle", "certificate-list", Pass, fmt.Sprintf("%d certificates, one file each", len(m.Certificates)))
@@ -352,7 +366,13 @@ func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid
 		r.add(scope, "claims", Fail, "claim chain: "+ch.Reason)
 		return
 	}
-	r.add(scope, "claims", Pass, fmt.Sprintf("every claim signature verifies under its pinned service key (chain verdict %s, %s)", ch.Verdict, ch.Reason))
+	r.add(scope, "claims", Pass, "every claim signature verifies under its pinned service key")
+	verdictNote := "what this certificate itself attests"
+	if ch.Verdict != "VERIFIED" {
+		verdictNote += "; a VALID bundle does not make it VERIFIED"
+	}
+	r.info(scope, "chain-verdict", fmt.Sprintf("%s (%s; signed tier %s) — %s", ch.Verdict, ch.Reason, ch.SignedCertTier, verdictNote))
+	r.info(scope, "user-unredacted", ch.UserUnredacted+userUnredactedNote(ch.UserUnredacted))
 	v.binding(scope, ch)
 }
 
@@ -389,6 +409,16 @@ func (v *certVerifier) binding(scope string, ch *lucairn.CertificateChainResult)
 	default:
 		r.add(scope, "binding", Pass, "signed claims name this conversation and this customer")
 	}
+}
+
+func userUnredactedNote(u string) string {
+	switch u {
+	case "true":
+		return " — the user chose to send this message unredacted"
+	case "false":
+		return ""
+	}
+	return " — not stated by a signed claim"
 }
 
 func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt time.Time, anchorClaimed bool) {
@@ -459,12 +489,14 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 	e := anchor.RekorEntry{LogIndex: idx, InclusionProof: proof, SignedEntryTimestamp: set, CanonicalBody: body, IntegratedTime: itime}
 	if v.opt.Fetcher != nil {
 		var err error
-		e, err = v.online(e)
+		e, err = v.online(e, wkey)
 		if err != nil {
 			r.add(scope, "rekor", Fail, short(err.Error()))
 			return
 		}
 	}
+	// The STORED entry (with a legacy body/time filled in from the log in
+	// --online mode) is what is verified: the log's copy only confirms it.
 	res, err := anchor.VerifyRekor(e, v.opt.Roots.Rekor, wkey)
 	if errors.Is(err, anchor.ErrRekorNoBody) {
 		r.skip(scope, "rekor", "legacy entry without a stored body; re-run with --online to check it against the log", true)
@@ -494,15 +526,19 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 	}
 	mode := "stored entry"
 	if v.opt.Fetcher != nil {
-		mode = "re-fetched entry"
+		mode = "stored entry, confirmed by the log's current copy"
 	}
 	r.add(scope, "rekor", PassNotContentBound, fmt.Sprintf("log index %d, integrated %s; SET + inclusion proof verified, %s; entry made by the witness key (%s)",
 		e.LogIndex, res.IntegratedTime.Format(time.RFC3339), cp, mode))
 }
 
-// online re-fetches the entry from the log and requires the stored half to
-// agree with it; it returns the entry to verify (the log's own bytes).
-func (v *certVerifier) online(stored anchor.RekorEntry) (anchor.RekorEntry, error) {
+// online re-fetches the entry from the log. The log's copy CONFIRMS the
+// stored entry and never replaces it: the stored SET and the stored
+// inclusion proof are still the ones verified (by the caller). Only a legacy
+// entry that never stored its body / integrated time gets those two values
+// from the log — and they must then match the STORED SET. The log's own copy
+// must verify too (SET, proof, checkpoint, witness key).
+func (v *certVerifier) online(stored anchor.RekorEntry, wkey ed25519.PublicKey) (anchor.RekorEntry, error) {
 	f, err := v.opt.Fetcher.Fetch(stored.LogIndex)
 	if err != nil {
 		return stored, fmt.Errorf("online re-fetch of log index %d failed: %w", stored.LogIndex, err)
@@ -516,17 +552,31 @@ func (v *certVerifier) online(stored anchor.RekorEntry) (anchor.RekorEntry, erro
 	if stored.IntegratedTime != 0 && stored.IntegratedTime != f.IntegratedTime {
 		return stored, errors.New("the stored integrated time differs from the log's")
 	}
-	if err := anchor.VerifySET(f.Body, f.IntegratedTime, f.LogIndex, stored.SignedEntryTimestamp, v.opt.Roots.Rekor); err != nil {
-		return stored, errors.New("the stored signed entry timestamp is not this log entry's")
+	logCopy := anchor.RekorEntry{LogIndex: f.LogIndex, InclusionProof: f.InclusionProof, SignedEntryTimestamp: f.SignedEntryTimestamp,
+		CanonicalBody: f.Body, IntegratedTime: f.IntegratedTime}
+	if _, err := anchor.VerifyRekor(logCopy, v.opt.Roots.Rekor, wkey); err != nil {
+		return stored, fmt.Errorf("the log's current copy of this entry does not verify: %w", err)
 	}
-	return anchor.RekorEntry{LogIndex: f.LogIndex, InclusionProof: f.InclusionProof, SignedEntryTimestamp: f.SignedEntryTimestamp,
-		CanonicalBody: f.Body, IntegratedTime: f.IntegratedTime}, nil
+	out := stored
+	if len(out.CanonicalBody) == 0 {
+		out.CanonicalBody = f.Body
+	}
+	if out.IntegratedTime == 0 {
+		out.IntegratedTime = f.IntegratedTime
+	}
+	return out, nil
 }
 
 // notAnchored reports a missing anchor. It is never a PASS. It blocks VALID
-// only when the certificate's own (unsigned) anchor_status says ANCHORED —
-// anchor_status can make a result worse, never better.
+// when the trust roots require anchors (the built-in Lucairn-hosted pins,
+// or --require-anchors), and otherwise when the certificate's own (unsigned)
+// anchor_status says ANCHORED — anchor_status can make a result worse, never
+// better: removing it never relaxes the requirement.
 func (v *certVerifier) notAnchored(scope, step, what string, anchorClaimed bool) {
+	if v.opt.Roots.RequireAnchors {
+		v.r.skip(scope, step, "not anchored: "+what+"; every certificate must be anchored under these trust roots (for a self-hosted deployment without anchoring pass --allow-unanchored)", true)
+		return
+	}
 	if anchorClaimed {
 		v.r.skip(scope, step, "not anchored: "+what+", although the certificate states it is anchored", true)
 		return

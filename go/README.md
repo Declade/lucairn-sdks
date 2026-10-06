@@ -411,7 +411,11 @@ check could not run; also unreadable input and usage errors).
 What it recomputes, from the bundle's files and keys built into the binary
 (never from the bundle):
 
-- every file against `manifest.json` (SHA-256, nothing unlisted, v1 layout only);
+- every file against `manifest.json` (SHA-256, nothing unlisted, v1 layout
+  only; `manifest.json`, `README.txt`, `report-external.pdf` and at least one
+  certificate are required; a directory entry or any other name in the zip,
+  and any manifest key that is not exactly a v1 key, is TAMPERED — verify the
+  zip as downloaded, not a re-zipped folder);
 - each certificate's witness signature (`VerifyCertificate`) and every claim
   signature (`VerifyCertificateChain`) under the pinned keys published at
   `https://lucairn.eu/.well-known/lucairn-service-keys.json`;
@@ -419,9 +423,12 @@ What it recomputes, from the bundle's files and keys built into the binary
 - each RFC 3161 timestamp token: CMS signature, ESS signing-certificate, chain
   to the pinned FreeTSA root with a critical time-stamping EKU, and a message
   imprint equal to the digest the certificate records;
-- each Sigstore Rekor entry: signed entry timestamp and checkpoint under the
-  pinned public-good key, the RFC 6962 inclusion proof, and that the witness
-  key made the entry (Ed25519ph over the logged SHA-512 digest).
+- each Sigstore Rekor entry: signed entry timestamp under the pinned
+  public-good key, the RFC 6962 inclusion proof and its signed checkpoint
+  (required: a proof without one is FAIL), a proof index no higher than the
+  signed log index, and that the witness key made the entry (Ed25519ph over
+  the logged SHA-512 digest). `--online` fetches the log's current copy to
+  CONFIRM the stored entry; the stored proof is still the one verified.
 
 A passing timestamp or Rekor step is printed as `PASS (genuine anchor,
 not content-bound)` — never a bare `PASS` — with this line under it and in the
@@ -430,21 +437,35 @@ by Lucairn, which contains original data and is not exported, so this tool
 cannot tie them to this exact certificate." (JSON status
 `PASS_NOT_CONTENT_BOUND`; it does not block VALID.)
 
-It never reads `anchor_status` as evidence; a certificate whose own status says
-"anchored" but which carries no proof is reported INCOMPLETE. Self-hosted
-deployments pass their own keys with `--witness-key`, `--service-key`,
-`--tsa-root` and `--rekor-key`; the report then says the trust roots are custom.
+Every certificate's own chain verdict and its `user_unredacted` value are
+printed on their own `INFO` lines. VALID is a statement about the bundle's
+integrity (intact, signed by the pinned keys, this conversation and account);
+it does not mean every turn was sanitized — read the chain-verdict lines.
+
+With the built-in pins every certificate must be anchored: a missing
+timestamp or Rekor entry is INCOMPLETE, whatever the certificate's own
+`anchor_status` says (it is never read as evidence). Self-hosted deployments
+pass their own keys with `--witness-key`, `--service-key`, `--tsa-root` and
+`--rekor-key`; the report then says the trust roots are custom, and with a
+custom witness key an unanchored certificate is `SKIPPED(not anchored)`
+without blocking VALID unless `--require-anchors` is given.
+`--allow-unanchored` relaxes the rule explicitly.
 
 What a version-1 bundle cannot show is printed on every run: a certificate
 removed together with its manifest entry (closed by the planned audit counter),
 the binding of an anchor to the certificate's stored bytes (those bytes are not
-exported), and the text of the PDF reports (integrity-checked only). The tool is
-a technical integrity check, not a certification or legal opinion.
+exported), and the reports themselves: `manifest.json` is unsigned in format 1,
+so `report-external.pdf`, `report-internal.pdf`, `verification.json` and
+`README.txt` match the manifest but are **not authenticated** by any signature
+("report content not authenticated"); only the certificates are signed. The
+tool is a technical integrity check, not a certification or legal opinion.
 
 The synthetic tamper corpus runs against the built binary:
 
 ```bash
 go/cmd/lucairn-bundle-verify/scripts/tamper-corpus.sh
+# side by side with an older build of the tool as the independent reference:
+go/cmd/lucairn-bundle-verify/scripts/red-proof.sh /path/to/older/lucairn-bundle-verify
 ```
 
 ## Per-call options
