@@ -308,35 +308,72 @@ func (v *certVerifier) verify(mc ManifestCert, raw []byte) {
 	}
 	wkid, _ := cm["witness_key_id"].(string)
 	wkey, haveKey := v.opt.Roots.WitnessKeys[wkid]
+	var si signedInput
 	if !haveKey {
 		r.skip(scope, "signature", fmt.Sprintf("no pinned key for witness key id %q (pass --witness-key)", wkid), true)
 	} else {
-		v.signature(scope, mc, raw, wkid, wkey)
+		si = v.signature(scope, mc, raw, wkid, wkey)
 	}
 
 	issuedAt, _ := time.Parse(time.RFC3339Nano, str(cm["issued_at"]))
 	anchorClaimed := anchorStatusClaimsAnchored(cm)
 	att, _ := cm["attestation"].(map[string]any)
-	v.timestamp(scope, cm, att, issuedAt, anchorClaimed)
+	cb := v.bindingOf(att, si)
+	v.timestamp(scope, cm, att, issuedAt, anchorClaimed, cb)
 	if haveKey {
-		v.rekor(scope, att, issuedAt, anchorClaimed, wkey)
+		v.rekor(scope, att, issuedAt, anchorClaimed, wkey, cb)
 	} else {
 		r.skip(scope, "rekor", "no pinned witness key to check the entry's author against", true)
 	}
 }
 
-func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) {
+// signedInput is what a verified witness signature authenticates and the
+// anchor-binding check needs: the exact signed canonical bytes and the signed
+// issued_at. Zero value = the signature was not verified.
+type signedInput struct {
+	signable []byte
+	issuedAt time.Time
+}
+
+func (v *certVerifier) signature(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) signedInput {
 	r := v.r
 	res, err := lucairn.VerifyCertificate(raw, lucairn.VerifyCertificateKeys{WitnessKeyID: wkid, WitnessPublicKey: []byte(wkey)})
 	if err != nil {
 		r.add(scope, "signature", Fail, "witness signature: "+short(err.Error()))
-		return
+		return signedInput{}
 	}
 	if res.RequestID != mc.RequestID || res.CertificateID != mc.CertificateID {
 		r.add(scope, "signature", Fail, "the signed request/certificate id is not the one the manifest lists for this file")
-		return
+		return signedInput{}
 	}
 	r.add(scope, "signature", Pass, fmt.Sprintf("witness %s signature (%s) over %s", wkid, res.SignableVersion, res.CertificateID))
+	si := signedBytesOf(raw, wkid, wkey, res.CertificateID)
+	v.claimChain(scope, mc, raw, wkid, wkey)
+	return si
+}
+
+// signedBytesOf re-runs the SDK's signature pipeline to obtain the exact
+// bytes the (already verified) witness signature covers, and the signed
+// issued_at. The same pipeline, the same input: if it does not verify again
+// identically, the binding inputs are withheld (zero value).
+func signedBytesOf(raw []byte, wkid string, wkey ed25519.PublicKey, certID string) signedInput {
+	var doc any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return signedInput{}
+	}
+	res, err := verify.Run(doc, wkid, []byte(wkey), verify.RunOptions{})
+	if err != nil || res.CertificateID != certID || len(res.SignedBytes) == 0 {
+		return signedInput{}
+	}
+	at, err := time.Parse(time.RFC3339Nano, res.IssuedAtISO)
+	if err != nil {
+		return signedInput{}
+	}
+	return signedInput{signable: res.SignedBytes, issuedAt: at.UTC()}
+}
+
+func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) {
+	r := v.r
 
 	if len(v.opt.Roots.ServiceKeys) == 0 {
 		r.skip(scope, "claims", "no service keys pinned for this deployment (pass --service-key)", true)
@@ -421,7 +458,70 @@ func userUnredactedNote(u string) string {
 	return " — not stated by a signed claim"
 }
 
-func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt time.Time, anchorClaimed bool) {
+// bindingForm is the anchor form a certificate's timestamp declares on
+// attestation.timestamp.hash_algorithm (unsigned).
+type bindingForm int
+
+const (
+	formLegacy  bindingForm = iota // "" / SHA-256: imprint = recorded cert_hash
+	formV1                         // anchor.HashAlgorithmV1
+	formUnknown                    // anything else
+)
+
+// certBinding is everything the anchor steps need to decide content binding.
+type certBinding struct {
+	form   bindingForm
+	marker string
+	// h is the binding-v1 digest recomputed from the recorded cert_hash and
+	// the signature-verified signable; nil when either is unavailable.
+	h []byte
+	// required: the downgrade guard applies (signed issued_at after
+	// Roots.BindingRequiredAfter), so only binding-v1 anchors can pass.
+	required       bool
+	signedIssuedAt time.Time
+}
+
+func (v *certVerifier) bindingOf(att map[string]any, si signedInput) certBinding {
+	ts, _ := att["timestamp"].(map[string]any)
+	cb := certBinding{form: formLegacy, signedIssuedAt: si.issuedAt}
+	if raw, present := ts["hash_algorithm"]; present && raw != nil {
+		m, isStr := raw.(string)
+		cb.marker = m
+		switch {
+		case !isStr:
+			cb.form, cb.marker = formUnknown, fmt.Sprint(raw)
+		case m == anchor.HashAlgorithmV1:
+			cb.form = formV1
+		case m == "" || strings.EqualFold(strings.ReplaceAll(m, "-", ""), "sha256"):
+			cb.form = formLegacy
+		default:
+			cb.form = formUnknown
+		}
+	}
+	if certHash, ok := b64(ts["cert_hash"]); ok && len(certHash) == sha256.Size && len(si.signable) > 0 {
+		cb.h = anchor.DigestV1(certHash, si.signable)
+	}
+	cut := v.opt.Roots.BindingRequiredAfter
+	cb.required = !cut.IsZero() && !si.issuedAt.IsZero() && si.issuedAt.After(cut)
+	return cb
+}
+
+// bindingProblem is the FAIL reason shared by both anchor steps when the
+// declared form cannot pass: an unknown marker, or a certificate issued after
+// the cutover whose anchors are not binding v1 (marker stripped or anchors
+// from another certificate).
+func (v *certVerifier) bindingProblem(cb certBinding) string {
+	switch {
+	case cb.form == formUnknown:
+		return fmt.Sprintf("the timestamp declares an unknown anchor binding %q (this tool knows binding v1); use a newer lucairn-bundle-verify if Lucairn published one", short(cb.marker))
+	case cb.required && cb.form != formV1:
+		return fmt.Sprintf("this certificate was issued (signed issued_at %s) after %s, from which every certificate's anchors are content-bound (binding v1), but its timestamp does not declare binding v1: the marker was removed or the anchors are not this certificate's",
+			cb.signedIssuedAt.Format(time.RFC3339), v.opt.Roots.BindingRequiredAfter.Format(time.RFC3339))
+	}
+	return ""
+}
+
+func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt time.Time, anchorClaimed bool, cb certBinding) {
 	r := v.r
 	ts, _ := att["timestamp"].(map[string]any)
 	token, okT := b64(ts["timestamp_token"])
@@ -438,13 +538,27 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 		r.add(scope, "timestamp", Fail, "the certificate's recorded digest (cert_hash) is missing or not SHA-256")
 		return
 	}
-	if alg := str(ts["hash_algorithm"]); alg != "" && !strings.EqualFold(strings.ReplaceAll(alg, "-", ""), "sha256") {
-		r.add(scope, "timestamp", Fail, fmt.Sprintf("recorded hash algorithm %q is not SHA-256", alg))
+	if p := v.bindingProblem(cb); p != "" {
+		r.add(scope, "timestamp", Fail, p)
 		return
 	}
-	res, err := anchor.VerifyTimestamp(token, digest, v.opt.Roots.TSARoots, v.opt.Now)
+	expected, status, over := digest, PassNotContentBound, "the recorded digest"
+	if cb.form == formV1 {
+		if cb.h == nil {
+			r.skip(scope, "timestamp", "binding v1 cannot be checked: this certificate's witness signature was not verified", true)
+			return
+		}
+		expected, status, over = cb.h, PassContentBound, "this certificate's anchor-binding v1 digest (recorded cert_hash + signed content)"
+	} else {
+		r.notContentBound = true
+	}
+	res, err := anchor.VerifyTimestamp(token, expected, v.opt.Roots.TSARoots, v.opt.Now)
 	if err != nil {
-		r.add(scope, "timestamp", Fail, short(err.Error()))
+		msg := short(err.Error())
+		if cb.form == formV1 {
+			msg = "anchor binding v1 (the expected imprint is the binding digest recomputed from this certificate): " + msg
+		}
+		r.add(scope, "timestamp", Fail, msg)
 		return
 	}
 	if !issuedAt.IsZero() && res.GenTime.Before(issuedAt.Add(-anchor.ClockSkew)) {
@@ -463,15 +577,15 @@ func (v *certVerifier) timestamp(scope string, cm, att map[string]any, issuedAt 
 		return
 	}
 	v.seenTSA[key] = scope
-	detail := fmt.Sprintf("RFC 3161 token over the recorded digest, genTime %s, signer %s", res.GenTime.Format(time.RFC3339), res.SignerCN)
+	detail := fmt.Sprintf("RFC 3161 token over %s, genTime %s, signer %s", over, res.GenTime.Format(time.RFC3339), res.SignerCN)
 	if !res.ChainValidNow {
 		detail += " (signing chain valid at genTime, expired since; revocation not checked offline)"
 	}
-	r.add(scope, "timestamp", PassNotContentBound, detail)
+	r.add(scope, "timestamp", status, detail)
 	r.Steps[len(r.Steps)-1].SignerDN = res.Signer
 }
 
-func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Time, anchorClaimed bool, wkey ed25519.PublicKey) {
+func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Time, anchorClaimed bool, wkey ed25519.PublicKey, cb certBinding) {
 	r := v.r
 	tl, _ := att["transparency_log"].(map[string]any)
 	set, ok1 := b64(tl["signed_entry_timestamp"])
@@ -511,6 +625,30 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 		r.add(scope, "rekor", Fail, "the Rekor entry predates the certificate it is attached to")
 		return
 	}
+	if p := v.bindingProblem(cb); p != "" && cb.form == formUnknown {
+		r.add(scope, "rekor", Fail, p)
+		return
+	}
+	bound := cb.h != nil && strings.EqualFold(res.ArtifactSHA512, anchor.RekorDigestV1(cb.h))
+	status := PassNotContentBound
+	switch {
+	case cb.form == formV1 || cb.required:
+		if cb.h == nil {
+			r.skip(scope, "rekor", "content binding cannot be checked: it needs a verified witness signature and the timestamp's recorded cert_hash", true)
+			return
+		}
+		if !bound {
+			r.add(scope, "rekor", Fail, "the Rekor entry is not for this certificate's anchor-binding v1 digest (an entry of another certificate, or one made without binding v1)")
+			return
+		}
+		status = PassContentBound
+	case bound:
+		// A legacy-marked timestamp with a binding-v1 log entry: an anchoring
+		// run resumed across the witness upgrade. The entry itself is bound.
+		status = PassContentBound
+	default:
+		r.notContentBound = true
+	}
 	idxKey := strconv.FormatInt(e.LogIndex, 10)
 	if other, dup := v.seenRekor[idxKey]; dup {
 		r.add(scope, "rekor", Fail, "the same Rekor entry is attached to certificate "+other)
@@ -529,8 +667,12 @@ func (v *certVerifier) rekor(scope string, att map[string]any, issuedAt time.Tim
 	if v.opt.Fetcher != nil {
 		mode = "stored entry, confirmed by the log's current copy"
 	}
-	r.add(scope, "rekor", PassNotContentBound, fmt.Sprintf("log index %d, integrated %s; SET + inclusion proof verified, %s; entry made by the witness key (%s)",
-		e.LogIndex, res.IntegratedTime.Format(time.RFC3339), cp, mode))
+	what := ""
+	if status == PassContentBound {
+		what = "; the entry logs this certificate's anchor-binding v1 digest"
+	}
+	r.add(scope, "rekor", status, fmt.Sprintf("log index %d, integrated %s; SET + inclusion proof verified, %s; entry made by the witness key (%s)%s",
+		e.LogIndex, res.IntegratedTime.Format(time.RFC3339), cp, mode, what))
 }
 
 // online re-fetches the entry from the log. The log's copy CONFIRMS the

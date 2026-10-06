@@ -422,7 +422,7 @@ What it recomputes, from the bundle's files and keys built into the binary
 - that the signed claim payloads name the bundle's conversation and customer;
 - each RFC 3161 timestamp token: CMS signature, ESS signing-certificate, chain
   to the pinned FreeTSA root with a critical time-stamping EKU, and a message
-  imprint equal to the digest the certificate records;
+  imprint equal to the expected digest (see anchor binding below);
 - each Sigstore Rekor entry: signed entry timestamp under the pinned
   public-good key, the RFC 6962 inclusion proof and its signed checkpoint
   (required: a proof without one is FAIL), a proof index no higher than the
@@ -430,12 +430,33 @@ What it recomputes, from the bundle's files and keys built into the binary
   the logged SHA-512 digest). `--online` fetches the log's current copy to
   CONFIRM the stored entry; the stored proof is still the one verified.
 
-A passing timestamp or Rekor step is printed as `PASS (genuine anchor,
-not content-bound)` — never a bare `PASS` — with this line under it and in the
+**Anchor binding.** Certificates anchored with *anchor binding v1* (marked
+`attestation.timestamp.hash_algorithm = "lucairn.anchor-binding/v1"`) have
+both anchors over
+`H = sha256("lucairn.anchor-binding/v1\n" || cert_hash || sha256(signed signable))`:
+the RFC 3161 imprint is `H` and the Rekor entry logs `sha512(H)`. The tool
+recomputes `H` from the recorded `cert_hash` and the canonical bytes the
+verified witness signature covers, so a passing step is printed as
+`PASS (content-bound)` (JSON `PASS_CONTENT_BOUND`): the anchor belongs to this
+exact certificate, and anchors copied from another certificate FAIL.
+
+Older anchors (without binding v1) cover the certificate as stored by
+Lucairn. A passing step is then printed as `PASS (genuine anchor, not
+content-bound)` — never a bare `PASS` — with this line under it and in the
 result summary: "The timestamp and log entry cover the certificate as stored
 by Lucairn, which contains original data and is not exported, so this tool
 cannot tie them to this exact certificate." (JSON status
 `PASS_NOT_CONTENT_BOUND`; it does not block VALID.)
+
+Downgrade guard: with the built-in pins, a certificate whose **signed**
+`issued_at` is after the hosted binding cutover
+(`anchor.BindingV1Cutover`, printed by `--print-trust-roots`) must carry
+binding-v1 anchors; without them (marker removed, or anchors of another
+certificate) it is TAMPERED. An unknown binding marker is TAMPERED too. A
+custom `--witness-key` clears the hosted cutover; `--require-binding-after
+RFC3339` sets one for another deployment. Bundles of certificates issued after
+the cutover need this version of the tool: older builds report their
+content-bound anchors as FAIL.
 
 Every certificate's own chain verdict and its `user_unredacted` value are
 printed on their own `INFO` lines. VALID is a statement about the bundle's
@@ -456,8 +477,9 @@ name; `--json` keeps the full distinguished name as `signer_dn`.
 
 What a version-1 bundle cannot show is printed on every run: a certificate
 removed together with its manifest entry (closed by the planned audit counter),
-the binding of an anchor to the certificate's stored bytes (those bytes are not
-exported), and the reports themselves: `manifest.json` is unsigned in format 1,
+for certificates anchored before binding v1 the binding of an anchor to the
+certificate (it covers the stored bytes, which are not exported), and the
+reports themselves: `manifest.json` is unsigned in format 1,
 so `report-external.pdf`, `report-internal.pdf`, `verification.json` and
 `README.txt` match the manifest but are **not authenticated** by any signature
 ("report content not authenticated"); only the certificates are signed. The

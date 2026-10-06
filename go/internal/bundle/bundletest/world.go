@@ -32,6 +32,10 @@ import (
 // WitnessKeyID is the synthetic witness key id.
 const WitnessKeyID = "witness_synthetic_v1"
 
+// CorpusCutover is the synthetic world's anchor-binding cutover: certificates
+// issued after it must carry binding-v1 anchors (T-1231 S2a downgrade guard).
+var CorpusCutover = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
 // World is one synthetic deployment.
 type World struct {
 	Witness  ed25519.PrivateKey
@@ -155,6 +159,9 @@ func (w *World) Roots() bundle.TrustRoots {
 		TSARoots:    pool,
 		Rekor:       w.rekorKey,
 		Label:       "SYNTHETIC test roots",
+		// The synthetic world's cutover (the corpus measures the hosted
+		// policy, whose roots carry the real one).
+		BindingRequiredAfter: CorpusCutover,
 	}
 }
 
@@ -167,7 +174,10 @@ func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	}
 	// --require-anchors: the corpus measures the Lucairn-hosted policy (every
 	// certificate must be anchored), which a custom witness key turns off.
-	return append(out, "--tsa-root", tsaRootPath, "--rekor-key", rekorKeyPath, "--require-anchors")
+	// --require-binding-after: the same for the anchor-binding cutover.
+	// --require-anchors stays LAST (tests strip it to get the custom policy).
+	return append(out, "--tsa-root", tsaRootPath, "--rekor-key", rekorKeyPath,
+		"--require-binding-after", CorpusCutover.Format(time.RFC3339), "--require-anchors")
 }
 
 // LeafHashHex is the RFC 6962 leaf hash of b (hex) — what an inclusion proof
@@ -180,8 +190,10 @@ type Cert struct {
 	CertificateID string
 	IssuedAt      time.Time
 	JSON          []byte
-	// Raw stands in for the witness's stored certificate bytes: the TSA
-	// imprint is sha256(Raw), the Rekor entry logs sha512(Raw).
+	// Raw stands in for the witness's stored certificate bytes: cert_hash is
+	// sha256(Raw). Legacy anchors: the TSA imprint is sha256(Raw) and the
+	// Rekor entry logs sha512(Raw). Bound (binding v1) anchors: both commit
+	// to H = anchor.DigestV1(sha256(Raw), signed v3 signable).
 	Raw []byte
 	Doc map[string]any
 }
@@ -195,6 +207,8 @@ type CertOptions struct {
 	AnchorAt time.Time
 	// NoAnchors leaves the attestation empty (a self-hosted, unanchored cert).
 	NoAnchors bool
+	// Bound anchors the certificate with anchor binding v1 (the S2a witness).
+	Bound bool
 }
 
 // NewCert mints one fully signed, anchored certificate.
@@ -285,11 +299,16 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 			at = issued.Add(2 * time.Second)
 		}
 		digest := sha256.Sum256(raw)
-		tok, err := w.Timestamp(digest[:], at)
+		imprint, artifact, marker := digest[:], raw, anchor.HashAlgorithmLegacy
+		if o.Bound {
+			h := anchor.DigestV1(digest[:], v3b)
+			imprint, artifact, marker = h, h, anchor.HashAlgorithmV1
+		}
+		tok, err := w.Timestamp(imprint, at)
 		if err != nil {
 			return nil, err
 		}
-		tl, err := w.rekorEntry(raw, at, int64(1000+n))
+		tl, err := w.rekorEntry(artifact, at, int64(1000+n))
 		if err != nil {
 			return nil, err
 		}
@@ -298,7 +317,7 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 				"provider":        "https://tsa.synthetic.invalid/tsr",
 				"timestamp_token": base64.StdEncoding.EncodeToString(tok),
 				"cert_hash":       base64.StdEncoding.EncodeToString(digest[:]),
-				"hash_algorithm":  "SHA-256",
+				"hash_algorithm":  marker,
 			},
 			"transparency_log": tl,
 		}
