@@ -152,6 +152,24 @@ func TestAnchorPolicyFlags(t *testing.T) {
 		t.Fatalf("CLIFlags must end with --require-anchors: %v", base)
 	}
 	var out, errb bytes.Buffer
+	// Banner + summary: a custom witness key without --require-anchors must
+	// say plainly that unanchored certificates are allowed.
+	out.Reset()
+	if code := run(append(append([]string{}, custom...), zipPath), &out, &errb); code != 0 {
+		t.Fatalf("custom witness: exit %d\n%s", code, out.String())
+	}
+	for _, want := range []string{"unanchored certificates allowed", "LIMITATION: " + bundle.AnchorsNotRequiredReason} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("custom witness without --require-anchors: output lacks %q\n%s", want, out.String())
+		}
+	}
+	out.Reset()
+	if code := run(append(append([]string{}, base...), zipPath), &out, &errb); code != 2 {
+		t.Fatalf("--require-anchors: exit %d", code)
+	}
+	if strings.Contains(out.String(), "unanchored certificates allowed") || strings.Contains(out.String(), bundle.AnchorsNotRequiredReason) {
+		t.Errorf("--require-anchors must not claim anchors were optional\n%s", out.String())
+	}
 	for _, tc := range []struct {
 		name string
 		args []string

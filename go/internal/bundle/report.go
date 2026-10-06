@@ -32,6 +32,11 @@ const ReportNotAuthenticatedReason = "Report content not authenticated: report-e
 // ValidMeaning is printed under a VALID result.
 const ValidMeaning = "VALID means the certificates are intact, signed by the pinned keys and belong to this conversation and account. It is a statement about the bundle's integrity, not that every turn was sanitized: read each certificate's chain-verdict and user-unredacted lines."
 
+// AnchorsNotRequiredReason is printed whenever the trust roots do not require
+// anchoring (custom --witness-key without --require-anchors, or
+// --allow-unanchored).
+const AnchorsNotRequiredReason = "anchors were not required: a certificate without a timestamp or Rekor entry was allowed (SKIPPED(not anchored) does not block VALID)"
+
 // NotContentBoundLabel is how PassNotContentBound is printed.
 const NotContentBoundLabel = "PASS (genuine anchor, not content-bound)"
 
@@ -57,6 +62,9 @@ type Step struct {
 	Name   string `json:"step"`
 	Status Status `json:"status"`
 	Detail string `json:"detail,omitempty"`
+	// SignerDN is the full distinguished name of the TSA signer (timestamp
+	// step only); the text report prints just its common name.
+	SignerDN string `json:"signer_dn,omitempty"`
 	// Incomplete marks a SKIPPED step whose absence means the bundle cannot
 	// be called VALID (as opposed to a skip that is expected for this bundle
 	// version, such as the audit counter in v1).
@@ -80,6 +88,7 @@ type Report struct {
 	NotCovered  []string `json:"not_covered"`
 
 	reportUnauthenticated bool
+	anchorsNotRequired    bool
 }
 
 func (r *Report) add(scope, name string, st Status, detail string) {
@@ -115,6 +124,9 @@ func (r *Report) finish() {
 	}
 	if r.reportUnauthenticated {
 		r.Limitations = append(r.Limitations, ReportNotAuthenticatedReason)
+	}
+	if r.anchorsNotRequired {
+		r.Limitations = append(r.Limitations, AnchorsNotRequiredReason)
 	}
 	switch {
 	case fail:
