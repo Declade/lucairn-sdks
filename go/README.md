@@ -393,7 +393,27 @@ Limits: this is the signature of the bytes Lucairn sent. It does not tell you wh
 
 `go/cmd/lucairn-bundle-verify` checks a Lucairn evidence bundle (the per-conversation
 `.zip` downloaded from the Lucairn account pages) without contacting Lucairn.
-It is one static binary with no runtime:
+It is one static binary with no runtime.
+
+### Download
+
+Ready-to-run downloads are on the release page
+<https://github.com/Declade/lucairn-sdks/releases/tag/bundle-verify-v1.0.0>
+(Windows, macOS and Linux; Intel/AMD and ARM; one file each, no installer).
+Check the download before you run it: the release carries `SHA256SUMS` and
+`SHA256SUMS.sig`. The signature verifies with the Lucairn public key at
+<https://lucairn.eu/.well-known/lucairn-cosign.pub>:
+
+```bash
+cosign verify-blob --key lucairn-cosign.pub --signature SHA256SUMS.sig SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing   # on macOS: shasum -a 256 -c SHA256SUMS --ignore-missing
+```
+
+The signature is recorded in the Sigstore Rekor transparency log. The binaries
+are reproducible from source (the build command is in the release notes). The
+macOS binaries are not notarised by Apple.
+
+### Build from source
 
 ```bash
 cd go
