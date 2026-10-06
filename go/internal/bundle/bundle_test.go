@@ -1,6 +1,7 @@
 package bundle_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
@@ -42,8 +43,23 @@ func TestCorpusInProcess(t *testing.T) {
 			if rep.ExitCode != bundle.ExitTampered {
 				t.Errorf("%s: want exit 1 (TAMPERED), got %d %s", c.Name, rep.ExitCode, rep.Verdict)
 			}
+		case bundletest.ExpectIncomplete:
+			if rep.ExitCode != bundle.ExitIncomplete {
+				t.Errorf("%s: want exit 2 (INCOMPLETE), got %d %s: %+v", c.Name, rep.ExitCode, rep.Verdict, failing(rep))
+			}
 		default:
 			t.Errorf("%s: unknown expectation %q", c.Name, c.Expect)
+		}
+		if c.Step != "" {
+			found := false
+			for _, s := range failing(rep) {
+				if s.Name == c.Step && strings.Contains(s.Detail, c.Detail) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("%s: no failing/blocking step %q with detail %q: %+v", c.Name, c.Step, c.Detail, failing(rep))
+			}
 		}
 		t.Logf("%-36s exit %d %-10s %s", c.Name, rep.ExitCode, rep.Verdict, first(rep))
 	}

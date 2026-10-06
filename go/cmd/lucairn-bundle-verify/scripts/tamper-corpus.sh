@@ -8,7 +8,11 @@
 # --online cases run against a local fake Rekor (bundlecorpus -serve on
 # 127.0.0.1, synthetic entries only); nothing leaves the machine.
 #
-# PRD specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slice 1).
+# Expectations: VALID(0) and KNOWN-GAP(0) must exit 0; DETECTED(1|2) must
+# exit 1 or 2; TAMPERED(1) must exit exactly 1; INCOMPLETE(2) must exit
+# exactly 2 (something is missing, and nothing may be called tampering).
+#
+# PRD specs/2026-10/prd-2026-10-06-evidence-bundle-export.md (Slices 1, 2a, 2b).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 gomod="$(cd "$here/../../.." && pwd)"
@@ -54,6 +58,7 @@ while IFS=$'\t' read -r name expect what extra; do
     'VALID(0)'|'KNOWN-GAP(0)') [ "$code" -eq 0 ] || ok=no ;;
     'DETECTED(1|2)') [ "$code" -eq 1 ] || [ "$code" -eq 2 ] || ok=no ;;
     'TAMPERED(1)') [ "$code" -eq 1 ] || ok=no ;;
+    'INCOMPLETE(2)') [ "$code" -eq 2 ] || ok=no ;;
     *) ok=no ;;
   esac
   [ "$ok" = yes ] || bad=$((bad + 1))

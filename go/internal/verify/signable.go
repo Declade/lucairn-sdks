@@ -101,12 +101,12 @@ func (e *MalformedError) Error() string { return e.Reason }
 func DeriveSignedBytes(in DeriveSignedBytesInput) ([]byte, error) {
 	if len(in.ClaimRequestIDs) == 0 || len(in.ClaimIDs) == 0 {
 		return nil, &MalformedError{
-			Reason: "cert.claims is empty — certificate must contain at least one claim",
+			Reason: "cert.claims is empty - certificate must contain at least one claim",
 		}
 	}
 	if len(in.ClaimRequestIDs) != len(in.ClaimIDs) {
 		return nil, &MalformedError{
-			Reason: "cert.claims length mismatch between request_ids and claim_ids — SDK bug",
+			Reason: "cert.claims length mismatch between request_ids and claim_ids - SDK bug",
 		}
 	}
 	if in.ClaimRequestIDs[0] != in.RequestID {
@@ -118,7 +118,7 @@ func DeriveSignedBytes(in DeriveSignedBytesInput) ([]byte, error) {
 	if !ok {
 		return nil, &MalformedError{
 			Reason: "unknown verification.overall_verdict literal: " + in.OverallVerdictFullName +
-				" — SDK may be out of date",
+				" - SDK may be out of date",
 		}
 	}
 

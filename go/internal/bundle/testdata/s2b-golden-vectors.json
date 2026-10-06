@@ -1,0 +1,159 @@
+{
+  "format": "lucairn.audit-s2b-golden/v1",
+  "rules": [
+    "L(x) = decimal(byte length of x in UTF-8) + ':' + x ; fields are concatenated with no separator",
+    "v1 serialisation = L(event_id) L(event_type) L(source_service) L(actor) L(payload)",
+    "v2 serialisation = 'lucairn.audit-event/v2\\n' L(event_id) L(event_type) L(source_service) L(actor) L(payload_sha256) L(request_id) L(conversation_id) L(decimal(conv_seq)) ; payload_sha256 = lowercase hex of sha256(payload bytes)",
+    "event_hash = lowercase hex of sha256( previous_event_hash as its ASCII hex characters (empty for the first row) || serialisation )",
+    "a row is v2 exactly when it has a conv_seq; every other row is v1",
+    "leaf_hash = sha256( 0x00 || event_hash as its 64 ASCII hex characters )",
+    "node = sha256( 0x01 || left || right ) ; tree shape = RFC 6962 (split at the largest power of two smaller than n)",
+    "inclusion path = RFC 6962 audit path, leaf to root ; verify with RFC 9162 section 2.1.3.2 using leaf_index and tree_size",
+    "root artifact = 'lucairn.audit-root/v1\\n' + decimal(tree_size) + '\\n' + lowercase hex(root) + '\\n'",
+    "root signature = Ed25519ph (RFC 8032, pre-hash SHA-512, empty context) over the artifact, i.e. over sha512(artifact)",
+    "hashedrekord body = RFC 8785 canonical JSON; publicKey.content = base64(PEM(SPKI DER)); signature.content = base64(signature)"
+  ],
+  "rows": [
+    {
+      "kind": "v1",
+      "previous_event_hash": "",
+      "event_id": "evt_golden_0001",
+      "event_type": "PROXY_TOKEN_GENERATED",
+      "source_service": "gateway",
+      "actor": "cust_golden",
+      "payload_utf8": "{\"customer_id\":\"cust_golden\",\"request_id\":\"req_golden_0001\"}",
+      "payload_sha256": "",
+      "request_id": "",
+      "conversation_id": "",
+      "conv_seq": 0,
+      "serialized_utf8": "15:evt_golden_000121:PROXY_TOKEN_GENERATED7:gateway11:cust_golden60:{\"customer_id\":\"cust_golden\",\"request_id\":\"req_golden_0001\"}",
+      "event_hash": "9e6082ba8d60996b238221af9298237c6a0401438947746ededc1cd1b81f1e7e",
+      "leaf_hash": "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213"
+    },
+    {
+      "kind": "v2",
+      "previous_event_hash": "9e6082ba8d60996b238221af9298237c6a0401438947746ededc1cd1b81f1e7e",
+      "event_id": "evt_completion_golden_0001",
+      "event_type": "PROXY_INFERENCE_COMPLETED",
+      "source_service": "gateway",
+      "actor": "cust_golden",
+      "payload_utf8": "{\"conversation_id\":\"0123456789abcdef0123456789abcdef\",\"customer_id\":\"cust_golden\",\"input_tokens\":\"12\",\"model\":\"golden-model\",\"output_tokens\":\"34\",\"request_id\":\"req_golden_0001\",\"status\":\"completed\"}",
+      "payload_sha256": "ea1dda1b9330a11be3be7607dc38f9bd8d343e12893dbb5ac0f88ac9ec62bb21",
+      "request_id": "req_golden_0001",
+      "conversation_id": "0123456789abcdef0123456789abcdef",
+      "conv_seq": 1,
+      "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000125:PROXY_INFERENCE_COMPLETED7:gateway11:cust_golden64:ea1dda1b9330a11be3be7607dc38f9bd8d343e12893dbb5ac0f88ac9ec62bb2115:req_golden_000132:0123456789abcdef0123456789abcdef1:1",
+      "event_hash": "d94229488afb49cd4031e9cfd89eec12ba54e24245bf0cf3db796d8120c635f9",
+      "leaf_hash": "ea7a1e500e0bedd71b545d0985402bfa24f9a7ffc127ff8a917cc7cef56f4e71"
+    },
+    {
+      "kind": "v1",
+      "previous_event_hash": "d94229488afb49cd4031e9cfd89eec12ba54e24245bf0cf3db796d8120c635f9",
+      "event_id": "evt_golden_0003",
+      "event_type": "ADMIN_NOTE",
+      "source_service": "sandbox-a",
+      "actor": "service:prüfer",
+      "payload_utf8": "{\"note\":\"grüße – 検証\"}",
+      "payload_sha256": "",
+      "request_id": "",
+      "conversation_id": "",
+      "conv_seq": 0,
+      "serialized_utf8": "15:evt_golden_000310:ADMIN_NOTE9:sandbox-a15:service:prüfer29:{\"note\":\"grüße – 検証\"}",
+      "event_hash": "2a2c74e1868fafc6f9c89dad7f9eb8c5664e996fac6c560171d60d194ebdcf94",
+      "leaf_hash": "ecd00a07fc2dd002f04cf04a1d48853534ab91323829b1a1b24482ac413c0b4d"
+    },
+    {
+      "kind": "v2",
+      "previous_event_hash": "2a2c74e1868fafc6f9c89dad7f9eb8c5664e996fac6c560171d60d194ebdcf94",
+      "event_id": "evt_completion_golden_0002",
+      "event_type": "ANTHROPIC_INFERENCE_STREAMED",
+      "source_service": "gateway",
+      "actor": "tokhash_golden",
+      "payload_utf8": "{\"conversation_id\":\"0123456789abcdef0123456789abcdef\",\"customer_id\":\"cust_golden\",\"request_id\":\"req_golden_0002\",\"stream_done\":\"true\"}",
+      "payload_sha256": "0f5339260bfa6faddc8375cf5a21edaf49c437ef606bf62794bf9b52529a6649",
+      "request_id": "req_golden_0002",
+      "conversation_id": "0123456789abcdef0123456789abcdef",
+      "conv_seq": 2,
+      "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000228:ANTHROPIC_INFERENCE_STREAMED7:gateway14:tokhash_golden64:0f5339260bfa6faddc8375cf5a21edaf49c437ef606bf62794bf9b52529a664915:req_golden_000232:0123456789abcdef0123456789abcdef1:2",
+      "event_hash": "cf304a165171c12433a0e6dd87347dfe68e5760bf1d490aa74d17acc299745b5",
+      "leaf_hash": "43b0fef778f4d53b60fb02f3e6a981b9ff624f879729b4909214ea3477e3ebcd"
+    },
+    {
+      "kind": "v2",
+      "previous_event_hash": "cf304a165171c12433a0e6dd87347dfe68e5760bf1d490aa74d17acc299745b5",
+      "event_id": "evt_completion_golden_0003",
+      "event_type": "MCP_INFERENCE_COMPLETED",
+      "source_service": "gateway",
+      "actor": "cust_other",
+      "payload_utf8": "{\"conversation_id\":\"fedcba9876543210fedcba9876543210\",\"customer_id\":\"cust_other\"}",
+      "payload_sha256": "29df530cbdc570b26fda9e71c2d535076782de276026c0f9f37d3f8a3fa5dd1b",
+      "request_id": "",
+      "conversation_id": "fedcba9876543210fedcba9876543210",
+      "conv_seq": 1,
+      "serialized_utf8": "lucairn.audit-event/v2\n26:evt_completion_golden_000323:MCP_INFERENCE_COMPLETED7:gateway10:cust_other64:29df530cbdc570b26fda9e71c2d535076782de276026c0f9f37d3f8a3fa5dd1b0:32:fedcba9876543210fedcba98765432101:1",
+      "event_hash": "518623f2bb64c79b6de00af0a87e53a4794f5e762322494dbd1f09c20eccc0b8",
+      "leaf_hash": "0a907ff8482e0a5c178b117b12cfd2959990c734bb17f94ffe704d6141ce5163"
+    }
+  ],
+  "roots_by_size": [
+    "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213",
+    "e2f3f467055d42150566aff15f58d6972930ece7d126b21cef81eecafa7e2beb",
+    "df9c9d9e09fb4650417dadb5fc35ec417b20ecbc8fda2d2aff6f3f900a6b7f0d",
+    "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c",
+    "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f"
+  ],
+  "inclusion_proofs": [
+    {
+      "leaf_index": 2,
+      "tree_size": 3,
+      "leaf_hash": "ecd00a07fc2dd002f04cf04a1d48853534ab91323829b1a1b24482ac413c0b4d",
+      "path": [
+        "e2f3f467055d42150566aff15f58d6972930ece7d126b21cef81eecafa7e2beb"
+      ],
+      "root": "df9c9d9e09fb4650417dadb5fc35ec417b20ecbc8fda2d2aff6f3f900a6b7f0d"
+    },
+    {
+      "leaf_index": 2,
+      "tree_size": 5,
+      "leaf_hash": "ecd00a07fc2dd002f04cf04a1d48853534ab91323829b1a1b24482ac413c0b4d",
+      "path": [
+        "43b0fef778f4d53b60fb02f3e6a981b9ff624f879729b4909214ea3477e3ebcd",
+        "e2f3f467055d42150566aff15f58d6972930ece7d126b21cef81eecafa7e2beb",
+        "0a907ff8482e0a5c178b117b12cfd2959990c734bb17f94ffe704d6141ce5163"
+      ],
+      "root": "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f"
+    },
+    {
+      "leaf_index": 4,
+      "tree_size": 5,
+      "leaf_hash": "0a907ff8482e0a5c178b117b12cfd2959990c734bb17f94ffe704d6141ce5163",
+      "path": [
+        "90b0d8c9e6635418dd3d894a0c03e0be5b7daaec0627326ab87148a4840f248c"
+      ],
+      "root": "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f"
+    },
+    {
+      "leaf_index": 0,
+      "tree_size": 1,
+      "leaf_hash": "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213",
+      "path": [],
+      "root": "3dc37ddfcdf88edf27e2186df2ca5b3036b09b765652b6611917dd6f6dfa5213"
+    }
+  ],
+  "root_artifact": {
+    "tree_size": 5,
+    "root_hash": "edad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f",
+    "artifact_utf8": "lucairn.audit-root/v1\n5\nedad89b4df0043d6a29b863a39e41d6663966037cb9eb82fa9fd71f272ba134f\n",
+    "artifact_hex": "6c75636169726e2e61756469742d726f6f742f76310a350a656461643839623464663030343364366132396238363361333965343164363636333936363033376362396562383266613966643731663237326261313334660a",
+    "sha512": "3a5418aa20dc6c22e21aed60be457058e62bf81ca21f04b69844a06d5b79e776c074e982a2b601964d8b642151839e458bbfb1acfffd4a2dedae652a2b7da4c6"
+  },
+  "signed_root": {
+    "note": "test_only_seed_hex is a fixed PUBLIC test seed (bytes 00..1f). It exists only so the signature below is reproducible; it is not a production key.",
+    "test_only_seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "public_key_hex": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+    "signing_key_id": "dsa-audit:03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+    "signature_scheme": "Ed25519ph",
+    "signature_hex": "a4d64a8ce79a5ad9990594236777a5fe8044dd970bfeaa0ca7a085d6c2a91cadb1f7d9b8dc37545d40d25887df675a307886b275a5c471e29a9d61da31d9920b",
+    "hashedrekord_body_utf8": "{\"apiVersion\":\"0.0.1\",\"kind\":\"hashedrekord\",\"spec\":{\"data\":{\"hash\":{\"algorithm\":\"sha512\",\"value\":\"3a5418aa20dc6c22e21aed60be457058e62bf81ca21f04b69844a06d5b79e776c074e982a2b601964d8b642151839e458bbfb1acfffd4a2dedae652a2b7da4c6\"}},\"signature\":{\"content\":\"pNZKjOeaWtmZBZQjZ3el/oBE3ZcL/qoMp6CF1sKpHK2x99m43DdUXUDSWIffZ1oweIaydaXEceKanWHaMdmSCw==\",\"publicKey\":{\"content\":\"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQUE2RUh2L1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmc9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=\"}}}}"
+  }
+}

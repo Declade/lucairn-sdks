@@ -428,6 +428,12 @@ Every step prints `PASS`, `FAIL` or `SKIPPED(reason)`. Exit codes: `0` VALID ·
 `1` TAMPERED (a check failed) · `2` INCOMPLETE (nothing failed, but a required
 check could not run; also unreadable input and usage errors).
 
+The text report, the usage text and error messages are ASCII-only, so they
+survive a pipe or a redirect in a default Windows console (a step line reads
+`structure        PASS - 7 files, all in the v1 layout`). Anything else the
+tool has to echo, such as a file name taken from the bundle, is printed
+escaped (`\u2014`). `--json` is UTF-8 JSON and is not escaped.
+
 What it recomputes, from the bundle's files and keys built into the binary
 (never from the bundle):
 
@@ -514,6 +520,85 @@ without blocking VALID unless `--require-anchors` is given; the banner then says
 anchors were not required. The timestamp line names only the TSA signer's common
 name; `--json` keeps the full distinguished name as `signer_dn`.
 `--allow-unanchored` relaxes the rule explicitly.
+
+### Bundle format 2: the audit counter
+
+A format-2 bundle (`"format_version": 2`) is a format-1 bundle plus three
+required files, `audit/events.json`, `audit/proofs.json` and
+`audit/roots.json`. They hold, for the conversation: one entry per counted
+request (the audit service numbers the requests of a conversation 1, 2, 3...),
+an inclusion path per entry into the audit log's Merkle tree, and the audit
+roots those paths lead to. The exact shape of the three files is documented in
+[`internal/bundle/audit.go`](internal/bundle/audit.go); any other key, a number
+written as a string, or a hash in another spelling is TAMPERED. Format-1
+bundles are checked exactly as before.
+
+Nothing in `audit/` is trusted as such. An entry counts because of two
+signatures the tool checks under pinned keys:
+
+- every certificate carries an `EVENTS_RECORDED` claim signed by the audit
+  service (`dsa-audit`). It signs the audit row's `event_hash`, and for a
+  counted request also `conversation_id` and `conv_seq` themselves;
+- the audit service signs the root of its log (Ed25519ph over
+  `"lucairn.audit-root/v1\n" + tree_size + "\n" + hex(root) + "\n"`) and logs
+  that signature in Rekor.
+
+The steps (each `PASS`, `FAIL` or `SKIPPED(reason)`):
+
+| Step | What it checks | If not |
+|---|---|---|
+| `audit-files` | the three files have the documented shape and reference each other consistently | TAMPERED |
+| `audit-binding` | every counter entry names the bundle's conversation | TAMPERED |
+| `audit-event-hash` | each entry's `event_hash` recomputes from its fields: `sha256(previous_event_hash + "lucairn.audit-event/v2\n" + L(event_id) L(event_type) L(source_service) L(actor) L(payload_sha256) L(request_id) L(conversation_id) L(conv_seq))`, `L(x)` = byte length, `:`, `x` | TAMPERED |
+| `audit-continuity` | the numbers are exactly 1..N: no gap, no duplicate, in order | TAMPERED, e.g. `seq gap at 2` |
+| `audit-root` | each root: canonical artifact, signature under the pinned `dsa-audit` key, Rekor entry (signed entry timestamp, inclusion proof, signed checkpoint) made by that key for exactly this artifact | TAMPERED |
+| `audit-counter` (per certificate) | the certificate's signed audit claim names its counter entry: same `event_hash`, and the same conversation and number where the claim signs them | TAMPERED on a mismatch, and when the claim says "counted, seq k" but the bundle has no entry; INCOMPLETE "not tracked" when the claim carries no counter (the request was recorded before counting started) |
+| `audit-inclusion` (per counted request) | the entry's `event_hash` is leaf `leaf_index` of the tree whose size and root the signed root artifact states | TAMPERED; INCOMPLETE "not yet anchored" for a request newer than the latest anchored root (a root covering new rows is published hourly: export the bundle again) |
+| `audit-certs` | every counted request has its certificate in the bundle | INCOMPLETE `request seq 3 has no certificate` |
+
+Two rules worth knowing:
+
+- **The tree size comes from the signed root artifact only**, after its
+  signature and Rekor entry verified. An inclusion path does not pin the tree
+  size (several sizes share one path shape), so the `tree_size` copies in
+  `audit/proofs.json` and `audit/roots.json` must equal the signed value and
+  are never used in its place. Paths carry no left/right flags: index and size
+  decide the side (RFC 9162 section 2.1.3.2).
+- **Whether a request was counted is what its certificate's signed claim
+  says**, not a date in the tool. A format-1 bundle whose certificates say
+  "counted" (a format-2 bundle with `audit/` removed and the version rewritten,
+  or an export that could not fetch the counter) is INCOMPLETE.
+
+A certificate removed together with its manifest line — invisible in format 1
+— now shows as `audit-certs` INCOMPLETE, or as `seq gap at N` if its counter
+entry was removed too.
+
+A self-hosted deployment that publishes no audit root writes empty `proofs` and
+`roots`. With a custom `--witness-key` or `--allow-unanchored` the counter
+steps still run, `audit-root` and `audit-inclusion` are `SKIPPED(not
+anchored)` and do not block VALID; with the built-in pins a counted request
+without an anchored root is INCOMPLETE. Pass the deployment's audit key as
+`--service-key dsa-audit=BASE64`. `--online` also re-fetches the audit roots'
+Rekor entries.
+
+What the counter cannot show is printed as `LIMITATION` lines on every
+format-2 run:
+
+- *Counter tail.* The counter shows there is no hole between request 1 and
+  request N. It cannot show that N is the last request: a bundle cut off after
+  request N, with the last certificates and their counter entries removed
+  together, is not detected.
+- *Hour before anchoring.* The operator holds the audit signing key. Until a
+  root covering a row is logged in Rekor, the operator could still rewrite and
+  re-sign that row; afterwards it cannot. A run that verified no anchored root
+  says so instead.
+
+Not checked: the hash chain from one audit row to the next (the neighbouring
+rows are not in the bundle), consistency between two anchored roots, and
+whether a row's root is the earliest one that covers it. Older builds of the
+tool, including the `bundle-verify-v1.0.0` release, read every format-2 bundle
+as TAMPERED (`audit/events.json is not part of the v1 bundle format`): use a
+build with format-2 support.
 
 What a version-1 bundle cannot show is printed on every run: a certificate
 removed together with its manifest entry (closed by the planned audit counter),

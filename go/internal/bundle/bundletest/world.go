@@ -46,6 +46,8 @@ type World struct {
 	Rekor    *ecdsa.PrivateKey
 	rekorKey *anchor.RekorKey
 	seq      int
+	// rootEntries numbers the synthetic log's audit-root entries.
+	rootEntries int
 }
 
 func edKey(seed string) ed25519.PrivateKey {
@@ -72,6 +74,8 @@ func NewWorldWith(seed string, wo WorldOptions) (*World, error) {
 		Services: map[string]ed25519.PrivateKey{
 			"dsa-bridge":    edKey(seed + "/dsa-bridge"),
 			"dsa-sanitizer": edKey(seed + "/dsa-sanitizer"),
+			// The audit service's claim key; it also signs audit roots (S2b).
+			AuditService: edKey(seed + "/dsa-audit"),
 		},
 	}
 	var err error
@@ -169,7 +173,7 @@ func (w *World) Roots() bundle.TrustRoots {
 // paths the root PEMs were written to.
 func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	out := []string{"--witness-key", WitnessKeyID + "=" + base64.StdEncoding.EncodeToString(w.Witness.Public().(ed25519.PublicKey))}
-	for _, id := range []string{"dsa-bridge", "dsa-sanitizer"} {
+	for _, id := range []string{"dsa-bridge", "dsa-sanitizer", AuditService} {
 		out = append(out, "--service-key", id+"="+base64.StdEncoding.EncodeToString(w.Services[id].Public().(ed25519.PublicKey)))
 	}
 	// --require-anchors: the corpus measures the Lucairn-hosted policy (every
@@ -199,6 +203,9 @@ type Cert struct {
 	// H is the binding-v1 digest the anchors commit to (Bound certificates
 	// only; nil otherwise).
 	H []byte
+	// Event is the counted audit event of this request (CertOptions.Audit
+	// without Uncounted; nil otherwise).
+	Event *bundle.AuditEvent
 }
 
 // CertOptions shape one certificate.
@@ -212,6 +219,18 @@ type CertOptions struct {
 	NoAnchors bool
 	// Bound anchors the certificate with anchor binding v1 (the S2a witness).
 	Bound bool
+	// Audit, when set, records the request's terminal audit event in this
+	// synthetic audit log and adds the dsa-audit EVENTS_RECORDED claim that
+	// signs its event_hash (T-1231 S2b). The event is COUNTED (v2 hash with
+	// conversation_id + conv_seq) unless Uncounted.
+	Audit *AuditLog
+	// Uncounted records the event as a row from before counting started (v1
+	// hash, no counter entry); the claim still signs its event_hash.
+	Uncounted bool
+	// NoSignedCounter leaves conversation_id + conv_seq OUT of the signed
+	// audit claim payload of a counted request. The audit service always
+	// signs them (design D3); this is for tests of the hash-only binding.
+	NoSignedCounter bool
 }
 
 // NewCert mints one fully signed, anchored certificate.
@@ -253,9 +272,18 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		"signature":         base64.StdEncoding.EncodeToString(ed25519.Sign(w.Services["dsa-bridge"], canon)),
 		"timestamp":         claimTS,
 	}
+	claimIDs, claims := []any{claimID}, []any{claim}
+	var event *bundle.AuditEvent
+	if o.Audit != nil {
+		ac, ev, err := w.auditClaim(o, n, reqID, issued)
+		if err != nil {
+			return nil, err
+		}
+		claimIDs, claims, event = append(claimIDs, ac["claim_id"]), append(claims, ac), ev
+	}
 	v2 := map[string]any{
 		"certificate_id": certID, "request_id": reqID, "protocol_version": json.Number("2"),
-		"claim_ids": []any{claimID}, "issued_at": issuedStr,
+		"claim_ids": claimIDs, "issued_at": issuedStr,
 		"overall_verdict": "VERIFIED", "witness_key_id": WitnessKeyID,
 	}
 	v2b, _ := verify.CanonicalLexeme(v2)
@@ -277,7 +305,7 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		"certificate_id":   certID,
 		"request_id":       reqID,
 		"protocol_version": 2,
-		"claims":           []any{claim},
+		"claims":           claims,
 		"verification": map[string]any{
 			"overall_verdict": "VERDICT_VERIFIED",
 			"byok_exempt":     false,
@@ -295,7 +323,7 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		"anchor_status":                     map[string]any{"status": "ANCHOR_STATUS_PENDING"},
 	}
 	raw := []byte("synthetic certificate_raw stand-in for " + certID + " issued " + issuedStr)
-	c := &Cert{RequestID: reqID, CertificateID: certID, IssuedAt: issued, Raw: raw, Doc: doc}
+	c := &Cert{RequestID: reqID, CertificateID: certID, IssuedAt: issued, Raw: raw, Doc: doc, Event: event}
 	if !o.NoAnchors {
 		at := o.AnchorAt
 		if at.IsZero() {
@@ -389,12 +417,19 @@ func (w *World) Timestamp(digest []byte, genTime time.Time) ([]byte, error) {
 // ---- Rekor ----
 
 func (w *World) rekorEntry(raw []byte, at time.Time, logIndex int64) (map[string]any, error) {
+	return w.rekorEntryBy(w.Witness, raw, at, logIndex)
+}
+
+// rekorEntryBy logs sha512(raw) in the synthetic Rekor as a hashedrekord made
+// by key (the witness for certificate anchors, the audit key for audit
+// roots, or any other key: a public log accepts entries from anyone).
+func (w *World) rekorEntryBy(key ed25519.PrivateKey, raw []byte, at time.Time, logIndex int64) (map[string]any, error) {
 	digest := sha512.Sum512(raw)
-	sig, err := w.Witness.Sign(rand.Reader, digest[:], crypto.SHA512)
+	sig, err := key.Sign(rand.Reader, digest[:], crypto.SHA512)
 	if err != nil {
 		return nil, err
 	}
-	der, _ := x509.MarshalPKIXPublicKey(w.Witness.Public())
+	der, _ := x509.MarshalPKIXPublicKey(key.Public())
 	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
 	body, err := verify.CanonicalLexeme(map[string]any{
 		"apiVersion": "0.0.1", "kind": "hashedrekord",
@@ -406,6 +441,27 @@ func (w *World) rekorEntry(raw []byte, at time.Time, logIndex int64) (map[string
 	if err != nil {
 		return nil, err
 	}
+	return w.logBody(body, at, logIndex)
+}
+
+// LogBody logs an already-built hashedrekord body in the synthetic Rekor and
+// returns the entry in the verifier's input form.
+func (w *World) LogBody(body []byte, at time.Time, logIndex int64) (anchor.RekorEntry, error) {
+	tl, err := w.logBody(body, at, logIndex)
+	if err != nil {
+		return anchor.RekorEntry{}, err
+	}
+	dec := func(k string) []byte {
+		b, _ := base64.StdEncoding.DecodeString(tl[k].(string))
+		return b
+	}
+	return anchor.RekorEntry{LogIndex: logIndex, IntegratedTime: at.Unix(), CanonicalBody: body,
+		SignedEntryTimestamp: dec("signed_entry_timestamp"), InclusionProof: dec("inclusion_proof")}, nil
+}
+
+// logBody puts body into a small synthetic log tree and signs the entry
+// (SET, inclusion proof, checkpoint) with the synthetic log key.
+func (w *World) logBody(body []byte, at time.Time, logIndex int64) (map[string]any, error) {
 	// A small tree: filler leaves around ours.
 	leaves := [][]byte{}
 	pos := int(logIndex % 5)

@@ -1,10 +1,16 @@
 // Package bundle verifies a Lucairn evidence bundle (format
-// lucairn-evidence-bundle, version 1): one zip per conversation, produced by
-// the Lucairn account website, checked offline by cmd/lucairn-bundle-verify.
+// lucairn-evidence-bundle, versions 1 and 2): one zip per conversation,
+// produced by the Lucairn account website, checked offline by
+// cmd/lucairn-bundle-verify.
+//
+// Version 2 (T-1231 S2b) is version 1 plus the audit/ folder: the
+// per-conversation request counter, an inclusion proof per counted request
+// and the anchored audit roots (audit.go).
 //
 // PRD: specs/2026-10/prd-2026-10-06-evidence-bundle-export.md
-// (Slice 1). The website writer is theveil-website
-// src/lib/evidence-bundle/ — the two must agree on everything in this file.
+// (Slices 1, 2a, 2b). The website writer is theveil-website
+// src/lib/evidence-bundle/ — the two must agree on everything in this file
+// and in audit.go.
 package bundle
 
 import (
@@ -18,10 +24,23 @@ import (
 
 // Format identity.
 const (
-	FormatName       = "lucairn-evidence-bundle"
-	FormatVersion    = 1
-	KindConversation = "conversation"
+	FormatName    = "lucairn-evidence-bundle"
+	FormatVersion = 1
+	// FormatVersionAudit is the bundle format with the audit/ folder.
+	FormatVersionAudit = 2
+	KindConversation   = "conversation"
 )
+
+// Fixed paths inside a bundle. The three audit/ paths exist in format 2 only,
+// and a format-2 bundle must hold all three.
+const (
+	PathAuditEvents = "audit/events.json"
+	PathAuditProofs = "audit/proofs.json"
+	PathAuditRoots  = "audit/roots.json"
+)
+
+// AuditPaths are the format-2 audit files.
+var AuditPaths = []string{PathAuditEvents, PathAuditProofs, PathAuditRoots}
 
 // Fixed paths inside a v1 bundle.
 const (
@@ -105,7 +124,7 @@ func manifestKeyProblem(doc map[string]any) string {
 
 // AllowedPath reports whether p may appear in a v1 bundle at all. Anything
 // else (an audit/ folder, a nested path, a dot-dot) is a structural failure:
-// v1 has no audit/ folder (Slice 2 adds it with format_version 2).
+// v1 has no audit/ folder (format_version 2 adds it, see AllowedPathIn).
 func AllowedPath(p string) bool {
 	switch p {
 	case PathManifest, PathReadme, PathVerification, PathReportExternal, PathReportInternal:
@@ -114,13 +133,34 @@ func AllowedPath(p string) bool {
 	return certFileName.MatchString(p) && !strings.Contains(p, "..")
 }
 
+// AllowedPathIn reports whether p may appear in a bundle of the given format
+// version: the v1 set, plus exactly the three audit/ files in version 2.
+func AllowedPathIn(version int, p string) bool {
+	if version == FormatVersionAudit {
+		switch p {
+		case PathAuditEvents, PathAuditProofs, PathAuditRoots:
+			return true
+		}
+	}
+	return AllowedPath(p)
+}
+
+// RequiredPathsIn are the files a bundle of the given format version must
+// hold (and list in its manifest).
+func RequiredPathsIn(version int) []string {
+	if version == FormatVersionAudit {
+		return append(append([]string(nil), RequiredPaths...), AuditPaths...)
+	}
+	return RequiredPaths
+}
+
 // Manifest is manifest.json. Everything in it is UNSIGNED: the tool treats
 // it as the bundle's table of contents and checks every file against it, and
 // it checks the conversation and customer ids it names against the SIGNED
 // claim payloads of every certificate. A manifest edit can therefore only
 // make the result worse, never better — except (G1) dropping a certificate
 // together with its manifest entry, which v1 cannot see (the per-conversation
-// counter of Slice 2 closes that), and (G3) replacing a report PDF,
+// counter of format 2 closes that), and (G3) replacing a report PDF,
 // verification.json or README.txt together with its manifest digest: those
 // files are covered by no signature. The tool says both on every run.
 type Manifest struct {

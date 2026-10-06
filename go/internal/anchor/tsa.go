@@ -532,12 +532,12 @@ func checkTimestampingEKU(c *x509.Certificate) error {
 		if e.Id.Equal(oidExtKeyUsage) {
 			found++
 			if !e.Critical {
-				return errors.New("TSA certificate's extended key usage is not critical (RFC 3161 § 2.3)")
+				return errors.New("TSA certificate's extended key usage is not critical (RFC 3161 section 2.3)")
 			}
 		}
 	}
 	if found != 1 || len(c.ExtKeyUsage) != 1 || c.ExtKeyUsage[0] != x509.ExtKeyUsageTimeStamping || len(c.UnknownExtKeyUsage) != 0 {
-		return errors.New("TSA certificate must carry exactly one extended key usage: time stamping (RFC 3161 § 2.3)")
+		return errors.New("TSA certificate must carry exactly one extended key usage: time stamping (RFC 3161 section 2.3)")
 	}
 	return nil
 }
