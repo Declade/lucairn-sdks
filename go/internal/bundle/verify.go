@@ -104,6 +104,9 @@ func Verify(name string, data []byte, opt Options) *Report {
 	}
 	for _, c := range certs {
 		ca, si := v.verify(c, files[c.Path])
+		// Reuse the binding guard's authenticated issued_at; zero is strict.
+		ca.cleaningRequiredFrom = opt.Roots.CleaningRequiredFrom
+		ca.cleaningBeforeStart = !ca.cleaningRequiredFrom.IsZero() && !si.issuedAt.IsZero() && si.issuedAt.Before(ca.cleaningRequiredFrom)
 		if ca.needsCleaningEntry {
 			r.hasCleaningSteps = true
 		}
@@ -526,7 +529,7 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 	}
 	// Requirement: only authenticated marker/topology, never the unsigned
 	// label, sealed verdict, or the label-sensitive SignedCertTier result.
-	ca.needsCleaningEntry = marker || (gateway == 1 && sanitizer == 1 && audit == 0)
+	ca.needsCleaningEntry = marker || (gateway >= 1 && sanitizer >= 1 && audit == 0)
 	// Eligibility is deliberately stricter. Entry matching and all shared
 	// hash/continuity/inclusion checks still have to pass in auditVerifier.cert.
 	ca.cleaningStepEligible = ch.SignedCertTier == verify.ChainTierInputShieldTwoSigner &&

@@ -11,7 +11,10 @@ import (
 // two routed certificates followed by a cleaning certificate.
 func (w *World) NewCleaningScenario(mixed bool, opts CleaningOptions) (*AuditScenario, error) {
 	sc := &AuditScenario{Log: w.NewAuditLog()}
-	at := CorpusCutover.Add(45 * time.Hour)
+	at := opts.IssuedAt
+	if at.IsZero() {
+		at = CorpusCutover.Add(45 * time.Hour)
+	}
 	for i := 0; i < 3; i++ {
 		o := CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: at.Add(time.Duration(i) * time.Minute), Bound: true, Audit: sc.Log, Cleaning: &opts}
 		if mixed && i < 2 {
@@ -221,8 +224,8 @@ func addCleaningCases(co *Corpus) error {
 		f[certPath(c)] = c.JSON
 		f.Rehash()
 		add("18-partial-relabelled-with-entry", "signed facts require an entry but inconsistent SignedCertTier prevents acceptance", ExpectIncomplete, bundle.StepAuditCounter, "no dsa-audit-signed", f)
-		add("19-partial-relabelled-downgrade", "unsigned label changed to full_chain, no audit files, required legacy anchors", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", downgrade(f))
-		add("19-partial-relabelled-downgrade-allow-unanchored", "same unsigned-label exploit with relaxed anchors", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", downgrade(f), FlagAllowUnanchored)
+		add("19-partial-relabelled-downgrade", "unsigned label changed to full_chain, no audit files, required legacy anchors", ExpectIncomplete, bundle.StepAuditCounter, "input-shield certificate", downgrade(f))
+		add("19-partial-relabelled-downgrade-allow-unanchored", "same unsigned-label exploit with relaxed anchors", ExpectIncomplete, bundle.StepAuditCounter, "input-shield certificate", downgrade(f), FlagAllowUnanchored)
 	}
 	{
 		// Unlike Cleaning-13, this historical marker-less shape passes the
@@ -233,7 +236,7 @@ func addCleaningCases(co *Corpus) error {
 		}
 		add("20-historical-compatible", "marker-less two-signer topology with chain-compatible full_chain label", ExpectIncomplete, bundle.StepAuditCounter, "no dsa-audit-signed", s.Clean)
 		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: s.Certs})
-		add("21-historical-downgrade", "verified topology requires an entry even without a signed marker", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
+		add("21-historical-downgrade", "verified topology requires an entry even without a signed marker", ExpectIncomplete, bundle.StepAuditCounter, "input-shield certificate", f)
 	}
 	{
 		s, err := w.NewCleaningScenario(false, CleaningOptions{ExtraClaim: true})
@@ -241,7 +244,89 @@ func addCleaningCases(co *Corpus) error {
 			return err
 		}
 		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: s.Certs})
-		add("22-extra-claim-downgrade", "signed marker requires an entry despite ineligible extra-claim topology", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
+		add("22-extra-claim-downgrade", "signed marker requires an entry despite ineligible extra-claim topology", ExpectIncomplete, bundle.StepAuditCounter, "input-shield certificate", f)
+	}
+	// Before-start fixtures use the synthetic override. Existing cases,
+	// including the legacy-anchor controls, stay after-start.
+	before, err := w.NewCleaningScenario(false, CleaningOptions{IssuedAt: CorpusCleaningStart.Add(-time.Hour)})
+	if err != nil {
+		return err
+	}
+	oneBefore := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: before.Certs[:1]})
+	add("23-before-no-entry", "before-start format 1 preserves the released result", ExpectValid, "", "", oneBefore)
+	add("24-before-with-entry", "before-start entries are still counted and verified", ExpectValid, "", "", before.Clean)
+	bad := before.Clean.Clone()
+	bad.EditList(ev, each(1, func(o map[string]any) { o["event_type"] = "PROXY_INFERENCE_COMPLETED" }))
+	bad.Rehash()
+	add("25-before-tampered-entry", "before-start evidence is never ignored", ExpectTampered, bundle.StepAuditEventHash, "does not recompute", bad)
+	{
+		log := w.NewAuditLog()
+		certs := []*Cert{before.Certs[0]}
+		for i := 0; i < 2; i++ {
+			c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: CorpusCleaningStart.Add(time.Duration(i) * time.Minute), Bound: true, Audit: log, Cleaning: &CleaningOptions{}})
+			if err != nil {
+				return err
+			}
+			certs = append(certs, c)
+		}
+		if _, err := log.Publish(CorpusCleaningStart.Add(time.Hour)); err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: certs, Audit: log.Evidence(ConvD)})
+		add("26-before-and-after", "one unnumbered before-start certificate and two numbered from the start", ExpectValid, "", "", f)
+	}
+	{
+		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: CorpusCleaningStart, Bound: true, Cleaning: &CleaningOptions{}})
+		if err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}})
+		add("27-at-start-no-entry", "the exact signed start instant requires an entry", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
+		c, err = w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: CorpusCleaningStart.Add(time.Minute), Bound: true, Cleaning: &CleaningOptions{}})
+		if err != nil {
+			return err
+		}
+		c.Doc["created_at"] = CorpusCleaningStart.Add(-time.Hour).Format(time.RFC3339)
+		c.Doc["verification"].(map[string]any)["issued_at"] = c.Doc["created_at"]
+		if err := c.Remarshal(); err != nil {
+			return err
+		}
+		f = Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}})
+		m := f.Manifest()
+		m.GeneratedAt = c.Doc["created_at"].(string)
+		f.WriteManifest(m)
+		add("28-unsigned-earlier-date", "unsigned earlier dates cannot move signed issued_at before the start", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
+	}
+	{
+		historical, err := w.NewCleaningScenario(false, CleaningOptions{IssuedAt: CorpusCleaningStart.Add(-time.Hour), OmitMarker: true, UnsignedTier: "full_chain"})
+		if err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: historical.Certs})
+		add("29-before-historical", "before-start marker-less topology preserves the released format-1 result", ExpectValid, "", "", f)
+	}
+	for _, tc := range []struct {
+		name   string
+		seq    any
+		detail string
+	}{
+		{"30-counted-entry-removed", json.Number("1"), "entry was removed"},
+		{"31-malformed-entry-removed", json.Number("0"), "not a positive integer"},
+	} {
+		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: CorpusCutover.Add(time.Hour), Bound: true, Cleaning: &CleaningOptions{AuditSeq: tc.seq, SealedPartial: true, UnsignedTier: "full_chain"}})
+		if err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}, Audit: w.NewAuditLog().Evidence(ConvD)})
+		add(tc.name, "signed input-shield marker plus audit claim, no entry", ExpectTampered, bundle.StepAuditCounter, tc.detail, f)
+	}
+	for _, svc := range []string{"dsa-gateway", "dsa-sanitizer", "dsa-bridge"} {
+		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: CorpusCutover.Add(time.Hour), Bound: true, Cleaning: &CleaningOptions{OmitMarker: true, DuplicateService: svc, UnsignedTier: "full_chain"}})
+		if err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}})
+		add("32-marker-less-extra-"+svc, "marker-less topology with an extra signed service claim", ExpectIncomplete, bundle.StepAuditCounter, "this input-shield certificate has no counter entry", f)
 	}
 	return nil
 }

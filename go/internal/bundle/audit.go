@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/anchor"
 	"github.com/declade/lucairn-sdks/go/internal/verify"
@@ -607,6 +608,8 @@ type certAudit struct {
 	claims         []auditClaim
 	// These are separate decisions: signed facts require an entry even when
 	// the label-sensitive tier makes this certificate ineligible for acceptance.
+	cleaningRequiredFrom  time.Time
+	cleaningBeforeStart   bool
 	needsCleaningEntry    bool
 	cleaningStepEligible  bool
 	gatewayConversationID string

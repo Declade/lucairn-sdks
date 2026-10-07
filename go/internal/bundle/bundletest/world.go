@@ -167,8 +167,13 @@ func (w *World) Roots() bundle.TrustRoots {
 		// The synthetic world's cutover (the corpus measures the hosted
 		// policy, whose roots carry the real one).
 		BindingRequiredAfter: CorpusCutover,
+		CleaningRequiredFrom: CorpusCleaningStart,
 	}
 }
+
+// CorpusCleaningStart is independent of the hosted pin and the wall clock.
+// It predates the legacy-anchor PARTIAL controls in the cleaning corpus.
+var CorpusCleaningStart = CorpusCutover.Add(-24 * time.Hour)
 
 // CLIFlags are the lucairn-bundle-verify flags that trust this world, given the
 // paths the root PEMs were written to.
@@ -182,7 +187,8 @@ func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	// --require-binding-after: the same for the anchor-binding cutover.
 	// --require-anchors stays LAST (tests strip it to get the custom policy).
 	return append(out, "--tsa-root", tsaRootPath, "--rekor-key", rekorKeyPath,
-		"--require-binding-after", CorpusCutover.Format(time.RFC3339), "--require-anchors")
+		"--require-binding-after", CorpusCutover.Format(time.RFC3339),
+		"--require-cleaning-from", CorpusCleaningStart.Format(time.RFC3339), "--require-anchors")
 }
 
 // LeafHashHex is the RFC 6962 leaf hash of b (hex) — what an inclusion proof

@@ -44,7 +44,7 @@ const ValidMeaning = "VALID means the certificates are intact, signed by the pin
 
 // CleaningStepLimitReason applies whenever a verified cleaning certificate
 // is present, including one whose audit record is missing.
-const CleaningStepLimitReason = "Cleaning steps: the link between certificate and number rests on the anchored audit log entry, not on a signature inside the certificate. A step whose audit record was never written has no number; if its certificate is also removed, this bundle cannot detect that step. Numbers follow audit commit order, not request order."
+const CleaningStepLimitReason = "Cleaning steps: the link between certificate and number rests on the anchored audit log entry, not on a signature inside the certificate. A step whose audit record was never written has no number; if its certificate is also removed, this bundle cannot detect that step. Numbers follow audit commit order, not request order. Cleaning steps sealed before the counter start are not counted; for them a VALID result says nothing about missing steps."
 
 // AnchorsNotRequiredReason is printed whenever the trust roots do not require
 // anchoring (custom --witness-key without --require-anchors, or
@@ -123,8 +123,9 @@ type Report struct {
 	AuditEvents int `json:"audit_counted_requests,omitempty"`
 	AuditRoots  int `json:"audit_roots_verified,omitempty"`
 	// CleaningSteps counts accepted cleaning entries, not model calls.
-	CleaningSteps int    `json:"cleaning_steps,omitempty"`
-	CleaningScope string `json:"cleaning_scope,omitempty"`
+	CleaningSteps           int    `json:"cleaning_steps,omitempty"`
+	CleaningScope           string `json:"cleaning_scope,omitempty"`
+	NotCountedCleaningSteps int    `json:"not_counted_cleaning_steps,omitempty"`
 
 	hasCleaningSteps bool
 
@@ -191,10 +192,11 @@ func (r *Report) finish() {
 		r.Limitations = append(r.Limitations, CounterTailLimitReason)
 		if r.AuditRoots > 0 {
 			r.Limitations = append(r.Limitations, PreAnchorLimitReason)
-		} else if r.hasCleaningSteps {
-			r.Limitations = append(r.Limitations, "No anchored audit root was verified on this run: cleaning steps cannot be accepted without an anchored matching audit entry. Other counter entries rest on audit-key signatures only, and the operator holds that key.")
 		} else {
 			r.Limitations = append(r.Limitations, NoAuditRootLimitReason)
+			if r.hasCleaningSteps {
+				r.Limitations = append(r.Limitations, "Cleaning steps cannot be accepted as counted without an anchored matching audit entry.")
+			}
 		}
 	}
 	switch {

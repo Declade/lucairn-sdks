@@ -105,6 +105,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	requireAnchors := fs.Bool("require-anchors", false, "a certificate without a timestamp or Rekor entry makes the result INCOMPLETE (the default with the built-in pins; use it with --witness-key for an anchored self-hosted deployment)")
 	allowUnanchored := fs.Bool("allow-unanchored", false, "a certificate without a timestamp or Rekor entry is reported SKIPPED(not anchored) without blocking VALID (self-hosted deployments without anchoring)")
 	requireBindingAfter := fs.String("require-binding-after", "", "RFC 3339 time: a certificate whose signed issued_at is later must have content-bound (binding v1) anchors, otherwise TAMPERED (built in for the Lucairn-hosted pins; use it with --witness-key for a self-hosted deployment that knows its own cutover)")
+	requireCleaningFrom := fs.String("require-cleaning-from", "", "RFC 3339 time: a cleaning certificate whose signed issued_at is at or after this time requires an anchored counter entry (built in for the Lucairn-hosted pins; use with --witness-key for a deployment with its own counter start)")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	fs.Var(&witnessKeys, "witness-key", "KEY_ID=BASE64 witness Ed25519 key to trust INSTEAD of the built-in one (repeatable; self-hosted deployments)")
 	fs.Var(&serviceKeys, "service-key", "SERVICE_ID=BASE64 claim-signing key to trust INSTEAD of the built-in set (repeatable)")
@@ -150,6 +151,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			custom = append(custom, "unanchored certificates allowed")
 		}
 		roots.BindingRequiredAfter = time.Time{}
+		roots.CleaningRequiredFrom = time.Time{}
+		if *requireCleaningFrom == "" {
+			custom = append(custom, "cleaning-counter start not enforced")
+		}
 		if *requireBindingAfter == "" {
 			// Say so on the banner: a custom witness key silently dropping
 			// the downgrade guard is exactly what a reader must see (ToB #77 L1).
@@ -164,6 +169,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		roots.BindingRequiredAfter = t.UTC()
 		custom = append(custom, "binding required after "+t.UTC().Format(time.RFC3339))
+	}
+	if *requireCleaningFrom != "" {
+		t, err := time.Parse(time.RFC3339, *requireCleaningFrom)
+		if err != nil {
+			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-cleaning-from must be an RFC 3339 time")
+			return bundle.ExitIncomplete
+		}
+		roots.CleaningRequiredFrom = t.UTC()
+		custom = append(custom, "cleaning entries required from "+t.UTC().Format(time.RFC3339))
 	}
 	if *requireAnchors {
 		roots.RequireAnchors = true
@@ -300,6 +314,7 @@ func printTrustRoots(w io.Writer, roots bundle.TrustRoots) {
 	fmt.Fprintf(w, "  tsa      FreeTSA root CA          sha256(pem) %s\n", anchor.FreeTSARootSHA256)
 	fmt.Fprintf(w, "  rekor    public-good log          log id %s\n", roots.Rekor.LogID)
 	fmt.Fprintf(w, "  binding  content-bound anchors required for certificates issued after %s\n", roots.BindingRequiredAfter.Format(time.RFC3339))
+	fmt.Fprintf(w, "  cleaning counter entries required for cleaning certificates issued at or after %s\n", roots.CleaningRequiredFrom.Format(time.RFC3339))
 	fmt.Fprintf(w, "  audit    audit roots and the per-conversation counter are checked under the service key %s\n", anchor.AuditRootSigner)
 	fmt.Fprintln(w, "Compare with https://lucairn.eu/.well-known/lucairn-service-keys.json out of band.")
 }
