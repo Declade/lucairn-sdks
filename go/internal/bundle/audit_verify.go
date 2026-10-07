@@ -269,13 +269,11 @@ func (a *auditVerifier) cert(scope string, ca certAudit, issuedAt time.Time) {
 	switch {
 	case !ca.claimsVerified:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("this certificate's claim signatures were not verified, so its counter entry (seq %d) is not tied to it", e.ConvSeq), true)
-	case ca.cleaningStep:
+	case ca.cleaningStepEligible && e.EventType == cleaningEventType:
 		// The only claim-less exception: authenticated two-claim tier,
 		// request id (byReq), seal event type and signed gateway conversation.
 		// Inclusion below remains mandatory, even with --allow-unanchored.
 		switch {
-		case e.EventType != cleaningEventType:
-			r.add(scope, StepAuditCounter, Fail, "a cleaning step's counter entry has event type "+quotedShort(e.EventType)+", expected "+cleaningEventType)
 		case ca.gatewayConversationID == "":
 			r.skip(scope, StepAuditCounter, "the cleaning step's verified gateway claim carries no conversation id", true)
 		case e.ConversationID != ca.gatewayConversationID:
@@ -284,18 +282,22 @@ func (a *auditVerifier) cert(scope string, ca certAudit, issuedAt time.Time) {
 			cleaningMatched = true
 			r.add(scope, StepAuditCounter, Pass, fmt.Sprintf("seq %d (of %d counted in this bundle): cleaning step with the signed two-signer tier and matching gateway conversation; certificate-to-number linkage requires the anchored audit entry", e.ConvSeq, len(a.d.events)))
 		}
-	case e.EventType == cleaningEventType:
-		r.add(scope, StepAuditCounter, Fail, "a SENSITIVE_MODE_CERT_SEALED entry requires the signed two-signer input-shield tier with exactly one gateway and one sanitizer claim")
 	case len(ca.claims) == 0:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("this certificate carries no %s-signed %s claim, so its counter entry (seq %d) is not tied to it by a signature", AuditClaimService, AuditClaimType, e.ConvSeq), true)
 	default:
 		st, detail := matchAuditClaim(ca.claims, e, len(a.d.events))
+		// Audit-claim matching cannot waive the independent signed-fact
+		// requirement for a strictly accepted cleaning entry. Ineligibility
+		// establishes missing linkage, never contradictory evidence.
+		if ca.needsCleaningEntry && st == Pass {
+			st, detail = Skipped, "a SENSITIVE_MODE_CERT_SEALED entry requires the signed two-signer input-shield tier with exactly one gateway and one sanitizer claim"
+		}
 		// A SKIPPED counter step always blocks: the entry is not tied to the
 		// certificate, so the bundle is not complete.
 		a.emit(scope, StepAuditCounter, st, detail, true)
 	}
 	st, detail, blocks := a.inclusion(e, issuedAt)
-	if ca.cleaningStep && !e.Anchored() {
+	if ca.needsCleaningEntry && !e.Anchored() {
 		st, detail, blocks = Skipped, "a cleaning step requires inclusion under an anchored audit root, including with --allow-unanchored; export the bundle again after its root is published", true
 	}
 	a.emit(scope, StepAuditInclusion, st, detail, blocks)
@@ -413,7 +415,7 @@ func noCounterEntry(r *Report, scope string, ca certAudit, inAuditBundle bool) {
 		malformed = malformed || c.seqMalformed
 	}
 	switch {
-	case ca.cleaningStep:
+	case ca.needsCleaningEntry:
 		r.skip(scope, StepAuditCounter, "this cleaning step has no counter entry; an anchored matching entry is required in every bundle format, including with --allow-unanchored", true)
 	case !inAuditBundle && counted:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("the %s-signed claim of this certificate states its request was counted (seq %d), but this is a format-1 bundle without the audit counter (a format-2 bundle with its audit/ folder removed, or an export that could not fetch the counter): export the bundle again",

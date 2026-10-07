@@ -72,7 +72,7 @@ func addCleaningCases(co *Corpus) error {
 		}))
 		f.Rehash()
 		if rehash {
-			add("02-type-rehashed", "event type changed and hash recomputed", ExpectTampered, bundle.StepAuditCounter, "event type", f)
+			add("02-type-rehashed", "event type changed and hash recomputed", ExpectTampered, bundle.StepAuditInclusion, "does not lead", f)
 		} else {
 			add("02-type-changed", "event type changed without changing its hash", ExpectTampered, bundle.StepAuditEventHash, "does not recompute", f)
 		}
@@ -151,11 +151,11 @@ func addCleaningCases(co *Corpus) error {
 		opts               CleaningOptions
 		expect             string
 	}{
-		{"10-gateway-conversation", bundle.StepAuditCounter, "conversation", CleaningOptions{GatewayConversationID: &other}, ExpectTampered},
+		{"10-gateway-conversation-binding", "binding", "different conversation", CleaningOptions{GatewayConversationID: &other}, ExpectTampered},
 		{"11-gateway-no-conversation", bundle.StepAuditCounter, "conversation", CleaningOptions{GatewayConversationID: &empty}, ExpectIncomplete},
-		{"12-extra-claim", bundle.StepAuditCounter, "two-signer", CleaningOptions{ExtraClaim: true}, ExpectTampered},
-		{"13-no-signed-marker", "claims", "cert_tier_mismatch", CleaningOptions{OmitMarker: true}, ExpectTampered},
-		{"14-anchored-wrong-type", bundle.StepAuditCounter, "event type", CleaningOptions{EventType: "PROXY_INFERENCE_COMPLETED"}, ExpectTampered},
+		{"12-extra-claim", bundle.StepAuditCounter, "no dsa-audit-signed", CleaningOptions{ExtraClaim: true}, ExpectIncomplete},
+		{"13-marker-label-mismatch", "claims", "cert_tier_mismatch", CleaningOptions{OmitMarker: true}, ExpectTampered},
+		{"14-anchored-wrong-type", bundle.StepAuditCounter, "no dsa-audit-signed", CleaningOptions{EventType: "PROXY_INFERENCE_COMPLETED"}, ExpectIncomplete},
 	} {
 		s, err := w.NewCleaningScenario(false, tc.opts)
 		if err != nil {
@@ -164,7 +164,7 @@ func addCleaningCases(co *Corpus) error {
 		add(tc.name, "signed and anchored negative fixture: "+tc.name, tc.expect, tc.step, tc.detail, s.Clean)
 	}
 	// A valid full-chain certificate without an audit claim, beside a genuine
-	// anchored seal event: rejection must come from the tier gate itself.
+	// anchored seal event: missing linkage is INCOMPLETE, not altered evidence.
 	{
 		at := CorpusCutover.Add(47 * time.Hour)
 		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: at, Bound: true})
@@ -183,7 +183,65 @@ func addCleaningCases(co *Corpus) error {
 			return err
 		}
 		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}, Audit: log.Evidence(ConvD)})
-		add("15-full-chain-seal", "valid full-chain certificate without an audit claim beside an anchored seal entry", ExpectTampered, bundle.StepAuditCounter, "two-signer", f)
+		add("15-full-chain-seal", "valid full-chain certificate without an audit claim beside an anchored seal entry", ExpectIncomplete, bundle.StepAuditCounter, "no dsa-audit-signed", f)
+	}
+	// PARTIAL is a sealed verdict, not a failure of the strict tier/topology
+	// rule. This control is accepted with its anchored entry. Legacy anchors
+	// predate the binding cutover and remain valid under --require-anchors.
+	{
+		at := CorpusCutover.Add(-2 * time.Hour)
+		log := w.NewAuditLog()
+		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: at,
+			Audit: log, Cleaning: &CleaningOptions{SealedPartial: true}})
+		if err != nil {
+			return err
+		}
+		if _, err := log.Publish(at.Add(time.Hour)); err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}, Audit: log.Evidence(ConvD)})
+		add("16-partial-with-entry", "sealed PARTIAL with consistent two-signer tier and anchored entry", ExpectValid, "", "", f)
+		downgrade := func(f Files) Files {
+			f = f.Clone()
+			for _, p := range bundle.AuditPaths {
+				delete(f, p)
+			}
+			m := f.Manifest()
+			m.FormatVersion = bundle.FormatVersion
+			f.WriteManifest(m)
+			return f
+		}
+		add("17-partial-downgrade", "same PARTIAL certificate without audit files", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", downgrade(f))
+		// Change ONLY the unsigned label; certificate signatures and anchors
+		// are byte-for-byte identical to the control.
+		c.Doc["verification"].(map[string]any)["cert_tier"] = "full_chain"
+		if err := c.Remarshal(); err != nil {
+			return err
+		}
+		f[certPath(c)] = c.JSON
+		f.Rehash()
+		add("18-partial-relabelled-with-entry", "signed facts require an entry but inconsistent SignedCertTier prevents acceptance", ExpectIncomplete, bundle.StepAuditCounter, "no dsa-audit-signed", f)
+		add("19-partial-relabelled-downgrade", "unsigned label changed to full_chain, no audit files, required legacy anchors", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", downgrade(f))
+		add("19-partial-relabelled-downgrade-allow-unanchored", "same unsigned-label exploit with relaxed anchors", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", downgrade(f), FlagAllowUnanchored)
+	}
+	{
+		// Unlike Cleaning-13, this historical marker-less shape passes the
+		// existing chain tier check. Its missing audit linkage stays INCOMPLETE.
+		s, err := w.NewCleaningScenario(false, CleaningOptions{OmitMarker: true, UnsignedTier: "full_chain"})
+		if err != nil {
+			return err
+		}
+		add("20-historical-compatible", "marker-less two-signer topology with chain-compatible full_chain label", ExpectIncomplete, bundle.StepAuditCounter, "no dsa-audit-signed", s.Clean)
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: s.Certs})
+		add("21-historical-downgrade", "verified topology requires an entry even without a signed marker", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
+	}
+	{
+		s, err := w.NewCleaningScenario(false, CleaningOptions{ExtraClaim: true})
+		if err != nil {
+			return err
+		}
+		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: s.Certs})
+		add("22-extra-claim-downgrade", "signed marker requires an entry despite ineligible extra-claim topology", ExpectIncomplete, bundle.StepAuditCounter, "cleaning step", f)
 	}
 	return nil
 }

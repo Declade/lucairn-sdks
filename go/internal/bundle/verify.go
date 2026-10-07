@@ -104,7 +104,7 @@ func Verify(name string, data []byte, opt Options) *Report {
 	}
 	for _, c := range certs {
 		ca, si := v.verify(c, files[c.Path])
-		if ca.cleaningStep {
+		if ca.needsCleaningEntry {
 			r.hasCleaningSteps = true
 		}
 		if av != nil {
@@ -510,19 +510,27 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 		values[k] = c.Values
 	}
 	ca := certAudit{claimsVerified: true, claims: auditClaimsOf(values)}
-	if ch.SignedCertTier == verify.ChainTierInputShieldTwoSigner && len(values) == 2 {
-		gateway, sanitizer := 0, 0
-		for _, c := range values {
-			switch str(c["/service_id"]) {
-			case "dsa-gateway":
-				gateway++
-				ca.gatewayConversationID = str(c["/payload/conversation_id"])
-			case "dsa-sanitizer":
-				sanitizer++
-			}
+	gateway, sanitizer, audit := 0, 0, 0
+	marker := false
+	for _, c := range values {
+		switch str(c["/service_id"]) {
+		case "dsa-gateway":
+			gateway++
+			marker = marker || str(c["/payload/cert_tier"]) == "input-shield"
+			ca.gatewayConversationID = str(c["/payload/conversation_id"])
+		case "dsa-sanitizer":
+			sanitizer++
+		case "dsa-audit":
+			audit++
 		}
-		ca.cleaningStep = gateway == 1 && sanitizer == 1
 	}
+	// Requirement: only authenticated marker/topology, never the unsigned
+	// label, sealed verdict, or the label-sensitive SignedCertTier result.
+	ca.needsCleaningEntry = marker || (gateway == 1 && sanitizer == 1 && audit == 0)
+	// Eligibility is deliberately stricter. Entry matching and all shared
+	// hash/continuity/inclusion checks still have to pass in auditVerifier.cert.
+	ca.cleaningStepEligible = ch.SignedCertTier == verify.ChainTierInputShieldTwoSigner &&
+		len(values) == 2 && gateway == 1 && sanitizer == 1
 	return ca
 }
 
