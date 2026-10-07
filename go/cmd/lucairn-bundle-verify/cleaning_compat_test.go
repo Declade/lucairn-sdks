@@ -202,5 +202,8 @@ var cleaningExitPairs = map[string][2]int{
 	"Cleaning-31-malformed-entry-removed":                       {1, 1},
 	"Cleaning-32-marker-less-extra-dsa-gateway":                 {2, 0},
 	"Cleaning-32-marker-less-extra-dsa-sanitizer":               {2, 0},
-	"Cleaning-32-marker-less-extra-dsa-bridge":                  {2, 0},
+	"Cleaning-32-marker-less-extra-dsa-bridge":                  {0, 0},
+	"Cleaning-33-routed-partial-after-no-entry":                 {0, 0},
+	"Cleaning-34-routed-partial-before-empty-audit":             {2, 2},
+	"Cleaning-35-marker-plus-dsa-ai-no-entry":                   {2, 0},
 }

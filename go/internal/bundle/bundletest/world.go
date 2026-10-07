@@ -75,6 +75,7 @@ func NewWorldWith(seed string, wo WorldOptions) (*World, error) {
 			"dsa-bridge":    edKey(seed + "/dsa-bridge"),
 			"dsa-sanitizer": edKey(seed + "/dsa-sanitizer"),
 			"dsa-gateway":   edKey(seed + "/dsa-gateway"),
+			"dsa-ai":        edKey(seed + "/dsa-ai"),
 			// The audit service's claim key; it also signs audit roots (S2b).
 			AuditService: edKey(seed + "/dsa-audit"),
 		},
@@ -179,7 +180,7 @@ var CorpusCleaningStart = CorpusCutover.Add(-24 * time.Hour)
 // paths the root PEMs were written to.
 func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	out := []string{"--witness-key", WitnessKeyID + "=" + base64.StdEncoding.EncodeToString(w.Witness.Public().(ed25519.PublicKey))}
-	for _, id := range []string{"dsa-bridge", "dsa-sanitizer", "dsa-gateway", AuditService} {
+	for _, id := range []string{"dsa-bridge", "dsa-sanitizer", "dsa-gateway", "dsa-ai", AuditService} {
 		out = append(out, "--service-key", id+"="+base64.StdEncoding.EncodeToString(w.Services[id].Public().(ed25519.PublicKey)))
 	}
 	// --require-anchors: the corpus measures the Lucairn-hosted policy (every
