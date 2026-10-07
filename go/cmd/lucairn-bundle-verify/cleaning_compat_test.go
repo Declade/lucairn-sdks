@@ -1,11 +1,10 @@
 package main
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	lucairn "github.com/declade/lucairn-sdks/go"
 	"github.com/declade/lucairn-sdks/go/internal/bundle"
 	"github.com/declade/lucairn-sdks/go/internal/bundle/bundletest"
 )
 
 // TestCleaningOfflineCompatibility builds the released verifier from the
-// immutable 1.1.0 sources (HEAD~1 of reviewed ebdff02), through a Go overlay.
+// immutable 1.1.0 sources, through a Go overlay.
+// This overlay cannot remove a non-test file added after 1.1.0; newly added
+// production files in packages used by the old command need a fresh check.
 // No checkout, git write, network, loopback server or background process.
 func TestCleaningOfflineCompatibility(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
@@ -35,7 +35,11 @@ func TestCleaningOfflineCompatibility(t *testing.T) {
 		cmd.Dir = gomod
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
+			message := fmt.Sprintf("1.1.0 compatibility sources unavailable (git missing, tag absent, shallow clone or tarball): git %v: %v\n%s", args, err, out)
+			if os.Getenv("LUCAIRN_REQUIRE_COMPAT") == "1" {
+				t.Fatal(message)
+			}
+			t.Skip(message)
 		}
 		return out
 	}
@@ -69,7 +73,8 @@ func TestCleaningOfflineCompatibility(t *testing.T) {
 	old := filepath.Join(dir, "verify-1.1.0")
 	cmd := exec.CommandContext(ctx, "go", "build", "-overlay", overlayPath, "-o", old, "./cmd/lucairn-bundle-verify")
 	cmd.Dir = gomod
-	cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=")
+	// Keep the overlay build cache separate from current-package builds.
+	cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=", "GOCACHE="+filepath.Join(dir, "old-cache"))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("offline old build: %v\n%s", err, out)
 	}
@@ -102,7 +107,16 @@ func TestCleaningOfflineCompatibility(t *testing.T) {
 			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 				t.Fatalf("new report: %v\n%s", err, stderr.String())
 			}
-			oldCmd := exec.CommandContext(ctx, old, args...)
+			// The released CLI predates this flag; only the new verifier gets it.
+			oldArgs := make([]string, 0, len(args))
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--require-cleaning-from" {
+					i++
+					continue
+				}
+				oldArgs = append(oldArgs, args[i])
+			}
+			oldCmd := exec.CommandContext(ctx, old, oldArgs...)
 			oldOut, err := oldCmd.CombinedOutput()
 			oldExit := 0
 			if err != nil {
@@ -116,80 +130,77 @@ func TestCleaningOfflineCompatibility(t *testing.T) {
 			if err := json.Unmarshal(oldOut, &oldReport); err != nil || oldReport.ExitCode != oldExit || oldExit > 2 {
 				t.Fatalf("invalid old result: exit %d, %v\n%s", oldExit, err, oldOut)
 			}
+			if oldReport.CleaningSteps != 0 || oldReport.NotCountedCleaningSteps != 0 || oldReport.CleaningScope != "" {
+				t.Fatal("baseline build contains post-1.1.0 report fields")
+			}
 			t.Logf("(new, old) = (%d, %d)", newExit, oldExit)
 			if newExit == 1 && oldExit == 2 && genuineAlterations[c.Name] == "" {
 				t.Errorf("new tampering accusation without an allowed authenticated contradiction\n%s", stdout.String())
 			}
-			if newExit == 0 {
-				assertRequiredCleaningAccepted(t, c.Zip, co.World, &report)
+			if oldExit == 1 && newExit != 1 && genuineAlterations[c.Name] == "" {
+				t.Errorf("new result weakens a detected alteration without an allowed reason")
+			}
+			if strings.HasPrefix(c.Name, "Cleaning-") {
+				want, ok := cleaningExitPairs[c.Name]
+				if !ok {
+					t.Fatal("cleaning case lacks a literal compatibility expectation")
+				}
+				if got := [2]int{newExit, oldExit}; got != want {
+					t.Errorf("exit pair = %v, want %v\nold report: %s", got, want, oldOut)
+				}
+			}
+			// Historical no-entry controls and altered evidence preserve the old result.
+			if (c.Name == "Cleaning-23-before-no-entry" || c.Name == "Cleaning-25-before-tampered-entry" || c.Name == "Cleaning-29-before-historical") && newExit != oldExit {
+				t.Error("before-start result changed")
 			}
 		})
 	}
 }
 
-// An independent oracle reads only the chain verifier's authenticated values.
-// It does not consume certAudit or the corpus's expected exit, so mislabelling
-// a downgrade VALID cannot silently opt it out of this regression assertion.
-func assertRequiredCleaningAccepted(t *testing.T, data []byte, w *bundletest.World, report *bundle.Report) {
-	t.Helper()
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	roots := w.Roots()
-	services := map[string]any{}
-	for id, key := range roots.ServiceKeys {
-		services[id] = []byte(key)
-	}
-	required := 0
-	for _, f := range zr.File {
-		if !strings.HasPrefix(f.Name, "certificates/") || !strings.HasSuffix(f.Name, ".json") {
-			continue
-		}
-		rc, err := f.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
-		raw, err := io.ReadAll(rc)
-		rc.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-		ch, err := lucairn.VerifyCertificateChain(raw, lucairn.CertificateChainKeys{
-			WitnessKeyID: bundletest.WitnessKeyID, WitnessPublicKey: []byte(roots.WitnessKeys[bundletest.WitnessKeyID]), ServicePublicKeys: services,
-		})
-		if err != nil || ch.Verified == nil || ch.Verdict == "FAILED" {
-			t.Fatalf("VALID bundle has an unverified chain: %v", err)
-		}
-		counts := map[any]int{}
-		marker := false
-		for _, claim := range ch.Verified.Claims {
-			v := claim.Values
-			counts[v["/service_id"]]++
-			marker = marker || (v["/service_id"] == "dsa-gateway" && v["/payload/cert_tier"] == "input-shield")
-		}
-		if !marker && !(counts["dsa-gateway"] == 1 && counts["dsa-sanitizer"] == 1 && counts["dsa-audit"] == 0) {
-			continue
-		}
-		required++
-		var doc struct {
-			RequestID string `json:"request_id"`
-		}
-		if err := json.Unmarshal(raw, &doc); err != nil {
-			t.Fatal(err)
-		}
-		counter, inclusion := false, false
-		for _, step := range report.Steps {
-			if step.Scope == doc.RequestID && step.Status == bundle.Pass {
-				counter = counter || step.Name == bundle.StepAuditCounter
-				inclusion = inclusion || step.Name == bundle.StepAuditInclusion
-			}
-		}
-		if ch.SignedCertTier != "input_shield_two_signer" || len(ch.Verified.Claims) != 2 || !counter || !inclusion {
-			t.Errorf("VALID cleaning-requiring certificate %s without a strictly accepted anchored entry", doc.RequestID)
-		}
-	}
-	if required != report.CleaningSteps {
-		t.Errorf("VALID requires %d accepted cleaning entries, report counted %d", required, report.CleaningSteps)
-	}
+// Literal per-case expectations, independent of the production predicate and
+// corpus verdict formula. Present cleaning entries gain the new verification
+// path even before the start; mixed bundles include after-start entries.
+var cleaningExitPairs = map[string][2]int{
+	"Cleaning-00-three":                                         {0, 2},
+	"Cleaning-00-three-online":                                  {0, 2},
+	"Cleaning-01-middle-removed":                                {1, 1},
+	"Cleaning-02-type-rehashed":                                 {1, 1},
+	"Cleaning-02-type-changed":                                  {1, 1},
+	"Cleaning-03-request-swapped-rehashed":                      {1, 1},
+	"Cleaning-03-request-swapped":                               {1, 1},
+	"Cleaning-04-downgrade":                                     {2, 0},
+	"Cleaning-04-downgrade-allow-unanchored":                    {2, 0},
+	"Cleaning-05-zero-events":                                   {2, 2},
+	"Cleaning-05-zero-events-allow-unanchored":                  {2, 2},
+	"Cleaning-06-no-root":                                       {2, 2},
+	"Cleaning-06-no-root-allow-unanchored":                      {2, 2},
+	"Cleaning-07-mixed":                                         {0, 2},
+	"Cleaning-08-missing-entry":                                 {2, 2},
+	"Cleaning-09-stripped-full-chain":                           {1, 1},
+	"Cleaning-10-gateway-conversation-binding":                  {1, 1},
+	"Cleaning-11-gateway-no-conversation":                       {2, 2},
+	"Cleaning-12-extra-claim":                                   {2, 2},
+	"Cleaning-13-marker-label-mismatch":                         {1, 1},
+	"Cleaning-14-anchored-wrong-type":                           {2, 2},
+	"Cleaning-15-full-chain-seal":                               {2, 2},
+	"Cleaning-16-partial-with-entry":                            {0, 2},
+	"Cleaning-17-partial-downgrade":                             {2, 0},
+	"Cleaning-18-partial-relabelled-with-entry":                 {2, 2},
+	"Cleaning-19-partial-relabelled-downgrade":                  {2, 0},
+	"Cleaning-19-partial-relabelled-downgrade-allow-unanchored": {2, 0},
+	"Cleaning-20-historical-compatible":                         {2, 2},
+	"Cleaning-21-historical-downgrade":                          {2, 0},
+	"Cleaning-22-extra-claim-downgrade":                         {2, 0},
+	"Cleaning-23-before-no-entry":                               {0, 0},
+	"Cleaning-24-before-with-entry":                             {0, 2},
+	"Cleaning-25-before-tampered-entry":                         {1, 1},
+	"Cleaning-26-before-and-after":                              {0, 2},
+	"Cleaning-27-at-start-no-entry":                             {2, 0},
+	"Cleaning-28-unsigned-earlier-date":                         {2, 0},
+	"Cleaning-29-before-historical":                             {0, 0},
+	"Cleaning-30-counted-entry-removed":                         {1, 1},
+	"Cleaning-31-malformed-entry-removed":                       {1, 1},
+	"Cleaning-32-marker-less-extra-dsa-gateway":                 {2, 0},
+	"Cleaning-32-marker-less-extra-dsa-sanitizer":               {2, 0},
+	"Cleaning-32-marker-less-extra-dsa-bridge":                  {2, 0},
 }

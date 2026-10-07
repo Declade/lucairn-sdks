@@ -388,8 +388,8 @@ func matchAuditClaim(claims []auditClaim, e *AuditEvent, total int) (Status, str
 // noCounterEntry reports a certificate whose request has no counter entry
 // (check I and the downgrade guard).
 //
-// Cleaning steps always need an anchored matching entry. Its absence is
-// INCOMPLETE in either format: the audit record may never have been written.
+// Cleaning steps at or after the configured start need an anchored matching
+// entry. Its absence is INCOMPLETE in either format: the audit record may never have been written.
 //
 // Whether a request was counted is stated by a signature: the audit service
 // puts conversation_id + conv_seq into the EVENTS_RECORDED claim of every
@@ -415,18 +415,25 @@ func noCounterEntry(r *Report, scope string, ca certAudit, inAuditBundle bool) {
 		malformed = malformed || c.seqMalformed
 	}
 	switch {
-	case ca.needsCleaningEntry:
-		r.skip(scope, StepAuditCounter, "this cleaning step has no counter entry; an anchored matching entry is required in every bundle format, including with --allow-unanchored", true)
+	case inAuditBundle && counted:
+		r.add(scope, StepAuditCounter, Fail, fmt.Sprintf("the %s-signed %s claim of this certificate states its request was counted as seq %d, but the bundle has no counter entry for it (the entry was removed)",
+			AuditClaimService, AuditClaimType, seq))
+	case inAuditBundle && malformed:
+		r.add(scope, StepAuditCounter, Fail, "the signed audit claim carries a conv_seq that is not a positive integer")
 	case !inAuditBundle && counted:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("the %s-signed claim of this certificate states its request was counted (seq %d), but this is a format-1 bundle without the audit counter (a format-2 bundle with its audit/ folder removed, or an export that could not fetch the counter): export the bundle again",
 			AuditClaimService, seq), true)
+	case ca.needsCleaningEntry && ca.cleaningBeforeStart:
+		r.NotCountedCleaningSteps++
+		r.info(scope, StepAuditCounter, "cleaning step sealed before the counter started ("+ca.cleaningRequiredFrom.Format(time.RFC3339)+"): not counted, no number expected")
+	case ca.needsCleaningEntry && !ca.cleaningRequiredFrom.IsZero():
+		kind := "input-shield certificate"
+		if ca.cleaningStepEligible {
+			kind = "cleaning step"
+		}
+		r.skip(scope, StepAuditCounter, "this "+kind+" has no counter entry; an anchored matching entry is required in every bundle format, including with --allow-unanchored", true)
 	case !inAuditBundle:
 		// Format 1 and nothing signed says "counted": output unchanged.
-	case counted:
-		r.add(scope, StepAuditCounter, Fail, fmt.Sprintf("the %s-signed %s claim of this certificate states its request was counted as seq %d, but the bundle has no counter entry for it (the entry was removed)",
-			AuditClaimService, AuditClaimType, seq))
-	case malformed:
-		r.add(scope, StepAuditCounter, Fail, "the signed audit claim carries a conv_seq that is not a positive integer")
 	case !ca.claimsVerified:
 		r.skip(scope, StepAuditCounter, "request has no counter entry, and this certificate's claim signatures were not verified, so whether it was counted is not known", true)
 	case len(ca.claims) == 0:

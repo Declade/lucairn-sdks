@@ -35,6 +35,10 @@ type TrustRoots struct {
 	// witness key clears it unless --require-binding-after is given, because
 	// another deployment upgrades its witness on its own schedule.
 	BindingRequiredAfter time.Time
+	// CleaningRequiredFrom requires entries at or after the signed issued_at
+	// boundary. Zero disables the requirement, never checks of present entries.
+	// Custom witness keys clear it unless --require-cleaning-from is supplied.
+	CleaningRequiredFrom time.Time
 	// Label is printed on every run ("Lucairn-hosted pins" or "CUSTOM …").
 	Label string
 }
@@ -81,6 +85,10 @@ func ProductionRoots() (TrustRoots, error) {
 	for id, h := range productionServiceKeyHex {
 		svc[id] = mustKey(h)
 	}
+	cleaningStart, err := time.Parse(time.RFC3339, anchor.CleaningCounterStartRFC3339)
+	if err != nil {
+		return TrustRoots{}, fmt.Errorf("built-in cleaning counter start: %w", err)
+	}
 	return TrustRoots{
 		WitnessKeys:    map[string]ed25519.PublicKey{productionWitnessKeyID: mustKey(productionWitnessKeyHex)},
 		ServiceKeys:    svc,
@@ -89,6 +97,7 @@ func ProductionRoots() (TrustRoots, error) {
 		RequireAnchors: true,
 		// Hosted certificates issued after the cutover are content-bound.
 		BindingRequiredAfter: anchor.BindingV1Cutover,
+		CleaningRequiredFrom: cleaningStart,
 		Label:                "built-in Lucairn-hosted pins (witness_v1, 6 service keys, FreeTSA root, Rekor public-good key)",
 	}, nil
 }
