@@ -92,6 +92,11 @@ func syntheticEvent(conv, reqID, customer string) bundle.AuditEvent {
 // conv_seq of its conversation, hashed with the v2 serialisation.
 func (l *AuditLog) Record(conv, reqID, customer string) bundle.AuditEvent {
 	e := syntheticEvent(conv, reqID, customer)
+	return l.record(e)
+}
+
+func (l *AuditLog) record(e bundle.AuditEvent) bundle.AuditEvent {
+	conv := e.ConversationID
 	l.seqs[conv]++
 	e.ConvSeq = l.seqs[conv]
 	e.PreviousEventHash = l.head()

@@ -605,6 +605,10 @@ type certAudit struct {
 	// (an empty list then means "no audit claim on this certificate").
 	claimsVerified bool
 	claims         []auditClaim
+	// cleaningStep requires SignedCertTier and exactly one verified gateway
+	// claim plus one verified sanitizer claim. No unsigned payload is read.
+	cleaningStep          bool
+	gatewayConversationID string
 }
 
 // countedSeq returns the conv_seq a signed claim states, if any.

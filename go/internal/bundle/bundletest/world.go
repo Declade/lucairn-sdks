@@ -74,6 +74,7 @@ func NewWorldWith(seed string, wo WorldOptions) (*World, error) {
 		Services: map[string]ed25519.PrivateKey{
 			"dsa-bridge":    edKey(seed + "/dsa-bridge"),
 			"dsa-sanitizer": edKey(seed + "/dsa-sanitizer"),
+			"dsa-gateway":   edKey(seed + "/dsa-gateway"),
 			// The audit service's claim key; it also signs audit roots (S2b).
 			AuditService: edKey(seed + "/dsa-audit"),
 		},
@@ -173,7 +174,7 @@ func (w *World) Roots() bundle.TrustRoots {
 // paths the root PEMs were written to.
 func (w *World) CLIFlags(tsaRootPath, rekorKeyPath string) []string {
 	out := []string{"--witness-key", WitnessKeyID + "=" + base64.StdEncoding.EncodeToString(w.Witness.Public().(ed25519.PublicKey))}
-	for _, id := range []string{"dsa-bridge", "dsa-sanitizer", AuditService} {
+	for _, id := range []string{"dsa-bridge", "dsa-sanitizer", "dsa-gateway", AuditService} {
 		out = append(out, "--service-key", id+"="+base64.StdEncoding.EncodeToString(w.Services[id].Public().(ed25519.PublicKey)))
 	}
 	// --require-anchors: the corpus measures the Lucairn-hosted policy (every
@@ -210,6 +211,8 @@ type Cert struct {
 
 // CertOptions shape one certificate.
 type CertOptions struct {
+	// Cleaning replaces the ordinary claims with sanitizer + gateway claims.
+	Cleaning       *CleaningOptions
 	ConversationID string
 	CustomerID     string
 	IssuedAt       time.Time
@@ -279,7 +282,26 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 	}
 	claimIDs, claims := []any{claimID}, []any{claim}
 	var event *bundle.AuditEvent
-	if o.Audit != nil {
+	if o.Cleaning != nil {
+		cleaning, err := w.cleaningClaims(o, n, reqID, claimTS)
+		if err != nil {
+			return nil, err
+		}
+		claimIDs, claims = nil, nil
+		for _, c := range cleaning {
+			claimIDs, claims = append(claimIDs, c["claim_id"]), append(claims, c)
+		}
+		if o.Audit != nil {
+			e := syntheticEvent(o.ConversationID, reqID, o.CustomerID)
+			e.EventType = "SENSITIVE_MODE_CERT_SEALED"
+			e.EventID = "evt_seal_" + reqID
+			if o.Cleaning.EventType != "" {
+				e.EventType = o.Cleaning.EventType
+			}
+			e = o.Audit.record(e)
+			event = &e
+		}
+	} else if o.Audit != nil {
 		acs, ev, err := w.auditClaim(o, n, reqID, issued)
 		if err != nil {
 			return nil, err
@@ -362,6 +384,9 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 			"transparency_log": tl,
 		}
 		doc["anchor_status"] = map[string]any{"status": "ANCHOR_STATUS_ANCHORED", "attempts": 1}
+	}
+	if o.Cleaning != nil {
+		doc["verification"].(map[string]any)["cert_tier"] = "input_shield_two_signer"
 	}
 	if err := c.Remarshal(); err != nil {
 		return nil, err

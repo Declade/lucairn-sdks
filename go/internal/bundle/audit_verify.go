@@ -22,6 +22,7 @@ const (
 	StepAuditCounter      = "audit-counter"    // A, I (per certificate)
 	StepAuditInclusion    = "audit-inclusion"  // F, H, J (per counted request)
 	StepAuditCertificates = "audit-certs"      // E
+	cleaningEventType     = "SENSITIVE_MODE_CERT_SEALED"
 )
 
 // auditVerifier runs the counter and inclusion checks of a format-2 bundle.
@@ -264,9 +265,27 @@ func (a *auditVerifier) cert(scope string, ca certAudit, issuedAt time.Time) {
 		noCounterEntry(r, scope, ca, true)
 		return
 	}
+	cleaningMatched := false
 	switch {
 	case !ca.claimsVerified:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("this certificate's claim signatures were not verified, so its counter entry (seq %d) is not tied to it", e.ConvSeq), true)
+	case ca.cleaningStep:
+		// The only claim-less exception: authenticated two-claim tier,
+		// request id (byReq), seal event type and signed gateway conversation.
+		// Inclusion below remains mandatory, even with --allow-unanchored.
+		switch {
+		case e.EventType != cleaningEventType:
+			r.add(scope, StepAuditCounter, Fail, "a cleaning step's counter entry has event type "+quotedShort(e.EventType)+", expected "+cleaningEventType)
+		case ca.gatewayConversationID == "":
+			r.skip(scope, StepAuditCounter, "the cleaning step's verified gateway claim carries no conversation id", true)
+		case e.ConversationID != ca.gatewayConversationID:
+			r.add(scope, StepAuditCounter, Fail, "the counter entry's conversation id differs from the cleaning step's verified gateway claim")
+		default:
+			cleaningMatched = true
+			r.add(scope, StepAuditCounter, Pass, fmt.Sprintf("seq %d (of %d counted in this bundle): cleaning step with the signed two-signer tier and matching gateway conversation; certificate-to-number linkage requires the anchored audit entry", e.ConvSeq, len(a.d.events)))
+		}
+	case e.EventType == cleaningEventType:
+		r.add(scope, StepAuditCounter, Fail, "a SENSITIVE_MODE_CERT_SEALED entry requires the signed two-signer input-shield tier with exactly one gateway and one sanitizer claim")
 	case len(ca.claims) == 0:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("this certificate carries no %s-signed %s claim, so its counter entry (seq %d) is not tied to it by a signature", AuditClaimService, AuditClaimType, e.ConvSeq), true)
 	default:
@@ -276,13 +295,29 @@ func (a *auditVerifier) cert(scope string, ca certAudit, issuedAt time.Time) {
 		a.emit(scope, StepAuditCounter, st, detail, true)
 	}
 	st, detail, blocks := a.inclusion(e, issuedAt)
+	if ca.cleaningStep && !e.Anchored() {
+		st, detail, blocks = Skipped, "a cleaning step requires inclusion under an anchored audit root, including with --allow-unanchored; export the bundle again after its root is published", true
+	}
 	a.emit(scope, StepAuditInclusion, st, detail, blocks)
+	if cleaningMatched && st == Pass {
+		// Count accepted entries even when an unrelated certificate or an
+		// incomplete exporter listing blocks the bundle's overall result.
+		// This entry's root passed inclusion; the shared audit checks and all
+		// checks of this certificate must also have passed.
+		for _, s := range r.Steps {
+			shared := s.Scope == "bundle" && (s.Name == StepAuditFiles || s.Name == StepAuditConversation || s.Name == StepAuditEventHash || s.Name == StepAuditContinuity)
+			if (shared || s.Scope == scope) && (s.Status == Fail || s.Incomplete) {
+				return
+			}
+		}
+		r.CleaningSteps++
+	}
 }
 
 // matchAuditClaim is check A for a certificate whose request HAS a counter
 // entry e (found by request id; there is at most one entry per request).
 //
-// Whether a request was counted is what its audit-signed claim says: the
+// Outside the cleaning-step exception above, counting is what the audit-signed claim says: the
 // audit service puts conversation_id + conv_seq into the EVENTS_RECORDED
 // claim of every counted request (design D3) and into no other. So:
 //
@@ -351,6 +386,9 @@ func matchAuditClaim(claims []auditClaim, e *AuditEvent, total int) (Status, str
 // noCounterEntry reports a certificate whose request has no counter entry
 // (check I and the downgrade guard).
 //
+// Cleaning steps always need an anchored matching entry. Its absence is
+// INCOMPLETE in either format: the audit record may never have been written.
+//
 // Whether a request was counted is stated by a signature: the audit service
 // puts conversation_id + conv_seq into the EVENTS_RECORDED claim of every
 // counted request (design D3) and into no other. So:
@@ -367,7 +405,7 @@ func matchAuditClaim(claims []auditClaim, e *AuditEvent, total int) (Status, str
 //     gateway rollback cannot turn honest certificates into forgeries.
 //
 // inAuditBundle is false for a format-1 bundle, where a step is emitted only
-// in the second case (otherwise format-1 output is unchanged).
+// for cleaning steps or the second case (otherwise output is unchanged).
 func noCounterEntry(r *Report, scope string, ca certAudit, inAuditBundle bool) {
 	seq, counted := ca.countedSeq()
 	malformed := false
@@ -375,6 +413,8 @@ func noCounterEntry(r *Report, scope string, ca certAudit, inAuditBundle bool) {
 		malformed = malformed || c.seqMalformed
 	}
 	switch {
+	case ca.cleaningStep:
+		r.skip(scope, StepAuditCounter, "this cleaning step has no counter entry; an anchored matching entry is required in every bundle format, including with --allow-unanchored", true)
 	case !inAuditBundle && counted:
 		r.skip(scope, StepAuditCounter, fmt.Sprintf("the %s-signed claim of this certificate states its request was counted (seq %d), but this is a format-1 bundle without the audit counter (a format-2 bundle with its audit/ folder removed, or an export that could not fetch the counter): export the bundle again",
 			AuditClaimService, seq), true)
