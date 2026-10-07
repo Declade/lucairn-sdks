@@ -697,5 +697,8 @@ func NewCorpus() (*Corpus, error) {
 	if err := addAuditCases(co); err != nil {
 		return nil, err
 	}
+	if err := addCleaningCases(co); err != nil {
+		return nil, err
+	}
 	return co, nil
 }

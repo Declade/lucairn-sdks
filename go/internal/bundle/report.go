@@ -42,6 +42,10 @@ const ReportNotAuthenticatedReason = "Report content not authenticated: report-e
 // ValidMeaning is printed under a VALID result.
 const ValidMeaning = "VALID means the certificates are intact, signed by the pinned keys and belong to this conversation and account. It is a statement about the bundle's integrity, not that every turn was sanitized: read each certificate's chain-verdict and user-unredacted lines."
 
+// CleaningStepLimitReason applies whenever a verified cleaning certificate
+// is present, including one whose audit record is missing.
+const CleaningStepLimitReason = "Cleaning steps: the link between certificate and number rests on the anchored audit log entry, not on a signature inside the certificate. A step whose audit record was never written has no number; if its certificate is also removed, this bundle cannot detect that step. Numbers follow audit commit order, not request order."
+
 // AnchorsNotRequiredReason is printed whenever the trust roots do not require
 // anchoring (custom --witness-key without --require-anchors, or
 // --allow-unanchored).
@@ -118,6 +122,11 @@ type Report struct {
 	// verified.
 	AuditEvents int `json:"audit_counted_requests,omitempty"`
 	AuditRoots  int `json:"audit_roots_verified,omitempty"`
+	// CleaningSteps counts accepted cleaning entries, not model calls.
+	CleaningSteps int    `json:"cleaning_steps,omitempty"`
+	CleaningScope string `json:"cleaning_scope,omitempty"`
+
+	hasCleaningSteps bool
 
 	reportUnauthenticated bool
 	anchorsNotRequired    bool
@@ -146,6 +155,12 @@ func (r *Report) skip(scope, name, reason string, blocks bool) {
 // finish computes the verdict: any FAIL → TAMPERED (1); otherwise any
 // blocking SKIPPED → INCOMPLETE (2); otherwise VALID (0).
 func (r *Report) finish() {
+	if r.CleaningSteps > 0 {
+		r.CleaningScope = fmt.Sprintf("%d of the %d entries in this bundle are cleaning steps. For these, this bundle covers the step in which Lucairn cleaned your text; the model call went from your computer directly to the vendor and is not part of this record.", r.CleaningSteps, r.AuditEvents)
+	}
+	if r.hasCleaningSteps {
+		r.NotCovered = append(append([]string(nil), r.NotCovered...), CleaningStepLimitReason)
+	}
 	fail, incomplete := false, false
 	r.ContentBound = 0
 	for _, s := range r.Steps {
@@ -176,6 +191,8 @@ func (r *Report) finish() {
 		r.Limitations = append(r.Limitations, CounterTailLimitReason)
 		if r.AuditRoots > 0 {
 			r.Limitations = append(r.Limitations, PreAnchorLimitReason)
+		} else if r.hasCleaningSteps {
+			r.Limitations = append(r.Limitations, "No anchored audit root was verified on this run: cleaning steps cannot be accepted without an anchored matching audit entry. Other counter entries rest on audit-key signatures only, and the operator holds that key.")
 		} else {
 			r.Limitations = append(r.Limitations, NoAuditRootLimitReason)
 		}
@@ -273,6 +290,10 @@ func (r *Report) WriteText(w io.Writer) {
 		}
 	}
 	fmt.Fprintln(w)
+	if r.CleaningScope != "" {
+		fmt.Fprintln(w, r.CleaningScope)
+		fmt.Fprintln(w)
+	}
 	fmt.Fprintln(w, "NOT COVERED by this bundle version:")
 	for _, n := range r.NotCovered {
 		fmt.Fprintf(w, "  - %s\n", n)

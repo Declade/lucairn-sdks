@@ -104,12 +104,15 @@ func Verify(name string, data []byte, opt Options) *Report {
 	}
 	for _, c := range certs {
 		ca, si := v.verify(c, files[c.Path])
+		if ca.cleaningStep {
+			r.hasCleaningSteps = true
+		}
 		if av != nil {
 			av.cert(c.RequestID, ca, si.issuedAt)
 		} else {
-			// Format 1 has no counter. A certificate whose signed audit claim
-			// says its request was counted must still not pass as complete
-			// without one (a format-2 bundle downgraded to format 1).
+			// Format 1 has no counter. Cleaning steps and certificates whose
+			// signed audit claims say they were counted still need entries
+			// (including a format-2 bundle downgraded to format 1).
 			noCounterEntry(r, c.RequestID, ca, false)
 		}
 	}
@@ -461,8 +464,8 @@ func signedBytesOf(raw []byte, wkid string, wkey ed25519.PublicKey, certID strin
 }
 
 // claimChain verifies every claim signature. The returned certAudit carries
-// the certificate's audit-signed EVENTS_RECORDED claims when (and only when)
-// the chain verified.
+// the certificate's audit-signed EVENTS_RECORDED claims and cleaning-step
+// inputs when (and only when) the chain verified.
 func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wkid string, wkey ed25519.PublicKey) certAudit {
 	r := v.r
 
@@ -506,7 +509,21 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 	for k, c := range ch.Verified.Claims {
 		values[k] = c.Values
 	}
-	return certAudit{claimsVerified: true, claims: auditClaimsOf(values)}
+	ca := certAudit{claimsVerified: true, claims: auditClaimsOf(values)}
+	if ch.SignedCertTier == verify.ChainTierInputShieldTwoSigner && len(values) == 2 {
+		gateway, sanitizer := 0, 0
+		for _, c := range values {
+			switch str(c["/service_id"]) {
+			case "dsa-gateway":
+				gateway++
+				ca.gatewayConversationID = str(c["/payload/conversation_id"])
+			case "dsa-sanitizer":
+				sanitizer++
+			}
+		}
+		ca.cleaningStep = gateway == 1 && sanitizer == 1
+	}
+	return ca
 }
 
 // binding checks the SIGNED conversation and customer ids in the claim
