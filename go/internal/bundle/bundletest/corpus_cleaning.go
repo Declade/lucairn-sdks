@@ -326,7 +326,39 @@ func addCleaningCases(co *Corpus) error {
 			return err
 		}
 		f := Build(Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}})
+		if svc == "dsa-bridge" {
+			// A claim of any other service takes a marker-less certificate out of the topology arm; the signed marker is the only way such a certificate is a cleaning step.
+			add("32-marker-less-extra-"+svc, "marker-less certificate with another service needs no cleaning entry", ExpectValid, "", "", f)
+			continue
+		}
 		add("32-marker-less-extra-"+svc, "marker-less topology with an extra signed service claim", ExpectIncomplete, bundle.StepAuditCounter, "this input-shield certificate has no counter entry", f)
+	}
+	for _, tc := range []struct {
+		name, expect, detail string
+		before, marker       bool
+	}{
+		{"33-routed-partial-after-no-entry", ExpectValid, "", false, false},
+		{"34-routed-partial-before-empty-audit", ExpectIncomplete, "no dsa-audit-signed", true, false},
+		{"35-marker-plus-dsa-ai-no-entry", ExpectIncomplete, "this input-shield certificate has no counter entry", false, true},
+	} {
+		at := CorpusCleaningStart.Add(time.Hour)
+		if tc.before {
+			at = CorpusCleaningStart.Add(-time.Hour)
+		}
+		c, err := w.NewCert(CertOptions{ConversationID: ConvD, CustomerID: Customer, IssuedAt: at, NoAnchors: true,
+			Cleaning: &CleaningOptions{OmitMarker: !tc.marker, DuplicateService: "dsa-gateway", InferenceFailed: true, SealedPartial: true, UnsignedTier: "full_chain"}})
+		if err != nil {
+			return err
+		}
+		spec := Spec{ConversationID: ConvD, CustomerID: Customer, Certs: []*Cert{c}}
+		if tc.before {
+			spec.Audit = w.NewAuditLog().Evidence(ConvD)
+		}
+		step := ""
+		if tc.detail != "" {
+			step = bundle.StepAuditCounter
+		}
+		add(tc.name, "signed PARTIAL with two gateway claims, sanitizer and failed AI inference; no audit claim", tc.expect, step, tc.detail, Build(spec), FlagAllowUnanchored)
 	}
 	return nil
 }

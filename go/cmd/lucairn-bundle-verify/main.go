@@ -167,6 +167,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-binding-after must be an RFC 3339 time, e.g. 2026-11-01T00:00:00Z")
 			return bundle.ExitIncomplete
 		}
+		if t.UTC().IsZero() {
+			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-binding-after must not be the zero time")
+			return bundle.ExitIncomplete
+		}
 		roots.BindingRequiredAfter = t.UTC()
 		custom = append(custom, "binding required after "+t.UTC().Format(time.RFC3339))
 	}
@@ -174,6 +178,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		t, err := time.Parse(time.RFC3339, *requireCleaningFrom)
 		if err != nil {
 			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-cleaning-from must be an RFC 3339 time")
+			return bundle.ExitIncomplete
+		}
+		if t.UTC().IsZero() {
+			fmt.Fprintln(stderr, "lucairn-bundle-verify: --require-cleaning-from must not be the zero time")
 			return bundle.ExitIncomplete
 		}
 		roots.CleaningRequiredFrom = t.UTC()

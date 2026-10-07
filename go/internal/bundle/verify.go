@@ -513,7 +513,7 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 		values[k] = c.Values
 	}
 	ca := certAudit{claimsVerified: true, claims: auditClaimsOf(values)}
-	gateway, sanitizer, audit := 0, 0, 0
+	gateway, sanitizer, other := 0, 0, 0
 	marker := false
 	for _, c := range values {
 		switch str(c["/service_id"]) {
@@ -523,13 +523,13 @@ func (v *certVerifier) claimChain(scope string, mc ManifestCert, raw []byte, wki
 			ca.gatewayConversationID = str(c["/payload/conversation_id"])
 		case "dsa-sanitizer":
 			sanitizer++
-		case "dsa-audit":
-			audit++
+		default:
+			other++
 		}
 	}
 	// Requirement: only authenticated marker/topology, never the unsigned
 	// label, sealed verdict, or the label-sensitive SignedCertTier result.
-	ca.needsCleaningEntry = marker || (gateway >= 1 && sanitizer >= 1 && audit == 0)
+	ca.needsCleaningEntry = marker || (gateway >= 1 && sanitizer >= 1 && other == 0)
 	// Eligibility is deliberately stricter. Entry matching and all shared
 	// hash/continuity/inclusion checks still have to pass in auditVerifier.cert.
 	ca.cleaningStepEligible = ch.SignedCertTier == verify.ChainTierInputShieldTwoSigner &&

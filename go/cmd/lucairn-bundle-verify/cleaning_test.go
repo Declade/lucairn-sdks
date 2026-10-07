@@ -52,6 +52,14 @@ func TestCleaningCLIReportsAndAnchorFlags(t *testing.T) {
 			if err := json.Unmarshal(machine.Bytes(), &report); err != nil {
 				t.Fatal(err)
 			}
+			if c.Name == "Cleaning-33-routed-partial-after-no-entry" || c.Name == "Cleaning-34-routed-partial-before-empty-audit" || c.Name == "Cleaning-35-marker-plus-dsa-ai-no-entry" {
+				if !strings.Contains(human.String(), "every claim signature verifies") || !strings.Contains(human.String(), "PARTIAL (inference_unfinished") {
+					t.Fatalf("%s/%s: routed claim chain did not verify: %s", c.Name, policy, &human)
+				}
+				if report["not_counted_cleaning_steps"] != nil || strings.Contains(human.String(), "not counted, no number expected") || strings.Contains(machine.String(), "not counted, no number expected") {
+					t.Fatalf("%s/%s: unexpected before-start exemption: %s", c.Name, policy, &human)
+				}
+			}
 			if n, _ := report["cleaning_steps"].(float64); n > 0 {
 				scope, ok := report["cleaning_scope"].(string)
 				if !ok || scope == "" || strings.Count(human.String(), scope) != 1 {
@@ -122,5 +130,33 @@ func TestCleaningStartFlag(t *testing.T) {
 	var out, errb bytes.Buffer
 	if run([]string{"--print-trust-roots"}, &out, &errb) != 0 || !strings.Contains(out.String(), "cleaning counter entries required for cleaning certificates issued at or after 2026-10-08T00:00:00Z") {
 		t.Fatalf("missing hosted start: %s %s", &out, &errb)
+	}
+}
+
+func TestExplicitCutoffsRejectZeroTime(t *testing.T) {
+	w, err := bundletest.NewWorld("zero-cutoffs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, flag := range []string{"--require-cleaning-from", "--require-binding-after"} {
+		for _, value := range []string{"0001-01-01T00:00:00Z", "0001-01-01T01:00:00+01:00"} {
+			for _, custom := range []bool{false, true} {
+				mode := "hosted"
+				var args []string
+				if custom {
+					mode = "custom"
+					// Only the witness override is needed; rejection precedes reading the bundle.
+					args = w.CLIFlags("unused-tsa", "unused-rekor")[:2]
+				}
+				t.Run(flag+"/"+value+"/"+mode, func(t *testing.T) {
+					args = append(args, flag, value, "unused.zip")
+					var out, errb bytes.Buffer
+					code := run(args, &out, &errb)
+					if code != 2 || out.Len() != 0 || !strings.Contains(errb.String(), flag+" must not be the zero time") {
+						t.Fatalf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
+					}
+				})
+			}
+		}
 	}
 }
