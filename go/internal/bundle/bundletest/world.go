@@ -311,10 +311,14 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		}
 		event = ev
 	}
+	verdict := "VERIFIED"
+	if o.Cleaning != nil && o.Cleaning.SealedPartial {
+		verdict = "PARTIAL"
+	}
 	v2 := map[string]any{
 		"certificate_id": certID, "request_id": reqID, "protocol_version": json.Number("2"),
 		"claim_ids": claimIDs, "issued_at": issuedStr,
-		"overall_verdict": "VERIFIED", "witness_key_id": WitnessKeyID,
+		"overall_verdict": verdict, "witness_key_id": WitnessKeyID,
 	}
 	v2b, _ := verify.CanonicalLexeme(v2)
 	v3 := map[string]any{}
@@ -337,7 +341,7 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 		"protocol_version": 2,
 		"claims":           claims,
 		"verification": map[string]any{
-			"overall_verdict": "VERDICT_VERIFIED",
+			"overall_verdict": "VERDICT_" + verdict,
 			"byok_exempt":     false,
 		},
 		"witness_signature":                 v2sig,
@@ -387,6 +391,9 @@ func (w *World) NewCert(o CertOptions) (*Cert, error) {
 	}
 	if o.Cleaning != nil {
 		doc["verification"].(map[string]any)["cert_tier"] = "input_shield_two_signer"
+		if o.Cleaning.UnsignedTier != "" {
+			doc["verification"].(map[string]any)["cert_tier"] = o.Cleaning.UnsignedTier
+		}
 	}
 	if err := c.Remarshal(); err != nil {
 		return nil, err

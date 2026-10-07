@@ -15,6 +15,8 @@ type CleaningOptions struct {
 	OmitMarker            bool
 	ExtraClaim            bool
 	EventType             string
+	SealedPartial         bool
+	UnsignedTier          string
 }
 
 func (w *World) cleaningClaims(o CertOptions, n int, reqID, ts string) ([]map[string]any, error) {

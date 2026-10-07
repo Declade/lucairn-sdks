@@ -605,9 +605,10 @@ type certAudit struct {
 	// (an empty list then means "no audit claim on this certificate").
 	claimsVerified bool
 	claims         []auditClaim
-	// cleaningStep requires SignedCertTier and exactly one verified gateway
-	// claim plus one verified sanitizer claim. No unsigned payload is read.
-	cleaningStep          bool
+	// These are separate decisions: signed facts require an entry even when
+	// the label-sensitive tier makes this certificate ineligible for acceptance.
+	needsCleaningEntry    bool
+	cleaningStepEligible  bool
 	gatewayConversationID string
 }
 
