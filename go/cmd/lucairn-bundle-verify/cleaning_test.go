@@ -128,7 +128,7 @@ func TestCleaningStartFlag(t *testing.T) {
 		})
 	}
 	var out, errb bytes.Buffer
-	if run([]string{"--print-trust-roots"}, &out, &errb) != 0 || !strings.Contains(out.String(), "cleaning counter entries required for cleaning certificates issued at or after 2026-10-08T00:00:00Z") {
+	if run([]string{"--print-trust-roots"}, &out, &errb) != 0 || !strings.Contains(out.String(), "cleaning counter entries required for cleaning certificates issued at or after 2026-10-08T09:07:53Z") {
 		t.Fatalf("missing hosted start: %s %s", &out, &errb)
 	}
 }

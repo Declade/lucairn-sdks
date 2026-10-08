@@ -220,7 +220,7 @@ func TestCleaningHostedStartAndNoRootLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "2026-10-08T00:00:00Z"
+	const want = "2026-10-08T09:07:53Z"
 	if anchor.CleaningCounterStartRFC3339 != want || roots.CleaningRequiredFrom.Format(time.RFC3339) != want {
 		t.Fatal("hosted counter start changed")
 	}
