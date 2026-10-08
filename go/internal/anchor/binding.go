@@ -45,7 +45,7 @@ const BindingV1CutoverRFC3339 = "2026-11-01T00:00:00Z"
 
 // CleaningCounterStartRFC3339 pins the hosted cleaning counter start.
 // Custom witness deployments supply their own start, just as for binding.
-const CleaningCounterStartRFC3339 = "2026-10-08T00:00:00Z"
+const CleaningCounterStartRFC3339 = "2026-10-08T09:07:53Z"
 
 // DigestV1 is H for a recorded cert_hash and a signed canonical signable.
 func DigestV1(certHash, signable []byte) []byte {
