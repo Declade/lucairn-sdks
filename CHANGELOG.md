@@ -59,8 +59,8 @@ API (T-1322).
   U+00A0, U+1680, U+2000–200A, U+2028, U+2029, U+202F, U+205F, U+3000).
   TypeScript's `trim()` differed on two code points: a field holding only
   U+0085 is now blank (was: present) and a field holding only U+FEFF is now
-  present (was: blank). One input verifies now that was refused before, in
-  TypeScript only: a legacy v2 certificate whose `signable_v3_signature`
+  present (was: blank). Among signature-field inputs, one verifies now that
+  was refused before, in TypeScript only: a legacy v2 certificate whose `signable_v3_signature`
   holds nothing but U+0085 is treated like one with an empty field, as Python
   and Go already did.
 
@@ -79,8 +79,10 @@ API (T-1322).
 ### Unchanged
 - v2 / v3 signable reconstruction, verdict names, reason codes, exports.
 
-### Known limits (unchanged by this release)
-These apply to the simple check in all three packages of this release.
+### Known limits
+These apply to the simple check in all three packages after this release.
+Items 1 and 4 are input paths on which the three SDKs can still give
+different results.
 1. Given an already parsed object, the simple check judges values;
    number-token rules apply only where an SDK reads the raw text (Go with raw
    bytes). A number written `2.0000000000000001` in the JSON text is the
@@ -93,13 +95,25 @@ These apply to the simple check in all three packages of this release.
    three SDKs. Examples: a claim without `request_id` or `service_id`, a
    `signable_v3_signature` that is not a string, a sanitizer
    `canonical_payload` with trailing characters.
-4. The refusal REASON for an out-of-range integer can differ: a double cannot
-   hold every integer between 2^53 and 2^64, so TypeScript and Go with map
-   input may report `malformed` where Python and Go with raw bytes report
-   `unsupported_protocol_version`.
+4. A double cannot hold every integer between 2^53 and 2^64, so TypeScript
+   and Go with map input do not see such a value as written. A
+   `protocol_version` in that range is refused everywhere, but the reason can
+   differ (`malformed` or `unsupported_protocol_version`). A
+   `signable_protocol_version_emitted` of exactly 2^64 − 1 is read as a v3
+   marker by Python and by Go with raw bytes and is `malformed` in TypeScript
+   and Go with map input. That field is not signed; it only selects which
+   signature must verify.
 5. Per-call cost: the key check adds two modular exponentiations to every
    verification (measured about 45 → 219 µs on Node 22 and 35 → 189 µs on
    Python 3.12).
+6. The simple check accepts a certificate that carries only the older (v2)
+   witness signature. Values that only the newer (v3) signature covers
+   (`api_key_id`, `client_id`, `byok_exempt`, the sanitizer hashes) are then
+   not vouched for by the result. Callers who need those values vouched for
+   pass the require-v3 option — TypeScript `minimumSignableVersion: 'v3'`,
+   Python `minimum_signable_version="v3"`, Go
+   `VerifyCertificateKeys.MinimumSignableVersion: "v3"` — which refuses a
+   certificate verified on the v2 path, or use the chain verifier once it is released.
 
 ## [Python 1.4.2] — 2026-10-11
 
@@ -129,7 +143,10 @@ measurements and the base64 rule (T-1322).
   garbage input gets: a negative or too large `protocol_version` was
   `unsupported_protocol_version`; a `signable_protocol_version_emitted` given
   as the string `"3"` was used as 3. The same range is applied to a
-  `VeilCertificate` instance passed in directly. With default interpreter
+  `VeilCertificate` instance passed in directly. A `float` is `malformed`
+  even when it is integral: a `signable_protocol_version_emitted` written
+  `3.0` (some JSON re-serialisers write integers that way) was read as 3
+  from a dict and is `malformed` now; write it as `3`. With default interpreter
   settings `json.loads` itself refuses an integer of more than 4,300 digits
   before the SDK is called.
 
@@ -167,7 +184,13 @@ measurements and the base64 rule (T-1322).
   which existing reason some garbage input gets: a negative
   `protocol_version` was `ReasonUnsupportedProtocolVersion`; a
   `signable_protocol_version_emitted` that was a string, a boolean or an
-  array was ignored (treated as 0), and a fraction was truncated.
+  array was ignored (treated as 0), and a fraction was truncated. A
+  `signable_protocol_version_emitted` from 2^63 up to 2^64 − 1 is now read
+  as a v3 marker on every architecture; before, such a value could be read
+  as 0 or as a negative number, depending on the CPU architecture and the
+  input form, and the certificate was then refused as
+  `ReasonVersionDowngradeDetected`. The field is not signed; it only selects
+  which signature must verify.
 
 See "Known limits" under `sdk 1.4.1`.
 
