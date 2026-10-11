@@ -4,7 +4,7 @@ Client for **Lucairn** — privacy-preserving AI infrastructure.
 
 ## Status
 
-`v1.1.1`. Ships alongside the TypeScript and Python SDKs and behaves
+`v1.3.2`. Ships alongside the TypeScript and Python SDKs and behaves
 identically at the observable level. See the [monorepo
 README](../README.md) for the full SDK index.
 

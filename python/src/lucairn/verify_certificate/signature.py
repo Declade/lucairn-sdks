@@ -40,8 +40,15 @@ def verify_ed25519(
     """
 
     raw = normalize_ed25519_public_key(public_key)
-    # bytes, bytearray and memoryview signatures are all accepted, as before.
-    signature = bytes(signature)
+    # bytes, bytearray and memoryview all work for signature and message on
+    # every supported ``cryptography`` version. Any other type raised
+    # TypeError from the library before and still raises TypeError.
+    if isinstance(signature, (bytearray, memoryview)):
+        signature = bytes(signature)
+    if isinstance(message, (bytearray, memoryview)):
+        message = bytes(message)
+    if not isinstance(signature, bytes) or not isinstance(message, bytes):
+        raise TypeError("Ed25519 signature and message must be bytes-like")
     if not key_acceptable(raw) or not signature_encoding_acceptable(signature):
         return False
     try:

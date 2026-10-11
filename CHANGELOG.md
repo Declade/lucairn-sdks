@@ -7,6 +7,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [sdk 1.4.1] — 2026-10-11
+
+Patch release of the simple certificate check (`verifyCertificate`, witness
+signature only), together with `Python 1.4.2` and `Go v1.3.2` below. The three
+SDKs now judge the same certificate the same way in the places listed here.
+No change to the v2 / v3 signable bytes, to the reason codes, or to the public
+API (T-1322).
+
+### Fixed
+- **The simple check applies its own Ed25519 rule before the crypto library
+  is called.** Until now the key and signature went straight to the library,
+  so the result for some inputs depended on the library build. Refused now,
+  on every runtime, as the existing `invalid_signature`:
+  - a signature that is not 64 bytes, has `S >= L`, or whose `R` is a
+    non-canonical encoding (y >= p) or a small-order point (all 14
+    encodings);
+  - a public key that is a small-order encoding (all 14) or is not the
+    canonical encoding of a curve point.
+
+  Measured before this release, on a certificate whose witness signatures
+  were made with nonce 0 (`R` = the identity): accepted on Node 22.23.3
+  (OpenSSL 3.6.5) and Node 25.8.0 (OpenSSL 3.5.5), by Python `cryptography`
+  42.0.0 and 50.0.2, and by Go 1.26.2 `crypto/ed25519`; refused on Node
+  26.11.1 (OpenSSL 4.0.3). The 14 small-order public keys were accepted by
+  the same runtimes and refused on Node 26.11.1.
+
+  What this means: with an honestly generated, correctly pinned witness key,
+  producing a signature with a small-order `R` needs the witness signing key,
+  so that part is not a forgery by an outsider — it removes a result that
+  differed by runtime. Separately, if a small-order PUBLIC key (for example
+  the identity) was pinned by mistake, anyone could produce a signature the
+  affected runtimes accepted for any certificate; the key check closes that.
+  A malformed key (wrong length, bad base64) is reported as before.
+- **A signature field must be canonical standard padded base64** (alphabet
+  `A-Z a-z 0-9 + /`, `=` padding, nothing else: decode, re-encode, compare);
+  anything else is `invalid_signature`. Before, TypeScript accepted any text
+  `Buffer.from(text, 'base64')` decodes (unpadded, URL-safe, embedded white
+  space, trailing characters such as `!`), so a certificate with such a
+  signature text verified in TypeScript and was refused in Python and Go.
+  Go skipped CR / LF inside the text, and Go and Python accepted non-zero
+  padding bits; both are refused now. The base64 form of the witness PUBLIC
+  KEY argument is not changed by this release.
+- **One white-space set for "is this signature field blank".** All three
+  SDKs use the set of Go's `unicode.IsSpace` (U+0009–000D, U+0020, U+0085,
+  U+00A0, U+1680, U+2000–200A, U+2028, U+2029, U+202F, U+205F, U+3000).
+  TypeScript's `trim()` differed on two code points: a field holding only
+  U+0085 is now blank (was: present) and a field holding only U+FEFF is now
+  present (was: blank).
+
+### Changed
+- A `protocol_version` that is not an integer value (for example `2.5`, or a
+  number too large for a double) is now reported as `malformed` instead of
+  `unsupported_protocol_version`, as the Python and Go SDKs already did. A
+  `signable_protocol_version_emitted` that is not a finite number is
+  `malformed` as well.
+
+### Unchanged
+- Given an already parsed object, the simple check judges values;
+  number-token rules apply only where an SDK reads the raw text (Go with raw
+  bytes). `JSON.parse` turns the token `2.0` into the number 2, the same
+  value a genuine certificate has, and the signed bytes are rebuilt from the
+  value — so such a certificate still verifies in TypeScript.
+- v2 / v3 signable reconstruction, verdict names, reason codes, exports.
+
+## [Python 1.4.2] — 2026-10-11
+
+Same release as `sdk 1.4.1` above; see there for the Ed25519 rule, the
+measurements and the base64 rule (T-1322).
+
+### Fixed
+- `verify_certificate` / `verify_ed25519` apply the same Ed25519 rule before
+  `cryptography` is called (small-order or non-canonical `R`, `S >= L`,
+  small-order or invalid public key → `invalid_signature`).
+- A signature field holding only U+001C–U+001F is no longer treated as blank
+  (`str.strip()` strips those four characters; the shared white-space set
+  does not contain them). Before, a certificate without the v3 version field
+  whose `signable_v3_signature` was just U+001C verified as v2; it is now
+  refused as `version_downgrade_detected`, as in TypeScript and Go.
+- A signature text with non-zero base64 padding bits is `invalid_signature`.
+- `verify_ed25519` accepts `bytes`, `bytearray` and `memoryview` for the
+  signature and the message on every supported `cryptography` version.
+
+### Changed
+- A `protocol_version` outside 0..2^64−1 is `malformed` (was
+  `unsupported_protocol_version`). With default interpreter settings
+  `json.loads` itself refuses an integer of more than 4,300 digits before
+  the SDK is called.
+
+## [Go v1.3.2] — 2026-10-11
+
+Same release as `sdk 1.4.1` above; see there for the Ed25519 rule, the
+measurements and the base64 rule (T-1322).
+
+### Fixed
+- `VerifyCertificate` applies the same Ed25519 rule before `crypto/ed25519`
+  is called (small-order or non-canonical `R`, `S >= L`, small-order or
+  invalid public key → `ReasonInvalidSignature`).
+- A signature text that is not canonical standard padded base64 is
+  `ReasonInvalidSignature`: `base64.StdEncoding` skipped CR / LF and accepted
+  non-zero padding bits.
+
+### Changed
+- With `[]byte` / `json.RawMessage` input, `protocol_version` and
+  `signable_protocol_version_emitted` must be written as plain integers
+  (digits only — no sign, fraction or exponent — and at most 20 digits),
+  otherwise the result is `ReasonMalformed`. Before, the token `2.0` or
+  `2.0000000000000001` was read as 2 and the certificate verified. Input
+  given as `map[string]any` or `*VeilCertificate` is judged by value, as
+  before: the caller's own decoder has already turned the token into a
+  number.
+
 ## [Python 1.4.1] — 2026-08-22
 
 ### Fixed
