@@ -25,7 +25,6 @@ Downgrade protection (canonical, both tampering directions rejected):
 
 from __future__ import annotations
 
-import base64
 from datetime import datetime
 from typing import Any
 
@@ -41,6 +40,7 @@ from lucairn.verify_certificate.signable import (
     derive_witness_signed_bytes,
 )
 from lucairn.verify_certificate.v3_signable import derive_v3_signed_bytes
+from lucairn.verify_certificate.chain import _b64, _trim_space
 from lucairn.verify_certificate.signature import verify_ed25519
 
 __all__ = ["verify_certificate"]
@@ -73,6 +73,14 @@ def verify_certificate(
     they land in a follow-up arc (2b-cert-strong) pending gateway fixes.
     The result surfaces ``anchor_status`` and ``overall_verdict`` as
     pass-through metadata — the SDK does NOT independently verify them.
+
+    Given an already parsed object, the simple check judges VALUES:
+    number-token rules apply only where the SDK reads the raw text (Go with
+    raw bytes; the chain verifier in all three SDKs). ``protocol_version``
+    and ``signable_protocol_version_emitted`` must be integers in
+    ``[0, 2**64 - 1]`` (a ``float`` such as ``2.0`` is ``malformed``). Note
+    that Python's default ``json.loads`` raises on an integer token of more
+    than 4,300 digits before this function is called.
 
     SECURITY NOTE: when ``signable_version == 'v2'`` on the returned result,
     the fields ``api_key_id``, ``client_id``, ``byok_exempt``, and the
@@ -152,10 +160,10 @@ def verify_certificate(
             certificate_id=cert.certificate_id,
         )
 
-    # ``strip()`` routes "" AND whitespace-only signatures to the same reason
-    # — "   " base64-decodes to empty bytes which would otherwise surface as
-    # a confusing invalid_signature.
-    if cert.witness_signature.strip() == "":
+    # "" AND whitespace-only signatures get the same reason. "Whitespace" is
+    # the chain verifier's ONE whitespace set (Go's unicode.IsSpace) — not
+    # ``str.strip()``, which also removes U+001C-U+001F.
+    if _trim_space(cert.witness_signature) == "":
         raise LucairnCertificateError(
             "Certificate has no witness signature",
             reason="witness_signature_missing",
@@ -169,7 +177,7 @@ def verify_certificate(
     # A genuine v2-only cert carries NO signable_v3_signature.  If the version
     # field is absent/< 3 but the cert still carries a non-empty v3 signature,
     # the version field was stripped from a real v3 cert — reject immediately.
-    if not use_v3 and cert.signable_v3_signature and cert.signable_v3_signature.strip():
+    if not use_v3 and cert.signable_v3_signature and _trim_space(cert.signable_v3_signature):
         raise LucairnCertificateError(
             "Certificate carries a signable_v3_signature but "
             f"signable_protocol_version_emitted={cert.signable_protocol_version_emitted!r} "
@@ -188,7 +196,7 @@ def verify_certificate(
         # from a real v3 cert (the other direction of a downgrade attack from the
         # TOB-SDK-PY-01a guard above).  Raise the same reason so both tampering
         # directions surface identically to the caller.
-        if not cert.signable_v3_signature or cert.signable_v3_signature.strip() == "":
+        if not cert.signable_v3_signature or _trim_space(cert.signable_v3_signature) == "":
             raise LucairnCertificateError(
                 f"Certificate has signable_protocol_version_emitted="
                 f"{cert.signable_protocol_version_emitted!r} (>= 3) but "
@@ -211,15 +219,9 @@ def verify_certificate(
                 cause=exc,
             ) from exc
 
-        try:
-            signature_bytes = base64.b64decode(cert.signable_v3_signature, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
-            raise LucairnCertificateError(
-                f"signable_v3_signature base64 decode failed: {exc}",
-                reason="invalid_signature",
-                certificate_id=cert.certificate_id,
-                cause=exc,
-            ) from exc
+        signature_bytes = _decode_signature_text(
+            cert.signable_v3_signature, "signable_v3_signature", cert.certificate_id
+        )
 
         try:
             valid = verify_ed25519(signed_bytes, signature_bytes, keys.witness_public_key)
@@ -266,7 +268,7 @@ def verify_certificate(
         # cert with a non-empty v3 sig.  Kept as an explicit field on the
         # result for forward-compatibility if the guard semantics ever relax.)
         v3_sig_stripped = bool(
-            cert.signable_v3_signature and cert.signable_v3_signature.strip()
+            cert.signable_v3_signature and _trim_space(cert.signable_v3_signature)
         )
 
         try:
@@ -281,15 +283,9 @@ def verify_certificate(
                 cause=exc,
             ) from exc
 
-        try:
-            signature_bytes = base64.b64decode(cert.witness_signature, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
-            raise LucairnCertificateError(
-                f"Witness signature base64 decode failed: {exc}",
-                reason="invalid_signature",
-                certificate_id=cert.certificate_id,
-                cause=exc,
-            ) from exc
+        signature_bytes = _decode_signature_text(
+            cert.witness_signature, "witness_signature", cert.certificate_id
+        )
 
         try:
             valid = verify_ed25519(signed_bytes, signature_bytes, keys.witness_public_key)
@@ -325,6 +321,19 @@ def verify_certificate(
             )
 
         return _build_result(cert, signable_version="v2", v3_signature_stripped=v3_sig_stripped)
+
+
+def _decode_signature_text(text: str, field: str, certificate_id: str) -> bytes:
+    """A signature text must be CANONICAL standard padded base64 (decode,
+    re-encode, compare) — the chain verifier's rule for the same fields."""
+    raw = _b64(text)
+    if raw is None:
+        raise LucairnCertificateError(
+            f"{field} is not canonical standard padded base64",
+            reason="invalid_signature",
+            certificate_id=certificate_id,
+        )
+    return raw
 
 
 def _build_result(
