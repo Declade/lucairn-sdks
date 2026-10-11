@@ -634,7 +634,8 @@ def _rfc3339nano_utc(s: str) -> str | None:
 
 
 def _masked(enc: bytes) -> bytes:
-    return enc[:31] + bytes([enc[31] & 0x7F])
+    # bytes(...) so a bytearray or memoryview input masks to a hashable bytes.
+    return bytes(enc[:31]) + bytes([enc[31] & 0x7F])
 
 
 def _canonical_curve_point(enc: bytes) -> bool:

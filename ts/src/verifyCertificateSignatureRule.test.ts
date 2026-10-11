@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { LucairnCertificateError } from './errors.js';
 import { verifyCertificate } from './verify-certificate/index.js';
 import { verifyEd25519 } from './verify-certificate/signature.js';
-import { PinnedKeyError, ed25519Ok, keyObject, pinnedKey } from './verify-chain/ed25519.js';
+import { PinnedKeyError, ed25519Ok, isSmallOrder, keyObject, pinnedKey } from './verify-chain/ed25519.js';
 
 const CORPUS = join(__dirname, '..', '..', 'testdata', 'parity-corpus', 'v1');
 const readJson = (...p: string[]): any => JSON.parse(readFileSync(join(CORPUS, ...p), 'utf8'));
@@ -172,7 +172,50 @@ describe('verifyEd25519: signature encoding', () => {
   });
 });
 
+describe('verifyEd25519: byte containers', () => {
+  // A genuine signature verifies whatever Uint8Array flavour carries the
+  // message, the signature and the key: a plain Uint8Array, a Buffer, and a
+  // view at a non-zero offset into a larger buffer.
+  const honest = new Uint8Array(sign(null, Buffer.from(MESSAGE), PRIVATE));
+  const view = (b: Uint8Array): Uint8Array => {
+    const big = new Uint8Array(b.length + 13).fill(0xaa);
+    big.set(b, 7);
+    return big.subarray(7, 7 + b.length);
+  };
+  const forms: Array<[string, (b: Uint8Array) => Uint8Array]> = [
+    ['Uint8Array', (b) => Uint8Array.from(b)],
+    ['Buffer', (b) => Buffer.from(b)],
+    ['offset view (Uint8Array.subarray)', view],
+    ['offset view (Buffer.subarray)', (b) => Buffer.from(view(b).buffer).subarray(7, 7 + b.length)],
+  ];
+  for (const [name, f] of forms) {
+    it(`accepts a genuine signature given as ${name}`, () => {
+      expect(verifyEd25519(MESSAGE, f(honest), PUBLIC)).toBe(true);
+      expect(verifyEd25519(f(MESSAGE), honest, PUBLIC)).toBe(true);
+      expect(verifyEd25519(MESSAGE, honest, f(PUBLIC))).toBe(true);
+      expect(verifyEd25519(f(MESSAGE), f(honest), f(PUBLIC))).toBe(true);
+    });
+  }
+});
+
 describe('drift: the witness-only path and the chain path share ONE rule', () => {
+  it('the shared helper names each of the 14 encodings, and the primitive refuses each as R whatever S is', () => {
+    // Helper level: removing any one of the seven list entries turns two of
+    // these 14 assertions red (the nonce-0 test below only notices the
+    // identity entry, because the other constructions fail the equation).
+    const honest = new Uint8Array(sign(null, Buffer.from(MESSAGE), PRIVATE));
+    for (const r of SMALL_ORDER) {
+      expect(isSmallOrder(r)).toBe(true);
+      expect(verifyEd25519(MESSAGE, cat(r, honest.subarray(32)), PUBLIC)).toBe(false);
+    }
+    expect(isSmallOrder(BASE_POINT)).toBe(false);
+    expect(isSmallOrder(PUBLIC)).toBe(false);
+    expect(isSmallOrder(honest.subarray(0, 32))).toBe(false);
+    // 14 encodings = 7 values with the sign bit either way.
+    const maskedValues = new Set(SMALL_ORDER.map((b) => Buffer.from([...b.subarray(0, 31), b[31] & 0x7f]).toString('hex')));
+    expect(maskedValues.size).toBe(7);
+  });
+
   it('both refuse all 14 small-order encodings as R (nonce-0 construction)', () => {
     // S = k·a mod L with R the small-order encoding: for R = the identity this
     // is the signature a library that only checks the equation accepts.

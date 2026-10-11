@@ -169,7 +169,56 @@ def test_non_canonical_r_is_refused() -> None:
     assert chain_mod._ed25519_ok(_chain_key(PUBLIC), MESSAGE, bad) is False
 
 
+# --- byte containers ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("wrap", [bytes, bytearray, memoryview], ids=["bytes", "bytearray", "memoryview"])
+def test_genuine_signature_verifies_in_every_buffer_type(wrap) -> None:
+    """A genuine signature given as bytes, bytearray or memoryview verifies
+    (the annotation says bytes; the other two worked at runtime before and
+    must keep working). The same for the message; the key normaliser takes
+    bytes and bytearray."""
+    assert verify_ed25519(MESSAGE, wrap(HONEST), PUBLIC) is True
+    assert verify_ed25519(wrap(MESSAGE), HONEST, PUBLIC) is True
+    assert verify_ed25519(wrap(MESSAGE), wrap(HONEST), PUBLIC) is True
+    # and a tampered one is still False, not an exception
+    bad = bytearray(HONEST)
+    bad[40] ^= 1
+    assert verify_ed25519(MESSAGE, wrap(bytes(bad)), PUBLIC) is False
+    # a small-order R in any buffer type is refused, not an exception
+    assert verify_ed25519(MESSAGE, wrap(SMALL_ORDER[2] + HONEST[32:]), PUBLIC) is False
+
+
+def test_key_buffer_types_are_unchanged() -> None:
+    assert verify_ed25519(MESSAGE, HONEST, bytearray(PUBLIC)) is True
+    with pytest.raises(TypeError):
+        verify_ed25519(MESSAGE, HONEST, memoryview(PUBLIC))  # type: ignore[arg-type]
+
+
+def test_chain_rule_takes_every_buffer_type() -> None:
+    for wrap in (bytes, bytearray, memoryview):
+        assert chain_mod._ed25519_ok(_chain_key(PUBLIC), wrap(MESSAGE), wrap(HONEST)) is True
+        assert chain_mod._masked(wrap(SMALL_ORDER[3])) in chain_mod._SMALL_ORDER_Y
+
+
 # --- drift: ONE rule for the witness-only path and the chain path ------------------
+
+
+def test_shared_list_is_exactly_the_seven_values_of_the_14_encodings() -> None:
+    """Exact list equality against the vendored vectors, and the primitive
+    refuses each encoding as R whatever S is. Removing any one of the seven
+    entries turns this red (the nonce-0 test below only notices the identity
+    entry, because the other constructions fail the equation)."""
+    want = {k[:31] + bytes([k[31] & 0x7F]) for k in SMALL_ORDER}
+    assert len(want) == 7
+    assert chain_mod._SMALL_ORDER_Y == want
+    assert signature_mod._SMALL_ORDER_Y == want
+    for r in SMALL_ORDER:
+        assert chain_mod._masked(r) in signature_mod._SMALL_ORDER_Y
+        assert verify_ed25519(MESSAGE, r + HONEST[32:], PUBLIC) is False
+    for good in (BASE_POINT, PUBLIC, HONEST[:32]):
+        assert chain_mod._masked(good) not in signature_mod._SMALL_ORDER_Y
+
 
 
 @pytest.mark.parametrize("r", SMALL_ORDER, ids=lambda k: k.hex()[:8] + k.hex()[-2:])
