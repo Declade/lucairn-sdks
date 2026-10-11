@@ -3,6 +3,7 @@ package verify
 import (
 	"encoding/json"
 	"errors"
+	"math"
 )
 
 // ErrParseMalformed is returned by Parse on structural validation failure
@@ -85,25 +86,13 @@ func Parse(raw any) (*RawCert, error) {
 		return nil, &ErrParseMalformed{Reason: "certificate missing required field issued_at", CertificateID: certID}
 	}
 
-	// protocol_version: JSON decodes integers as float64 under the
-	// generic unmarshal path; accept either.
-	switch pv := m["protocol_version"].(type) {
-	case float64:
-		if pv != float64(int(pv)) {
-			return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
-		}
-		cert.ProtocolVersion = int(pv)
-	case int:
-		cert.ProtocolVersion = pv
-	case json.Number:
-		n, err := pv.Int64()
-		if err != nil {
-			return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
-		}
-		cert.ProtocolVersion = int(n)
-	default:
-		return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
+	// protocol_version: a JSON number whose value is an integer in
+	// [0, 2^64-1] (see versionValue).
+	pv, okPV := versionValue(m["protocol_version"])
+	if !okPV {
+		return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer in [0, 2^64-1]", CertificateID: certID}
 	}
+	cert.ProtocolVersion = pv
 
 	claimsRaw, ok2 := m["claims"].([]any)
 	if !ok2 {
@@ -156,17 +145,19 @@ func Parse(raw any) (*RawCert, error) {
 	}
 
 	// v3 dual-protocol fields (optional — absent on legacy v2 certs).
-	// signable_protocol_version_emitted: may be float64 (JSON number) or int.
-	switch pve := m["signable_protocol_version_emitted"].(type) {
-	case float64:
-		cert.SignableProtocolVersionEmitted = int(pve)
-	case int:
-		cert.SignableProtocolVersionEmitted = pve
-	case json.Number:
-		if n, err := pve.Int64(); err == nil {
-			cert.SignableProtocolVersionEmitted = int(n)
+	// signable_protocol_version_emitted: absent or JSON null -> 0 (v2 cert).
+	// Present: the same value rule as protocol_version, decided BEFORE any
+	// conversion; a string, bool, array, object, fraction or negative number
+	// is malformed, never coerced or ignored.
+	if emitted, present := m["signable_protocol_version_emitted"]; present && emitted != nil {
+		v, okV := versionValue(emitted)
+		if !okV {
+			return nil, &ErrParseMalformed{
+				Reason:        "signable_protocol_version_emitted must be an integer in [0, 2^64-1]",
+				CertificateID: certID,
+			}
 		}
-		// absent or nil → 0 (v2 cert; zero-value)
+		cert.SignableProtocolVersionEmitted = v
 	}
 	if sv3, ok3 := mustStr("signable_v3_signature"); ok3 {
 		cert.SignableV3Signature = sv3
@@ -200,6 +191,48 @@ func Parse(raw any) (*RawCert, error) {
 	}
 
 	return cert, nil
+}
+
+// versionClamp is the largest value versionValue returns. The pipeline only
+// asks "== 2" (protocol_version) and ">= 3" (signable_protocol_version_emitted),
+// so a larger valid value is stored as this one. It fits an int on every
+// architecture.
+const versionClamp = math.MaxInt32
+
+// versionValue reads one of the two version integers BY VALUE: a JSON number
+// that is an integer in [0, 2^64-1]. The decision is made on the float64 (or
+// on the token, for a json.Number) and never by converting an out-of-range
+// float64 to int - that conversion gives different results on arm64 and
+// amd64. A float64 cannot represent 2^64-1; a float64 >= 2^64 is out of range.
+func versionValue(v any) (int, bool) {
+	switch x := v.(type) {
+	case float64:
+		if math.IsNaN(x) || math.IsInf(x, 0) || x < 0 || x != math.Trunc(x) || x >= 18446744073709551616.0 {
+			return 0, false
+		}
+		if x > versionClamp {
+			return versionClamp, true
+		}
+		return int(x), true
+	case int:
+		if x < 0 {
+			return 0, false
+		}
+		if x > versionClamp {
+			return versionClamp, true
+		}
+		return x, true
+	case json.Number:
+		u, ok := chainUintToken(x.String(), math.MaxUint64)
+		if !ok {
+			return 0, false
+		}
+		if u > versionClamp {
+			return versionClamp, true
+		}
+		return int(u), true
+	}
+	return 0, false
 }
 
 // AnchorStatus extracts cert.anchor_status.status as a string, or empty

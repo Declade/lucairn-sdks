@@ -41,8 +41,11 @@ export function parseCertificate(raw: unknown): VeilCertificate {
       certificateId: certId,
     });
   }
+  // Absent or null means 0 (a v2 certificate). Present: a JSON number, by the
+  // same value rule — decided before any coercion, so a string ("3"), an
+  // array, a boolean, a fraction or a negative number is malformed.
   const emitted: unknown = cert.signable_protocol_version_emitted;
-  if (typeof emitted === 'number' && !isUint64(emitted)) {
+  if (emitted !== undefined && emitted !== null && !(typeof emitted === 'number' && isUint64(emitted))) {
     throw new LucairnCertificateError(
       'signable_protocol_version_emitted must be an integer in [0, 2^64 - 1]',
       { reason: 'malformed', certificateId: certId },

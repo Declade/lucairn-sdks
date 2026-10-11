@@ -244,3 +244,99 @@ def test_witness_only_primitive_uses_the_chain_rule_objects() -> None:
     assert not re.search(r"[0-9a-f]{64}", src)
     # nothing new became public
     assert signature_mod.__all__ == ["verify_ed25519"]
+
+
+# --- every buffer form that worked before -----------------------------------------
+
+
+def _buffer_forms():
+    import array
+
+    def strided(b: bytes) -> memoryview:
+        # every second byte of an interleaved buffer: a non-contiguous view
+        inter = bytearray(len(b) * 2)
+        inter[::2] = b
+        return memoryview(inter)[::2]
+
+    return [
+        ("bytes", bytes),
+        ("bytearray", bytearray),
+        ("memoryview", memoryview),
+        ("memoryview-strided", strided),
+        ("array.array-B", lambda b: array.array("B", b)),
+    ]
+
+
+@pytest.mark.parametrize("form", _buffer_forms(), ids=lambda f: f[0])
+def test_genuine_signature_verifies_in_every_buffer_form(form) -> None:
+    """cryptography takes anything with the buffer protocol; verify_ed25519
+    normalises message and signature through it."""
+    _, wrap = form
+    assert memoryview(wrap(HONEST)).tobytes() == HONEST
+    assert verify_ed25519(MESSAGE, wrap(HONEST), PUBLIC) is True
+    assert verify_ed25519(wrap(MESSAGE), HONEST, PUBLIC) is True
+    assert verify_ed25519(wrap(MESSAGE), wrap(HONEST), PUBLIC) is True
+    bad = bytearray(HONEST)
+    bad[40] ^= 1
+    assert verify_ed25519(MESSAGE, wrap(bytes(bad)), PUBLIC) is False
+    assert verify_ed25519(MESSAGE, wrap(SMALL_ORDER[2] + HONEST[32:]), PUBLIC) is False
+
+
+@pytest.mark.parametrize("bad", [None, 7, "not bytes", 1.5, ["x"]], ids=repr)
+def test_non_buffer_message_or_signature_raises_type_error(bad) -> None:
+    with pytest.raises(TypeError):
+        verify_ed25519(MESSAGE, bad, PUBLIC)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        verify_ed25519(bad, HONEST, PUBLIC)  # type: ignore[arg-type]
+
+
+# --- prechecks, pinned without the crypto library -----------------------------------
+# The library also refuses S >= L and an off-curve key, so a wrong constant or
+# a disabled point check would stay invisible in the tests above.
+
+_P = 2**255 - 19
+
+
+def _le32(n: int) -> bytes:
+    return n.to_bytes(32, "little")
+
+
+def test_precheck_s_below_l() -> None:
+    pre = chain_mod._signature_precheck
+    assert chain_mod._ED_L == L
+    assert pre(BASE_POINT + _le32(L - 1)) is True
+    assert pre(BASE_POINT + _le32(0)) is True
+    assert pre(BASE_POINT + _le32(L)) is False
+    assert pre(BASE_POINT + _le32(L + 1)) is False
+    assert pre(BASE_POINT + _le32(2**256 - 1)) is False
+    assert pre((BASE_POINT + _le32(1))[:63]) is False
+
+
+def test_precheck_r_encodings() -> None:
+    pre = chain_mod._signature_precheck
+    for y in (_P - 1, _P, _P + 1, 2**255 - 1):
+        assert pre(_le32(y) + _le32(1)) is False, hex(y)
+    assert pre(PUBLIC + _le32(1)) is True
+
+
+def test_point_check_off_curve_and_non_canonical() -> None:
+    on_curve = chain_mod._canonical_curve_point
+    small = lambda e: chain_mod._masked(e) in chain_mod._SMALL_ORDER_Y  # noqa: E731
+    assert on_curve(_le32(2)) is False  # y = 2 has no x
+    for k in INVALID_POINTS:
+        assert on_curve(k) is False
+    # y = p - 1 is on the curve (x = 0): canonical with the sign bit clear only.
+    p_minus_1 = _le32(_P - 1)
+    assert on_curve(p_minus_1) is True
+    assert on_curve(p_minus_1[:31] + bytes([p_minus_1[31] | 0x80])) is False
+    assert small(p_minus_1)
+    for y in (_P, _P + 1, 2**255 - 1):
+        assert on_curve(_le32(y)) is False, hex(y)
+    assert small(_le32(_P)) and small(_le32(_P + 1)) and not small(_le32(2**255 - 1))
+    assert on_curve(BASE_POINT) is True and on_curve(PUBLIC) is True
+    # and through the primitive: an off-curve key is an invalid signature
+    assert verify_ed25519(MESSAGE, HONEST, _le32(2)) is False
+
+
+def test_small_order_list_has_exactly_seven_entries() -> None:
+    assert len(chain_mod._SMALL_ORDER_Y) == 7

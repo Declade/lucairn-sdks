@@ -314,3 +314,118 @@ func TestVerifyEd25519_UsesTheChainRule(t *testing.T) {
 		t.Error("signature.go holds a 32-byte hex literal (a second list?)")
 	}
 }
+
+// Prechecks, pinned without crypto/ed25519. The library also refuses S >= L
+// and an off-curve key, so a wrong constant or a disabled point check would
+// stay invisible in the tests above.
+func TestVerifyEd25519_PrechecksPinnedDirectly(t *testing.T) {
+	_, invalid := sigRuleVectors(t)
+	pub, priv, _ := sigRuleKey()
+	basePoint := append([]byte{0x58}, []byte(strings.Repeat("\x66", 31))...)
+	sigWith := func(r []byte, s *big.Int) []byte { return append(append([]byte{}, r...), sigRuleLE32(s)...) }
+	one := big.NewInt(1)
+	two255 := new(big.Int).Lsh(one, 255)
+	// L and p written out here, independent of the constants under test.
+	tail, _ := new(big.Int).SetString("27742317777372353535851937790883648493", 10)
+	wantL := new(big.Int).Add(new(big.Int).Lsh(one, 252), tail)
+	wantP := new(big.Int).Sub(two255, big.NewInt(19))
+	if edL.Cmp(wantL) != 0 || edP.Cmp(wantP) != 0 {
+		t.Fatalf("curve constants: L = %s, p = %s", edL, edP)
+	}
+
+	// S < L.
+	for _, tc := range []struct {
+		name string
+		s    *big.Int
+		want bool
+	}{
+		{"0", big.NewInt(0), true},
+		{"L-1", new(big.Int).Sub(wantL, one), true},
+		{"L", new(big.Int).Set(wantL), false},
+		{"L+1", new(big.Int).Add(wantL, one), false},
+		{"2^256-1", new(big.Int).Sub(new(big.Int).Lsh(one, 256), one), false},
+	} {
+		if got := chainSignaturePrecheck(sigWith(basePoint, tc.s)); got != tc.want {
+			t.Errorf("precheck with S = %s: %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	if chainSignaturePrecheck(sigWith(basePoint, one)[:63]) {
+		t.Error("63-byte signature passed the precheck")
+	}
+	// R: y = p-1, p, p+1, 2^255-1 fail; an ordinary R passes.
+	ys := map[string]*big.Int{
+		"p-1": new(big.Int).Sub(wantP, one), "p": new(big.Int).Set(wantP), "p+1": new(big.Int).Add(wantP, one),
+		"2^255-1": new(big.Int).Sub(two255, one),
+	}
+	for name, y := range ys {
+		if chainSignaturePrecheck(sigWith(sigRuleLE32(y), one)) {
+			t.Errorf("R with y = %s passed the precheck", name)
+		}
+	}
+	if !chainSignaturePrecheck(sigWith(pub, one)) {
+		t.Error("an ordinary R failed the precheck")
+	}
+	// Point check.
+	offCurve := sigRuleLE32(big.NewInt(2)) // y = 2 has no x
+	if canonicalCurvePoint(offCurve) {
+		t.Error("y = 2 named a curve point")
+	}
+	for _, k := range invalid {
+		if canonicalCurvePoint(k) {
+			t.Errorf("%x named a canonical curve point", k)
+		}
+	}
+	pMinus1 := sigRuleLE32(ys["p-1"]) // on the curve, x = 0: canonical with the sign bit clear only
+	signSet := append([]byte{}, pMinus1...)
+	signSet[31] |= 0x80
+	if !canonicalCurvePoint(pMinus1) || canonicalCurvePoint(signSet) || !smallOrderEncoding(pMinus1) {
+		t.Error("y = p-1: point check or small-order list wrong")
+	}
+	for _, name := range []string{"p", "p+1", "2^255-1"} {
+		if canonicalCurvePoint(sigRuleLE32(ys[name])) {
+			t.Errorf("y = %s named a canonical curve point", name)
+		}
+	}
+	if !smallOrderEncoding(sigRuleLE32(ys["p"])) || !smallOrderEncoding(sigRuleLE32(ys["p+1"])) || smallOrderEncoding(sigRuleLE32(ys["2^255-1"])) {
+		t.Error("small-order list: y = p, p+1 must be named, 2^255-1 must not")
+	}
+	if !canonicalCurvePoint(basePoint) || !canonicalCurvePoint(pub) {
+		t.Error("an honest point failed the point check")
+	}
+	// Through the primitive: an off-curve key is an invalid signature.
+	msg := []byte("witness-only signature rule")
+	if mustVerify(t, msg, ed25519.Sign(priv, msg), offCurve) {
+		t.Error("off-curve key accepted")
+	}
+	// The list has exactly seven entries.
+	if len(chainSmallOrderY) != 7 {
+		t.Errorf("%d small-order list entries, want exactly 7", len(chainSmallOrderY))
+	}
+}
+
+// versionValue decides on the value, never by converting an out-of-range
+// float64 to int (that conversion differs between arm64 and amd64).
+func TestVersionValue(t *testing.T) {
+	for _, tc := range []struct {
+		in   any
+		want int
+		ok   bool
+	}{
+		{float64(0), 0, true}, {float64(2), 2, true}, {float64(3), 3, true},
+		{float64(9007199254740992), versionClamp, true},
+		{float64(9223372036854775808), versionClamp, true},  // 2^63
+		{float64(18446744073709549568), versionClamp, true}, // the largest float64 below 2^64
+		{float64(18446744073709551616), 0, false},           // 2^64
+		{float64(1e300), 0, false},
+		{float64(-1), 0, false}, {float64(2.5), 0, false},
+		{json.Number("3"), 3, true}, {json.Number("18446744073709551615"), versionClamp, true},
+		{json.Number("18446744073709551616"), 0, false}, {json.Number("3.0"), 0, false}, {json.Number("-1"), 0, false},
+		{3, 3, true}, {-1, 0, false},
+		{"3", 0, false}, {true, 0, false}, {[]any{float64(3)}, 0, false}, {map[string]any{}, 0, false}, {nil, 0, false},
+	} {
+		got, ok := versionValue(tc.in)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("versionValue(%#v) = %d, %v; want %d, %v", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+}

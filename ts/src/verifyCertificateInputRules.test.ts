@@ -181,3 +181,77 @@ describe('number tokens are judged only where the SDK reads the text', () => {
     expect([chain.verdict, chain.reason]).toEqual(['FAILED', 'malformed']);
   });
 });
+
+describe('every present signature field is text-checked', () => {
+  // On a v3 certificate the v3 signature is the one verified; witness_signature
+  // is present (non-blank) and must be canonical base64 as well.
+  const cases: Array<[string, string]> = [
+    ['U+FEFF', '\ufeff'],
+    ['U+001C', '\u001c'],
+    ['U+001D', '\u001d'],
+    ['U+001E', '\u001e'],
+    ['U+001F', '\u001f'],
+    ['"!"', '!'],
+  ];
+  for (const [name, text] of cases) {
+    it(`v3 certificate, witness_signature = ${name}: invalid_signature`, async () => {
+      expect(await outcome({ ...v3Cert(), witness_signature: text })).toBe('invalid_signature');
+    });
+  }
+  it('v3 certificate, witness_signature = valid text + "!": invalid_signature', async () => {
+    const base = v3Cert();
+    expect(await outcome({ ...base, witness_signature: `${base.witness_signature as string}!` })).toBe('invalid_signature');
+  });
+  it('precedence is unchanged: blank -> missing / downgrade, decided before any text check', async () => {
+    expect(await outcome({ ...v3Cert(), witness_signature: '' })).toBe('witness_signature_missing');
+    expect(await outcome({ ...v3Cert(), witness_signature: '\u0085' })).toBe('witness_signature_missing');
+    // legacy v2 certificate: a v3 signature of only U+0085 is blank -> v2; of only U+001C is present -> downgrade
+    expect(await outcome({ ...v2Cert(), signable_v3_signature: '\u0085' })).toBe('ACCEPT:v2');
+    expect(await outcome({ ...v2Cert(), signable_v3_signature: '\u001c' })).toBe('version_downgrade_detected');
+    expect(await outcome({ ...v2Cert(), signable_v3_signature: '!' })).toBe('version_downgrade_detected');
+    // v3 certificate, v3 signature blank -> downgrade even when witness_signature is not base64
+    expect(await outcome({ ...v3Cert(), signable_v3_signature: '', witness_signature: '!' })).toBe('version_downgrade_detected');
+  });
+});
+
+describe('the two version fields: one value rule, before any coercion', () => {
+  // [label, value, outcome on the v3 certificate, outcome on the legacy v2 certificate]
+  const emitted: Array<[string, unknown, string, string]> = [
+    ['3.5', 3.5, 'malformed', 'malformed'],
+    ['"3"', '3', 'malformed', 'malformed'],
+    ['[3]', [3], 'malformed', 'malformed'],
+    ['true', true, 'malformed', 'malformed'],
+    ['"garbage"', 'garbage', 'malformed', 'malformed'],
+    ['{}', {}, 'malformed', 'malformed'],
+    ['-1', -1, 'malformed', 'malformed'],
+    ['NaN', NaN, 'malformed', 'malformed'],
+    ['Infinity', Infinity, 'malformed', 'malformed'],
+    ['2^64', 2 ** 64, 'malformed', 'malformed'],
+    ['null', null, 'version_downgrade_detected', 'ACCEPT:v2'],
+    ['3', 3, 'ACCEPT:v3', 'version_downgrade_detected'],
+    ['2', 2, 'version_downgrade_detected', 'ACCEPT:v2'],
+    ['0', 0, 'version_downgrade_detected', 'ACCEPT:v2'],
+    ['2^53', 2 ** 53, 'ACCEPT:v3', 'version_downgrade_detected'],
+  ];
+  for (const [name, value, onV3, onV2] of emitted) {
+    it(`signable_protocol_version_emitted = ${name}`, async () => {
+      expect(await outcome({ ...v3Cert(), signable_protocol_version_emitted: value })).toBe(onV3);
+      expect(await outcome({ ...v2Cert(), signable_protocol_version_emitted: value })).toBe(onV2);
+    });
+  }
+  it('signable_protocol_version_emitted absent', async () => {
+    const a = v3Cert();
+    delete a.signable_protocol_version_emitted;
+    expect(await outcome(a)).toBe('version_downgrade_detected');
+    const b = v2Cert();
+    delete b.signable_protocol_version_emitted;
+    expect(await outcome(b)).toBe('ACCEPT:v2');
+  });
+  it('protocol_version -1 and -2 are malformed; 2^64 is malformed; 3 is unsupported', async () => {
+    for (const bad of [-1, -2, 2 ** 64, 3.5, '2', [2], true, null]) {
+      expect(await outcome({ ...v3Cert(), protocol_version: bad }), String(bad)).toBe('malformed');
+    }
+    expect(await outcome({ ...v3Cert(), protocol_version: 3 })).toBe('unsupported_protocol_version');
+    expect(await outcome({ ...v3Cert(), protocol_version: 0 })).toBe('unsupported_protocol_version');
+  });
+});

@@ -66,9 +66,11 @@ def parse_certificate(raw: Any) -> VeilCertificate:
             reason="malformed",
             certificate_id=cert_id,
         )
+    # Absent or None means 0 (a v2 certificate). Present: an int (not bool,
+    # not float, not str) in range - decided before pydantic coerces anything.
     emitted = raw.get("signable_protocol_version_emitted")
-    if isinstance(emitted, float) or (
-        isinstance(emitted, int) and not isinstance(emitted, bool) and not 0 <= emitted <= _U64_MAX
+    if emitted is not None and not (
+        isinstance(emitted, int) and not isinstance(emitted, bool) and 0 <= emitted <= _U64_MAX
     ):
         raise LucairnCertificateError(
             "signable_protocol_version_emitted must be an integer in [0, 2^64 - 1]",
