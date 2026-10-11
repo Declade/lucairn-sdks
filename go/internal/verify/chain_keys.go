@@ -4,8 +4,9 @@ package verify
 // chain recipe (parity corpus spec § Pinned keys, § Signatures). The TS and
 // Python SDKs refuse the same keys and accept the same signatures; the
 // vendored key-policy.json vectors and the corpus cases hold all three to it.
-// The witness-signature-only VerifyCertificate path (signature.go, keys.go)
-// is unchanged.
+// The witness-signature-only VerifyCertificate path (signature.go) calls the
+// same acceptance rule and the same two point checks on its key; it keeps its
+// own key normalisation (keys.go) and does not apply the test-key refusal.
 
 import (
 	"crypto/ed25519"
