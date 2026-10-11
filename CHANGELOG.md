@@ -107,6 +107,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same strict parser as every other read.
 
 ### Changed
+- **Garbage in `protocol_version` / `signable_protocol_version_emitted` is
+  `malformed` in the witness-only check (T-1322).** These two integers must
+  be integers in [0, 2^64 - 1]. TS: a number that is not such an integer
+  (including `Infinity`, which is what `JSON.parse` makes of an oversized
+  token) was `unsupported_protocol_version` for `protocol_version` and was
+  compared as a number for `signable_protocol_version_emitted`; it is now
+  `malformed` (parity-corpus case `tamper_protocol_version_oversized_integer`).
+  Python: an integer outside the range, and a `float` in
+  `signable_protocol_version_emitted`, are now `malformed` (a `float`
+  `protocol_version` already was); note that Python's default `json.loads`
+  raises on an integer token of more than 4,300 digits before the SDK is
+  called. Go, for `[]byte` / `json.RawMessage` input only: both fields must
+  be written as integer TOKENS (digits only, at most 2^64 - 1), so `2.0`,
+  `2e0`, `-1` and `2.0000000000000001` are `malformed` (parity-corpus case
+  `tamper_protocol_version_float_token`); map and `*VeilCertificate` input
+  are judged by value as before. Other integers keep their result
+  (`protocol_version` 3 is still `unsupported_protocol_version`).
+- **Scope of the witness-only check, stated.** Given an already parsed
+  object, the simple check judges values; number-token rules apply only where
+  the SDK reads the raw text (Go with raw bytes; the chain verifier in all
+  three). TS and Python take a parsed object, so in TS the token
+  `2.0000000000000001` has already become the number 2 when the check runs
+  and that certificate verifies there (its signed bytes are those of the
+  untampered certificate); `verifyCertificateChain` refuses it.
 - **`lucairn-bundle-verify`: the stored Rekor inclusion-proof JSON is read
   strictly** (certificates and audit roots): a duplicate key, a key other than
   `checkpoint` / `hashes` / `logIndex` / `rootHash` / `treeSize`
@@ -140,12 +164,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`invalid_signature`); there is no new reason code, error type or export,
   and a malformed key (wrong length, bad base64) is reported as before. The
   chain verifier's refusal of the published parity-corpus test keys is not
-  applied to the witness-only functions. Producing a signature with a
-  small-order `R` that satisfies the equation needs the witness signing key,
-  so this is not a forgery by an outsider: it removes a result that differed
-  by runtime. The Go `lucairn-bundle-verify` signature step calls
-  `VerifyCertificate` and therefore applies the same rule. No change to the
-  v2 / v3 signable bytes.
+  applied to the witness-only functions. What this closes, in two parts:
+  with an honestly generated, correctly pinned witness key, producing a
+  signature with a small-order `R` that satisfies the equation needs the
+  witness signing key, so that part is not a forgery by an outsider; it
+  removes a result that differed by runtime. Separately, if a small-order
+  PUBLIC KEY was pinned by mistake (for example the identity point), anyone
+  could produce a signature the old check accepted on the affected runtimes,
+  without any secret; the key check closes that. The Go
+  `lucairn-bundle-verify` signature step calls `VerifyCertificate` and
+  therefore applies the same rules, including the input rules below. No
+  change to the v2 / v3 signable bytes.
+- **The witness-only check reads its input the same way in all three SDKs
+  (T-1322).** Measured differences between `verifyCertificate` (TS),
+  `verify_certificate` (Python) and `VerifyCertificate` (Go) on the same
+  certificate are removed. Every change makes a language stricter, with
+  one exception named below (TS and U+0085):
+  - *Blank or present.* Whether `witness_signature` / `signable_v3_signature`
+    is blank is decided with ONE whitespace set, Go's `unicode.IsSpace` (the
+    chain verifier's set, same helper). Python used `str.strip()`, which
+    also removes U+001C-U+001F: a legacy v2 certificate carrying
+    `signable_v3_signature = "\u001c"` verified as v2 in Python and is now
+    `version_downgrade_detected`, as in TS and Go (parity-corpus case
+    `tamper_signable_v3_signature_control_char`). TS used `.trim()`, which
+    does not remove U+0085 (in the set) and removes U+FEFF (not in the set);
+    both now follow the set. The U+0085 case is the one place where a
+    language accepts more than before: in TS a legacy v2 certificate whose
+    `signable_v3_signature` is only U+0085 was `version_downgrade_detected`
+    and now verifies as v2, as it already did in Python and Go (the field is
+    blank, and the v2 witness signature is checked as before).
+  - *Signature text.* `witness_signature` and `signable_v3_signature` must be
+    canonical standard padded base64 (decode, re-encode, compare; the chain
+    verifier's rule and helper), else `invalid_signature`. TS decoded with
+    Node's permissive decoder and accepted missing padding, the URL-safe
+    alphabet, whitespace and any text after the signature (a valid signature
+    followed by `!` verified). Go accepted CR / LF inside the text. All three
+    accepted non-zero padding bits. The public-key text is read as before
+    (known, unchanged: all three accept non-zero padding bits there, which
+    the chain verifier's key loader refuses).
+  - *Python buffer types.* `verify_ed25519` again takes a signature given as
+    `bytearray` or `memoryview` (first version of this fix raised
+    `TypeError` on them; never released).
 - Python chain verifier: every walk over a signed document (canonical form,
   case-variant keys, surrogate scan, value pointers) is iterative, so a
   legal depth-256 document verifies the same at any caller stack depth (it
@@ -156,8 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The v2 / v3 witness signable reconstructions are byte-for-byte unchanged,
   and the chain verifier is an additive layer. `verifyCertificate` /
   `verify_certificate` / `VerifyCertificate` keep their signature, result and
-  reason codes; their one behaviour change is the Ed25519 rule under Fixed
-  above.
+  reason codes; their behaviour changes are the Ed25519 rule and the input
+  rules under Fixed and Changed above.
 
 ## [Python 1.4.1] — 2026-08-22
 
