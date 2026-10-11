@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -211,6 +212,81 @@ func TestVerifyEd25519_BothPathsRefuseEverySmallOrderR(t *testing.T) {
 		}
 		if chainStrictVerify(pub, msg, sig) {
 			t.Errorf("R %x: chain path accepted", r)
+		}
+	}
+}
+
+// Drift, helper level: the shared list is exactly the seven values of the 14
+// vendored encodings, the shared helper names each of the 14, and the
+// primitive refuses each as R whatever S is. Removing any one list entry
+// turns this red (the nonce-0 test above only notices the identity entry,
+// because the other constructions fail the equation).
+func TestVerifyEd25519_SharedListIsExactlyTheSevenValues(t *testing.T) {
+	smallOrder, _ := sigRuleVectors(t)
+	pub, priv, _ := sigRuleKey()
+	msg := []byte("witness-only signature rule")
+	honest := ed25519.Sign(priv, msg)
+	want := map[string]bool{}
+	for _, e := range smallOrder {
+		y := append([]byte{}, e...)
+		y[31] &= 0x7f
+		want[hex.EncodeToString(y)] = true
+		if !smallOrderEncoding(e) {
+			t.Errorf("%x: the shared helper does not name this small-order encoding", e)
+		}
+		sig := append(append([]byte{}, e...), honest[32:]...)
+		if mustVerify(t, msg, sig, []byte(pub)) {
+			t.Errorf("R %x accepted", e)
+		}
+	}
+	if len(want) != 7 || len(chainSmallOrderY) != 7 {
+		t.Fatalf("%d vendored values, %d list entries, want 7 and 7", len(want), len(chainSmallOrderY))
+	}
+	for _, y := range chainSmallOrderY {
+		if !want[y] {
+			t.Errorf("list entry %s is not one of the vendored small-order values", y)
+		}
+		delete(want, y)
+	}
+	for y := range want {
+		t.Errorf("vendored small-order value %s is missing from the list", y)
+	}
+	basePoint := append([]byte{0x58}, []byte(strings.Repeat("\x66", 31))...)
+	for _, good := range [][]byte{basePoint, pub, honest[:32]} {
+		if smallOrderEncoding(good) {
+			t.Errorf("%x named small-order", good)
+		}
+	}
+}
+
+// A genuine signature verifies when message, signature and key are slices
+// into larger buffers (non-zero offset, spare capacity), and the inputs are
+// left untouched.
+func TestVerifyEd25519_SlicesIntoLargerBuffers(t *testing.T) {
+	pub, priv, _ := sigRuleKey()
+	msg := []byte("witness-only signature rule")
+	honest := ed25519.Sign(priv, msg)
+	embed := func(b []byte) ([]byte, []byte) {
+		big := make([]byte, len(b)+29, len(b)+64)
+		for i := range big {
+			big[i] = 0xaa
+		}
+		copy(big[11:], b)
+		return big[11 : 11+len(b)], big
+	}
+	m, mBig := embed(msg)
+	s, sBig := embed(honest)
+	k, kBig := embed(pub)
+	before := [][]byte{append([]byte{}, mBig...), append([]byte{}, sBig...), append([]byte{}, kBig...)}
+	if !mustVerify(t, m, s, k) {
+		t.Fatal("genuine signature refused when given as slices into larger buffers")
+	}
+	if !mustVerify(t, m, s, base64.StdEncoding.EncodeToString(k)) {
+		t.Fatal("genuine signature refused with a base64 key")
+	}
+	for i, b := range [][]byte{mBig, sBig, kBig} {
+		if string(b) != string(before[i]) {
+			t.Errorf("input buffer %d was modified", i)
 		}
 	}
 }
