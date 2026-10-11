@@ -258,3 +258,121 @@ func TestVerifyCertificate_ParsedInputIsJudgedByValue(t *testing.T) {
 		t.Error("signable bytes differ from the untampered parent")
 	}
 }
+
+// Every present signature field is text-checked: on a v3 certificate the v3
+// signature is verified, and witness_signature must be canonical base64 too.
+// Missing / downgrade are decided on blank / present first, as before.
+func TestVerifyCertificate_EveryPresentSignatureFieldIsTextChecked(t *testing.T) {
+	keys := inputRuleKeys(t)
+	honest, _ := inputRuleCert(t, "honest_full_chain_egress")["witness_signature"].(string)
+	type row struct{ id, field, value, want string }
+	rows := []row{
+		{"honest_full_chain_egress", "witness_signature", string(rune(0xFEFF)), "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", "\u001c", "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", "\u001d", "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", "\u001e", "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", "\u001f", "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", "!", "invalid_signature"},
+		{"honest_full_chain_egress", "witness_signature", honest + "!", "invalid_signature"},
+		// precedence unchanged
+		{"honest_full_chain_egress", "witness_signature", "", "witness_signature_missing"},
+		{"honest_full_chain_egress", "witness_signature", "\u0085", "witness_signature_missing"},
+		{"legacy_v2_signable_only", "signable_v3_signature", "\u0085", "ACCEPT:v2"},
+		{"legacy_v2_signable_only", "signable_v3_signature", "\u001c", "version_downgrade_detected"},
+		{"legacy_v2_signable_only", "signable_v3_signature", "!", "version_downgrade_detected"},
+	}
+	for _, r := range rows {
+		m, raw := inputRuleWith(t, r.id, r.field, r.value)
+		if got := inputRuleOutcome(t, m, keys); got != r.want {
+			t.Errorf("%s %s = %q (map): %s, want %s", r.id, r.field, r.value, got, r.want)
+		}
+		if got := inputRuleOutcome(t, raw, keys); got != r.want {
+			t.Errorf("%s %s = %q (bytes): %s, want %s", r.id, r.field, r.value, got, r.want)
+		}
+	}
+	// v3 signature blank -> downgrade, even when witness_signature is not base64.
+	m := inputRuleCert(t, "honest_full_chain_egress")
+	m["signable_v3_signature"], m["witness_signature"] = "", "!"
+	if got := inputRuleOutcome(t, m, keys); got != "version_downgrade_detected" {
+		t.Errorf("blank v3 signature with a non-base64 witness_signature: %s", got)
+	}
+}
+
+// The two version fields: one value rule, decided before any coercion, with
+// map input and with raw bytes. The same rows run on arm64 and amd64: no
+// outcome may depend on how the CPU converts an out-of-range float64.
+func TestVerifyCertificate_VersionFieldValueRule(t *testing.T) {
+	keys := inputRuleKeys(t)
+	const v3, v2 = "honest_full_chain_egress", "legacy_v2_signable_only"
+	// token, outcome on the v3 certificate, on the legacy v2 certificate, for
+	// raw bytes; mapV3/mapV2 only where map input differs from raw bytes.
+	rows := []struct{ token, rawV3, rawV2, mapV3, mapV2 string }{
+		{"3.5", "malformed", "malformed", "", ""},
+		{`"3"`, "malformed", "malformed", "", ""},
+		{"[3]", "malformed", "malformed", "", ""},
+		{"true", "malformed", "malformed", "", ""},
+		{`"garbage"`, "malformed", "malformed", "", ""},
+		{"{}", "malformed", "malformed", "", ""},
+		{"-1", "malformed", "malformed", "", ""},
+		{"18446744073709551616", "malformed", "malformed", "", ""}, // 2^64
+		{"null", "version_downgrade_detected", "ACCEPT:v2", "", ""},
+		{"3", "ACCEPT:v3", "version_downgrade_detected", "", ""},
+		{"2", "version_downgrade_detected", "ACCEPT:v2", "", ""},
+		{"0", "version_downgrade_detected", "ACCEPT:v2", "", ""},
+		{"9007199254740992", "ACCEPT:v3", "version_downgrade_detected", "", ""},     // 2^53
+		{"9223372036854775808", "ACCEPT:v3", "version_downgrade_detected", "", ""},  // 2^63: the amd64 / arm64 split
+		{"18446744073709549568", "ACCEPT:v3", "version_downgrade_detected", "", ""}, // largest float64 below 2^64
+		// 2^64-1: raw bytes read the token (in range); a float64 cannot hold it, the map holds 2^64.
+		{"18446744073709551615", "ACCEPT:v3", "version_downgrade_detected", "malformed", "malformed"},
+		// written 3.0: raw bytes read the token; the map holds the value 3.
+		{"3.0", "malformed", "malformed", "ACCEPT:v3", "version_downgrade_detected"},
+	}
+	for _, r := range rows {
+		for i, id := range []string{v3, v2} {
+			raw := inputRuleToken(t, id, "signable_protocol_version_emitted", r.token)
+			wantRaw := []string{r.rawV3, r.rawV2}[i]
+			wantMap := []string{r.mapV3, r.mapV2}[i]
+			if wantMap == "" {
+				wantMap = wantRaw
+			}
+			if got := inputRuleOutcome(t, raw, keys); got != wantRaw {
+				t.Errorf("emitted %s on %s (bytes): %s, want %s", r.token, id, got, wantRaw)
+			}
+			var m map[string]any
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatal(err)
+			}
+			if got := inputRuleOutcome(t, m, keys); got != wantMap {
+				t.Errorf("emitted %s on %s (map): %s, want %s", r.token, id, got, wantMap)
+			}
+		}
+	}
+	// absent
+	m := inputRuleCert(t, v3)
+	delete(m, "signable_protocol_version_emitted")
+	if got := inputRuleOutcome(t, m, keys); got != "version_downgrade_detected" {
+		t.Errorf("emitted absent on the v3 certificate: %s", got)
+	}
+	// protocol_version
+	for token, want := range map[string][2]string{
+		"-1": {"malformed", "malformed"}, "-2": {"malformed", "malformed"}, "3.5": {"malformed", "malformed"},
+		`"2"`: {"malformed", "malformed"}, "[2]": {"malformed", "malformed"}, "true": {"malformed", "malformed"},
+		"18446744073709551616": {"malformed", "malformed"},
+		"3":                    {"unsupported_protocol_version", "unsupported_protocol_version"},
+		"9223372036854775808":  {"unsupported_protocol_version", "unsupported_protocol_version"},
+		"18446744073709551615": {"unsupported_protocol_version", "malformed"}, // token vs float64(2^64)
+		"2.0":                  {"malformed", "ACCEPT:v3"},                    // token vs the value 2
+	} {
+		raw := inputRuleToken(t, v3, "protocol_version", token)
+		if got := inputRuleOutcome(t, raw, keys); got != want[0] {
+			t.Errorf("protocol_version %s (bytes): %s, want %s", token, got, want[0])
+		}
+		var pm map[string]any
+		if err := json.Unmarshal(raw, &pm); err != nil {
+			t.Fatal(err)
+		}
+		if got := inputRuleOutcome(t, pm, keys); got != want[1] {
+			t.Errorf("protocol_version %s (map): %s, want %s", token, got, want[1])
+		}
+	}
+}

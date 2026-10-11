@@ -14,7 +14,16 @@ import { describe, expect, it } from 'vitest';
 import { LucairnCertificateError } from './errors.js';
 import { verifyCertificate } from './verify-certificate/index.js';
 import { verifyEd25519 } from './verify-certificate/signature.js';
-import { PinnedKeyError, ed25519Ok, isSmallOrder, keyObject, pinnedKey } from './verify-chain/ed25519.js';
+import {
+  PinnedKeyError,
+  SMALL_ORDER_Y,
+  canonicalCurvePoint,
+  ed25519Ok,
+  isSmallOrder,
+  keyObject,
+  pinnedKey,
+  signaturePrecheck,
+} from './verify-chain/ed25519.js';
 
 const CORPUS = join(__dirname, '..', '..', 'testdata', 'parity-corpus', 'v1');
 const readJson = (...p: string[]): any => JSON.parse(readFileSync(join(CORPUS, ...p), 'utf8'));
@@ -211,9 +220,12 @@ describe('drift: the witness-only path and the chain path share ONE rule', () =>
     expect(isSmallOrder(BASE_POINT)).toBe(false);
     expect(isSmallOrder(PUBLIC)).toBe(false);
     expect(isSmallOrder(honest.subarray(0, 32))).toBe(false);
-    // 14 encodings = 7 values with the sign bit either way.
+    // 14 encodings = 7 values with the sign bit either way, and the
+    // implementation's list is EXACTLY those seven: an extra entry is caught.
     const maskedValues = new Set(SMALL_ORDER.map((b) => Buffer.from([...b.subarray(0, 31), b[31] & 0x7f]).toString('hex')));
     expect(maskedValues.size).toBe(7);
+    expect(SMALL_ORDER_Y.size).toBe(7);
+    expect([...SMALL_ORDER_Y].sort()).toEqual([...maskedValues].sort());
   });
 
   it('both refuse all 14 small-order encodings as R (nonce-0 construction)', () => {
@@ -235,5 +247,55 @@ describe('drift: the witness-only path and the chain path share ONE rule', () =>
     expect(src).not.toMatch(/from 'node:crypto'/);
     expect(src).not.toMatch(/cryptoVerify|createPublicKey/);
     expect(src).not.toMatch(/[0-9a-f]{64}/);
+  });
+});
+
+describe('prechecks, pinned without the crypto library', () => {
+  // The library also refuses S >= L and an off-curve key, so a wrong constant
+  // or a disabled point check would stay invisible in the tests above. These
+  // assert the helpers directly.
+  const P = 2n ** 255n - 19n;
+  const sigWith = (r: Uint8Array, s: bigint): Uint8Array => cat(r, le32(s));
+
+  it('S = L - 1 passes the precheck, S = L and above fail', () => {
+    expect(signaturePrecheck(sigWith(BASE_POINT, L - 1n))).toBe(true);
+    expect(signaturePrecheck(sigWith(BASE_POINT, 0n))).toBe(true);
+    expect(signaturePrecheck(sigWith(BASE_POINT, L))).toBe(false);
+    expect(signaturePrecheck(sigWith(BASE_POINT, L + 1n))).toBe(false);
+    expect(signaturePrecheck(sigWith(BASE_POINT, 2n ** 256n - 1n))).toBe(false);
+    expect(signaturePrecheck(sigWith(BASE_POINT, 1n).subarray(0, 63))).toBe(false);
+  });
+
+  it('R: y = p - 1, p, p + 1 and 2^255 - 1 fail the precheck; an ordinary R passes', () => {
+    for (const y of [P - 1n, P, P + 1n, 2n ** 255n - 1n]) {
+      expect(signaturePrecheck(sigWith(le32(y), 1n)), y.toString(16)).toBe(false);
+    }
+    expect(signaturePrecheck(sigWith(PUBLIC, 1n))).toBe(true);
+  });
+
+  it('point check: off-curve and non-canonical encodings are not canonical curve points', () => {
+    const offCurve = le32(2n); // y = 2 has no x
+    expect(canonicalCurvePoint(offCurve)).toBe(false);
+    for (const k of INVALID_POINTS) expect(canonicalCurvePoint(k)).toBe(false);
+    // y = p - 1 is on the curve (x = 0): canonical with the sign bit clear, not with it set.
+    const pMinus1 = le32(P - 1n);
+    expect(canonicalCurvePoint(pMinus1)).toBe(true);
+    const signSet = Uint8Array.from(pMinus1);
+    signSet[31] |= 0x80;
+    expect(canonicalCurvePoint(signSet)).toBe(false);
+    expect(isSmallOrder(pMinus1)).toBe(true);
+    // y = p, p + 1 (non-canonical) and 2^255 - 1 are refused by the point check.
+    for (const y of [P, P + 1n, 2n ** 255n - 1n]) expect(canonicalCurvePoint(le32(y)), y.toString(16)).toBe(false);
+    expect(isSmallOrder(le32(P))).toBe(true);
+    expect(isSmallOrder(le32(P + 1n))).toBe(true);
+    expect(isSmallOrder(le32(2n ** 255n - 1n))).toBe(false);
+    // honest points
+    expect(canonicalCurvePoint(BASE_POINT)).toBe(true);
+    expect(canonicalCurvePoint(PUBLIC)).toBe(true);
+  });
+
+  it('verifyEd25519 refuses an off-curve key because of the point check (not via the library)', () => {
+    const honest = new Uint8Array(sign(null, Buffer.from(MESSAGE), PRIVATE));
+    expect(verifyEd25519(MESSAGE, honest, le32(2n))).toBe(false);
   });
 });

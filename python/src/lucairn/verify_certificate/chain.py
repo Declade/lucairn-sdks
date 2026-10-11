@@ -675,14 +675,21 @@ def _pinned_key(key: Any, allow_test_keys: bool, which: str) -> Ed25519PublicKey
         raise PinnedKeyError("key_invalid_point", which) from exc
 
 
+def _signature_precheck(sig: bytes) -> bool:
+    """The part of the acceptance rule that needs neither key nor message: 64
+    bytes, S < L, R canonical (y < p) and not of small order. Separate so
+    tests can pin it without the crypto library."""
+    if len(sig) != 64 or int.from_bytes(sig[32:], "little") >= _ED_L:
+        return False
+    r = _masked(sig[:32])
+    return int.from_bytes(r, "little") < _ED_P and r not in _SMALL_ORDER_Y
+
+
 def _ed25519_ok(pub: Ed25519PublicKey, msg: bytes, sig: bytes) -> bool:
     """The ONE acceptance rule: a 64-byte R || S with S < L, R the canonical
     encoding (y < p) of a point not of small order, and the cofactorless
     equation (the library compares the encoding of R)."""
-    if len(sig) != 64 or int.from_bytes(sig[32:], "little") >= _ED_L:
-        return False
-    r = _masked(sig[:32])
-    if int.from_bytes(r, "little") >= _ED_P or r in _SMALL_ORDER_Y:
+    if not _signature_precheck(sig):
         return False
     try:
         pub.verify(sig, msg)

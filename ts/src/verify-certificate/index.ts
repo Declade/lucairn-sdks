@@ -76,15 +76,17 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  * @throws `LucairnCertificateError` with one of 7 reasons:
  *   - `malformed` — cert shape invalid, or gateway invariant broken
  *     (cert.request_id mismatch vs claims[0]), or unknown verdict literal,
- *     or `protocol_version` / `signable_protocol_version_emitted` is a
- *     number that is not an integer in [0, 2^64 - 1]
+ *     or `protocol_version` / a present, non-null
+ *     `signable_protocol_version_emitted` is not a JSON number whose value
+ *     is an integer in [0, 2^64 - 1]
  *   - `unsupported_protocol_version` — cert.protocol_version !== 2
  *   - `witness_mismatch` — keys.witnessKeyId !== cert.witness_key_id
  *   - `witness_signature_missing` — cert.witness_signature is empty or
  *     whitespace-only (Go's `unicode.IsSpace` set)
- *   - `invalid_signature` — Ed25519 verification failed, the signature text
- *     is not canonical standard padded base64, or the provided
- *     witnessPublicKey is malformed
+ *   - `invalid_signature` — Ed25519 verification failed, a present
+ *     signature field (`witness_signature`, and on a v3 certificate also
+ *     `signable_v3_signature`) is not canonical standard padded base64, or
+ *     the provided witnessPublicKey is malformed
  *   - `version_downgrade_detected` — `signable_v3_signature` is present but
  *     `signable_protocol_version_emitted` is absent or < 3; this is a
  *     structural anomaly consistent with an attacker stripping the version
@@ -280,6 +282,9 @@ async function verifyV3(
     throw err;
   }
 
+  // Every signature field that is PRESENT is text-checked, not only the one
+  // selected for verification: witness_signature is non-blank here (step 4).
+  decodeSignatureText(cert.witness_signature, 'witness_signature', cert.certificate_id);
   const signatureBytes = decodeSignatureText(v3SigRaw, 'signable_v3_signature', cert.certificate_id);
   let valid: boolean;
   try {

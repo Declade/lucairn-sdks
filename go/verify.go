@@ -137,7 +137,8 @@ var certIntegerFields = []string{"protocol_version", "signable_protocol_version_
 
 // decodeCertText decodes a certificate given as raw JSON text. The generic
 // decode is the one a caller's own json.Unmarshal would do (numbers as
-// float64), so everything downstream sees the same values as with map input.
+// float64), so everything downstream sees the same values as with map input
+// (the two integer fields below are handed on as their exact tokens).
 // In addition, because the text is in hand here, the integers the check reads
 // must be written as integer TOKENS (digits only, at most 20 digits, at most
 // 2^64-1): a float64 decode would round 2.0000000000000001 to 2. Map and
@@ -175,6 +176,10 @@ func decodeCertText(b []byte, kind string) (any, error) {
 				Message:       field + " must be written as an integer token in [0, 2^64-1]",
 			}
 		}
+		// Hand the exact token on for this field only, so the value rule is
+		// decided on the token (2^64-1 is not a float64) and never on a
+		// rounded float64. Nothing else in the decoded map changes.
+		out.(map[string]any)[field] = json.Number(string(tok))
 	}
 	return out, nil
 }

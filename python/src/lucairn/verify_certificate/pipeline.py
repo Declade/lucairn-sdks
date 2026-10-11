@@ -143,6 +143,16 @@ def verify_certificate(
     cert: VeilCertificate = (
         raw_cert if isinstance(raw_cert, VeilCertificate) else parse_certificate(raw_cert)
     )
+    # The same domain for model input as parse_certificate enforces for a dict,
+    # so both give the same outcome.
+    for _field in ("protocol_version", "signable_protocol_version_emitted"):
+        _value = getattr(cert, _field)
+        if isinstance(_value, bool) or not isinstance(_value, int) or not 0 <= _value <= _U64_MAX:
+            raise LucairnCertificateError(
+                f"{_field} must be an integer in [0, 2^64 - 1]",
+                reason="malformed",
+                certificate_id=cert.certificate_id,
+            )
 
     if cert.protocol_version != SUPPORTED_PROTOCOL_VERSION:
         raise LucairnCertificateError(
@@ -219,6 +229,9 @@ def verify_certificate(
                 cause=exc,
             ) from exc
 
+        # Every signature field that is PRESENT is text-checked, not only the
+        # one selected for verification: witness_signature is non-blank here.
+        _decode_signature_text(cert.witness_signature, "witness_signature", cert.certificate_id)
         signature_bytes = _decode_signature_text(
             cert.signable_v3_signature, "signable_v3_signature", cert.certificate_id
         )
@@ -321,6 +334,9 @@ def verify_certificate(
             )
 
         return _build_result(cert, signable_version="v2", v3_signature_stripped=v3_sig_stripped)
+
+
+_U64_MAX = 2**64 - 1
 
 
 def _decode_signature_text(text: str, field: str, certificate_id: str) -> bytes:

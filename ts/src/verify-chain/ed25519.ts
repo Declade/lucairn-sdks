@@ -68,7 +68,7 @@ const hex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
  * sign bit either way: the 8 canonical small-order encodings plus 6
  * non-canonical ones.
  */
-const SMALL_ORDER_Y = new Set([
+export const SMALL_ORDER_Y: ReadonlySet<string> = new Set([
   '0000000000000000000000000000000000000000000000000000000000000000',
   '0100000000000000000000000000000000000000000000000000000000000000',
   '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05',
@@ -158,15 +158,24 @@ export function keyObject(raw: Uint8Array): KeyObject {
 }
 
 /**
+ * The part of the acceptance rule that needs neither key nor message: 64
+ * bytes, S < L, R canonical (y < p) and not of small order. Module-internal;
+ * separate so tests can pin it without the crypto library.
+ */
+export function signaturePrecheck(sig: Uint8Array): boolean {
+  if (sig.length !== 64) return false;
+  if (littleEndian(sig.subarray(32)) >= L) return false;
+  const r = sig.subarray(0, 32);
+  return littleEndian(masked(r)) < P && !isSmallOrder(r);
+}
+
+/**
  * README § Signatures — the ONE acceptance rule: a 64-byte R ‖ S with S < L,
  * R the canonical encoding (y < p) of a point not of small order, and the
  * cofactorless equation compared as an encoding (OpenSSL).
  */
 export function ed25519Ok(key: KeyObject, msg: Uint8Array, sig: Uint8Array): boolean {
-  if (sig.length !== 64) return false;
-  if (littleEndian(sig.subarray(32)) >= L) return false;
-  const r = sig.subarray(0, 32);
-  if (littleEndian(masked(r)) >= P || isSmallOrder(r)) return false;
+  if (!signaturePrecheck(sig)) return false;
   try {
     return cryptoVerify(null, Buffer.from(msg), key, Buffer.from(sig));
   } catch {

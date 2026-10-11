@@ -46,6 +46,12 @@ def verify_ed25519(
     """
 
     raw = normalize_ed25519_public_key(public_key)
+    # Message and signature through the buffer protocol: bytes, bytearray,
+    # memoryview (also strided) and array.array("B") all worked before this
+    # function had checks of its own. A non-buffer raises TypeError here, as
+    # the library did.
+    message = memoryview(message).tobytes()
+    signature = memoryview(signature).tobytes()
     if _masked(raw) in _SMALL_ORDER_Y or not _canonical_curve_point(raw):
         return False
     try:

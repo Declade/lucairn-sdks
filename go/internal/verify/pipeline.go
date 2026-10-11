@@ -276,6 +276,18 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 	// re-encode, compare) - the chain verifier's rule for the same fields.
 	// base64.StdEncoding.DecodeString alone skips CR and LF and accepts
 	// non-zero padding bits.
+	// Every signature field that is PRESENT is text-checked, not only the one
+	// selected for verification: on the v3 path witness_signature (non-blank,
+	// decided above) must be canonical too.
+	if useV3 {
+		if _, okW := chainB64(parsed.WitnessSignature); !okW {
+			return nil, &PipelineError{
+				Reason:        ReasonInvalidSignature,
+				CertificateID: parsed.CertificateID,
+				Message:       "witness_signature is not canonical standard padded base64",
+			}
+		}
+	}
 	signatureBytes, ok := chainB64(signatureToVerify)
 	if !ok {
 		return nil, &PipelineError{

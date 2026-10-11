@@ -169,14 +169,21 @@ func PinnedChainKey(input any, allowTestKeys bool) (ed25519.PublicKey, string) {
 // small-order R by itself (libsodium refuses it), hence the explicit
 // pre-checks. The key passed PinnedChainKey at load.
 func chainStrictVerify(pub ed25519.PublicKey, msg, sig []byte) bool {
-	if len(pub) != ed25519.PublicKeySize || len(sig) != ed25519.SignatureSize {
+	if len(pub) != ed25519.PublicKeySize || !chainSignaturePrecheck(sig) {
+		return false
+	}
+	return ed25519.Verify(pub, msg, sig)
+}
+
+// chainSignaturePrecheck is the part of the acceptance rule that does not
+// need the key or the message: 64 bytes, S < L, R canonical (y < p) and not
+// of small order. Separate so tests can pin it without crypto/ed25519.
+func chainSignaturePrecheck(sig []byte) bool {
+	if len(sig) != ed25519.SignatureSize {
 		return false
 	}
 	if littleEndian(sig[32:]).Cmp(edL) >= 0 {
 		return false
 	}
-	if encodedY(sig[:32]).Cmp(edP) >= 0 || smallOrderEncoding(sig[:32]) {
-		return false
-	}
-	return ed25519.Verify(pub, msg, sig)
+	return encodedY(sig[:32]).Cmp(edP) < 0 && !smallOrderEncoding(sig[:32])
 }

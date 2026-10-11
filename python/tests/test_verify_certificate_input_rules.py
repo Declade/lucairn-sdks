@@ -216,3 +216,96 @@ def test_corpus_float_token_protocol_version_is_malformed() -> None:
     fixed = parse_certificate(_with(case["certificate"], protocol_version=2))
     assert derive_v3_signed_bytes(fixed) == derive_v3_signed_bytes(parent)
     assert derive_witness_signed_bytes(fixed) == derive_witness_signed_bytes(parent)
+
+
+# --- every present signature field is text-checked ----------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["\ufeff", "\u001c", "\u001d", "\u001e", "\u001f", "!"],
+    ids=lambda v: "+".join(f"U+{ord(c):04X}" for c in v),
+)
+def test_v3_certificate_witness_signature_must_be_canonical_too(text: str) -> None:
+    assert _outcome(_with(_v3(), witness_signature=text)) == "invalid_signature"
+
+
+def test_v3_certificate_witness_signature_with_trailing_text() -> None:
+    base = _v3()
+    assert _outcome(_with(base, witness_signature=base["witness_signature"] + "!")) == "invalid_signature"
+
+
+def test_missing_and_downgrade_are_decided_before_any_text_check() -> None:
+    assert _outcome(_with(_v3(), witness_signature="")) == "witness_signature_missing"
+    assert _outcome(_with(_v3(), witness_signature="\u0085")) == "witness_signature_missing"
+    assert _outcome(_with(_v2(), signable_v3_signature="\u0085")) == "ACCEPT:v2"
+    assert _outcome(_with(_v2(), signable_v3_signature="\u001c")) == "version_downgrade_detected"
+    assert _outcome(_with(_v2(), signable_v3_signature="!")) == "version_downgrade_detected"
+    assert _outcome(_with(_v3(), signable_v3_signature="", witness_signature="!")) == "version_downgrade_detected"
+
+
+# --- the two version fields: one value rule, before any coercion ---------------------
+
+_EMITTED = [
+    # (value, outcome on the v3 certificate, outcome on the legacy v2 certificate)
+    (3.5, "malformed", "malformed"),
+    ("3", "malformed", "malformed"),
+    ([3], "malformed", "malformed"),
+    (True, "malformed", "malformed"),
+    ("garbage", "malformed", "malformed"),
+    ({}, "malformed", "malformed"),
+    (-1, "malformed", "malformed"),
+    (3.0, "malformed", "malformed"),
+    (float("nan"), "malformed", "malformed"),
+    (float("inf"), "malformed", "malformed"),
+    (2**64, "malformed", "malformed"),
+    (None, "version_downgrade_detected", "ACCEPT:v2"),
+    (3, "ACCEPT:v3", "version_downgrade_detected"),
+    (2, "version_downgrade_detected", "ACCEPT:v2"),
+    (0, "version_downgrade_detected", "ACCEPT:v2"),
+    (2**53, "ACCEPT:v3", "version_downgrade_detected"),
+    (2**64 - 1, "ACCEPT:v3", "version_downgrade_detected"),
+]
+
+
+@pytest.mark.parametrize(("value", "on_v3", "on_v2"), _EMITTED, ids=lambda v: repr(v)[:24])
+def test_emitted_value_rule(value: Any, on_v3: str, on_v2: str) -> None:
+    assert _outcome(_with(_v3(), signable_protocol_version_emitted=value)) == on_v3
+    assert _outcome(_with(_v2(), signable_protocol_version_emitted=value)) == on_v2
+
+
+def test_emitted_absent() -> None:
+    a = _v3()
+    del a["signable_protocol_version_emitted"]
+    assert _outcome(a) == "version_downgrade_detected"
+
+
+def test_protocol_version_value_rule() -> None:
+    for bad in (-1, -2, 2**64, 3.5, 2.0, "2", [2], True, None):
+        assert _outcome(_with(_v3(), protocol_version=bad)) == "malformed", repr(bad)
+    assert _outcome(_with(_v3(), protocol_version=3)) == "unsupported_protocol_version"
+    assert _outcome(_with(_v3(), protocol_version=0)) == "unsupported_protocol_version"
+    assert _outcome(_with(_v3(), protocol_version=2**64 - 1)) == "unsupported_protocol_version"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("protocol_version", -2),
+        ("protocol_version", 2**64),
+        ("signable_protocol_version_emitted", -1),
+        ("signable_protocol_version_emitted", 2**64),
+    ],
+)
+def test_model_input_gets_the_same_domain_check_as_dict_input(field: str, value: int) -> None:
+    """A VeilCertificate instance passed directly must not bypass the domain
+    check the dict path applies."""
+    from lucairn.types import VeilCertificate
+
+    for base in (_v3(), _v2()):
+        data = _with(base, **{field: value})
+        assert _outcome(data) == "malformed"
+        assert _outcome(VeilCertificate.model_validate(data)) == "malformed"
+    # in-range values: dict and model agree
+    for base in (_v3(), _v2()):
+        assert _outcome(VeilCertificate.model_validate(base)) == _outcome(base)
