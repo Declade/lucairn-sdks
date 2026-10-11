@@ -1,6 +1,6 @@
 {
- "format": "lucairn-ed25519-rule-vectors/v1",
- "note": "Synthetic TEST vectors for the witness-only certificate check (T-1322). The same file, byte for byte, sits in the TypeScript, Python and Go test folders; each SDK's test pins the file's sha256. `vectors`: every entry goes through the SDK's verifyEd25519 primitive (keys derived from a public label, so they are test keys). `certificate_field_vectors`: one signature text field of a base certificate fixture is replaced and the certificate goes through verifyCertificate; base v2 = cert-valid-anchored.json with the test witness key, base v3 = the recorded v3 certificate with the production witness public key.",
+ "format": "lucairn-ed25519-rule-vectors/v2",
+ "note": "Synthetic TEST vectors for the witness-only certificate check (T-1322). The same file, byte for byte, sits in the TypeScript, Python and Go test folders; each SDK's test pins the file's sha256. `vectors`: every entry goes through the SDK's verifyEd25519 primitive (keys derived from a public label, so they are test keys). `precheck_vectors`: the expected result of the SDK's own key / signature-encoding check, before any crypto library is called. `small_order_y`: the seven small-order y values (sign bit cleared) \u2014 the SDK's list must be exactly this set. `certificate_field_vectors`: one signature text field of a base certificate fixture is replaced and the certificate goes through verifyCertificate. `version_field_vectors`: one version field is replaced by a JSON token (or removed); four expected columns because the SDKs do not all receive the same thing. Base v2 = cert-valid-anchored.json with the test witness key, base v3 = the recorded v3 certificate with the production witness public key.",
  "vectors": [
   {
    "id": "genuine_sign_bit_clear_key",
@@ -435,6 +435,409 @@
    "note": "empty signature"
   }
  ],
+ "precheck_vectors": [
+  {
+   "id": "key_ordinary_sign_clear",
+   "kind": "key",
+   "hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "acceptable": true,
+   "note": "an ordinary public key"
+  },
+  {
+   "id": "key_ordinary_sign_set",
+   "kind": "key",
+   "hex": "d1dd95636749669036b21b8970ab655c0807a834338940f2d16b2f9bf84aafa0",
+   "acceptable": true,
+   "note": "an ordinary public key, sign bit set"
+  },
+  {
+   "id": "key_y_2_sign_0_off_curve",
+   "kind": "key",
+   "hex": "0200000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "y = 2 is not on the curve"
+  },
+  {
+   "id": "key_y_2_sign_1_off_curve",
+   "kind": "key",
+   "hex": "0200000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "y = 2 is not on the curve"
+  },
+  {
+   "id": "key_y_3_sign_0_on_curve",
+   "kind": "key",
+   "hex": "0300000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": true,
+   "note": "y = 3 is on the curve and not of small order"
+  },
+  {
+   "id": "key_y_3_sign_1_on_curve",
+   "kind": "key",
+   "hex": "0300000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": true,
+   "note": "y = 3 is on the curve and not of small order"
+  },
+  {
+   "id": "key_y_4_sign_0_on_curve",
+   "kind": "key",
+   "hex": "0400000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": true,
+   "note": "y = 4 is on the curve and not of small order"
+  },
+  {
+   "id": "key_y_4_sign_1_on_curve",
+   "kind": "key",
+   "hex": "0400000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": true,
+   "note": "y = 4 is on the curve and not of small order"
+  },
+  {
+   "id": "key_y_7_sign_0_off_curve",
+   "kind": "key",
+   "hex": "0700000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "y = 7 is not on the curve"
+  },
+  {
+   "id": "key_y_7_sign_1_off_curve",
+   "kind": "key",
+   "hex": "0700000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "y = 7 is not on the curve"
+  },
+  {
+   "id": "key_y_8_sign_0_off_curve",
+   "kind": "key",
+   "hex": "0800000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "y = 8 is not on the curve"
+  },
+  {
+   "id": "key_y_8_sign_1_off_curve",
+   "kind": "key",
+   "hex": "0800000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "y = 8 is not on the curve"
+  },
+  {
+   "id": "key_invalid_point_off_curve",
+   "kind": "key",
+   "hex": "0200000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "corpus key-policy vector"
+  },
+  {
+   "id": "key_invalid_point_noncanonical_y",
+   "kind": "key",
+   "hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "corpus key-policy vector"
+  },
+  {
+   "id": "key_invalid_point_noncanonical_y_max",
+   "kind": "key",
+   "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "corpus key-policy vector"
+  },
+  {
+   "id": "key_y_0_sign_0",
+   "kind": "key",
+   "hex": "0000000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "y 0"
+  },
+  {
+   "id": "key_y_0_sign_1",
+   "kind": "key",
+   "hex": "0000000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "y 0"
+  },
+  {
+   "id": "key_y_1_sign_0",
+   "kind": "key",
+   "hex": "0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "y 1"
+  },
+  {
+   "id": "key_y_1_sign_1",
+   "kind": "key",
+   "hex": "0100000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "y 1"
+  },
+  {
+   "id": "key_y_p_minus_1_sign_0",
+   "kind": "key",
+   "hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "y p minus 1"
+  },
+  {
+   "id": "key_y_p_minus_1_sign_1",
+   "kind": "key",
+   "hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "y p minus 1"
+  },
+  {
+   "id": "key_y_p_sign_0",
+   "kind": "key",
+   "hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "y p"
+  },
+  {
+   "id": "key_y_p_sign_1",
+   "kind": "key",
+   "hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "y p"
+  },
+  {
+   "id": "key_y_p_plus_1_sign_0",
+   "kind": "key",
+   "hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "y p plus 1"
+  },
+  {
+   "id": "key_y_p_plus_1_sign_1",
+   "kind": "key",
+   "hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "y p plus 1"
+  },
+  {
+   "id": "key_y_p_plus_3_sign_0",
+   "kind": "key",
+   "hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "y p plus 3"
+  },
+  {
+   "id": "key_y_p_plus_3_sign_1",
+   "kind": "key",
+   "hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "y p plus 3"
+  },
+  {
+   "id": "key_y_2_pow_255_minus_1_sign_0",
+   "kind": "key",
+   "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "acceptable": false,
+   "note": "y 2 pow 255 minus 1"
+  },
+  {
+   "id": "key_y_2_pow_255_minus_1_sign_1",
+   "kind": "key",
+   "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "y 2 pow 255 minus 1"
+  },
+  {
+   "id": "key_31_bytes",
+   "kind": "key",
+   "hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd",
+   "acceptable": false,
+   "note": "wrong length"
+  },
+  {
+   "id": "key_33_bytes",
+   "kind": "key",
+   "hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a00",
+   "acceptable": false,
+   "note": "wrong length"
+  },
+  {
+   "id": "sig_ordinary_r_s_0",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd0000000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": true,
+   "note": "R of an honest signature; s 0"
+  },
+  {
+   "id": "sig_ordinary_r_s_1",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": true,
+   "note": "R of an honest signature; s 1"
+  },
+  {
+   "id": "sig_ordinary_r_s_l_minus_1",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdecd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010",
+   "acceptable": true,
+   "note": "R of an honest signature; s l minus 1"
+  },
+  {
+   "id": "sig_ordinary_r_s_l",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdedd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010",
+   "acceptable": false,
+   "note": "R of an honest signature; s l"
+  },
+  {
+   "id": "sig_ordinary_r_s_l_plus_1",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdeed3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010",
+   "acceptable": false,
+   "note": "R of an honest signature; s l plus 1"
+  },
+  {
+   "id": "sig_ordinary_r_s_2_pow_255",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd0000000000000000000000000000000000000000000000000000000000000080",
+   "acceptable": false,
+   "note": "R of an honest signature; s 2 pow 255"
+  },
+  {
+   "id": "sig_ordinary_r_s_2_pow_256_minus_1",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "acceptable": false,
+   "note": "R of an honest signature; s 2 pow 256 minus 1"
+  },
+  {
+   "id": "sig_r_y_0_sign_0_s_1",
+   "kind": "signature",
+   "hex": "00000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 0; S = 1"
+  },
+  {
+   "id": "sig_r_y_0_sign_1_s_1",
+   "kind": "signature",
+   "hex": "00000000000000000000000000000000000000000000000000000000000000800100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 0; S = 1"
+  },
+  {
+   "id": "sig_r_y_1_sign_0_s_1",
+   "kind": "signature",
+   "hex": "01000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_1_sign_1_s_1",
+   "kind": "signature",
+   "hex": "01000000000000000000000000000000000000000000000000000000000000800100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_minus_1_sign_0_s_1",
+   "kind": "signature",
+   "hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p minus 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_minus_1_sign_1_s_1",
+   "kind": "signature",
+   "hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p minus 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_sign_0_s_1",
+   "kind": "signature",
+   "hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_sign_1_s_1",
+   "kind": "signature",
+   "hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_plus_1_sign_0_s_1",
+   "kind": "signature",
+   "hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p plus 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_plus_1_sign_1_s_1",
+   "kind": "signature",
+   "hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p plus 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_plus_3_sign_0_s_1",
+   "kind": "signature",
+   "hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p plus 3; S = 1"
+  },
+  {
+   "id": "sig_r_y_p_plus_3_sign_1_s_1",
+   "kind": "signature",
+   "hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y p plus 3; S = 1"
+  },
+  {
+   "id": "sig_r_y_2_pow_255_minus_1_sign_0_s_1",
+   "kind": "signature",
+   "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 2 pow 255 minus 1; S = 1"
+  },
+  {
+   "id": "sig_r_y_2_pow_255_minus_1_sign_1_s_1",
+   "kind": "signature",
+   "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": false,
+   "note": "R: y 2 pow 255 minus 1; S = 1"
+  },
+  {
+   "id": "sig_r_off_curve_canonical_y_s_1",
+   "kind": "signature",
+   "hex": "02000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000",
+   "acceptable": true,
+   "note": "R is not on the curve but y < p and not on the small-order list: the precheck passes (R is never decoded; the library's equation refuses it)"
+  },
+  {
+   "id": "sig_63_bytes",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a695945159518",
+   "acceptable": false,
+   "note": "wrong length"
+  },
+  {
+   "id": "sig_65_bytes",
+   "kind": "signature",
+   "hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a6959451595180300",
+   "acceptable": false,
+   "note": "wrong length"
+  },
+  {
+   "id": "sig_empty",
+   "kind": "signature",
+   "hex": "",
+   "acceptable": false,
+   "note": "wrong length"
+  }
+ ],
+ "small_order_y": [
+  "0000000000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000000",
+  "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+  "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+  "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+  "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+  "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+ ],
  "certificate_field_vectors": [
   {
    "id": "v2_unchanged",
@@ -777,8 +1180,8 @@
    "base": "v3",
    "field": "witness_signature",
    "text": "\ufeff",
-   "expected": "accept:v3",
-   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64: every present signature field must be canonical base64, also the one that is not verified"
   },
   {
    "id": "v3_signable_v3_signature_only_u001c",
@@ -793,8 +1196,8 @@
    "base": "v3",
    "field": "witness_signature",
    "text": "\u001c",
-   "expected": "accept:v3",
-   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64: every present signature field must be canonical base64, also the one that is not verified"
   },
   {
    "id": "v3_signable_v3_signature_only_u001f",
@@ -809,8 +1212,8 @@
    "base": "v3",
    "field": "witness_signature",
    "text": "\u001f",
-   "expected": "accept:v3",
-   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64: every present signature field must be canonical base64, also the one that is not verified"
   },
   {
    "id": "v3_signable_v3_signature_only_spaces",
@@ -857,8 +1260,8 @@
    "base": "v3",
    "field": "witness_signature",
    "text": "\u200b",
-   "expected": "accept:v3",
-   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64: every present signature field must be canonical base64, also the one that is not verified"
   },
   {
    "id": "v3_signable_v3_signature_only_u180e",
@@ -873,8 +1276,8 @@
    "base": "v3",
    "field": "witness_signature",
    "text": "\u180e",
-   "expected": "accept:v3",
-   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64: every present signature field must be canonical base64, also the one that is not verified"
   },
   {
    "id": "v3_signable_v3_signature_only_tab_newline_u1680_u205f",
@@ -1043,6 +1446,956 @@
    "text": "OSw8t-SAofSdVCxExd87MkFCwOd2FnV_QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg",
    "expected": "refuse:invalid_signature",
    "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_witness_signature_unpadded",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_one_pad_char",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ=",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_three_pad_chars",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ===",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_nonzero_padding_bits",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DR==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_space",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb QM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_newline",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb\nQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_crlf",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb\r\nQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_tab",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb\tQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_leading_space",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": " 9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_trailing_space",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ== ",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_trailing_newline",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==\n",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_trailing_bang",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==!",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_bang",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb!QM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_trailing_extra_quantum",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==AAAA",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_trailing_nul",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==\u0000",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_nbsp",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb\u00a0QM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_embedded_zero_width_space",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj/mb\u200bQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_url_safe_alphabet",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj_mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_url_safe_alphabet_unpadded",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "9dJEUl7GmJPuywTey8Bhj5FzIiS9gdwiaj8uj_mbQM3y9rMmZi0EmfcgXedRUp2eQq5ZQcEtve3bM9iAuKX3DQ",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64 (field present but not the one verified)"
+  },
+  {
+   "id": "v3_witness_signature_bang",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "!",
+   "expected": "refuse:invalid_signature",
+   "note": "present, not base64 (field not the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_bang",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "!",
+   "expected": "refuse:invalid_signature",
+   "note": "present, not base64"
+  },
+  {
+   "id": "v2_witness_signature_bang",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "!",
+   "expected": "refuse:invalid_signature",
+   "note": "present, not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_bang",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "!",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present on a certificate without the v3 version field: downgrade is decided before any text check"
+  },
+  {
+   "id": "v2_signable_v3_signature_empty",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "",
+   "expected": "accept:v2",
+   "note": "empty: counts as absent"
+  }
+ ],
+ "version_field_vectors": [
+  {
+   "id": "v3_emitted_3_5",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "3.5",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_3_5",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "3.5",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_3_5",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "3.5",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_string_3",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "\"3\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_string_3",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "\"3\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_string_3",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "\"3\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_array_3",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "[3]",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_array_3",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "[3]",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_array_3",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "[3]",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_true",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "true",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_true",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "true",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_true",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "true",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_string_garbage",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "\"garbage\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_string_garbage",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "\"garbage\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_string_garbage",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "\"garbage\"",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_object",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "{}",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_object",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "{}",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_object",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "{}",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_minus_1",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "-1",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_minus_1",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "-1",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_minus_1",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "-1",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_minus_2",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "-2",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_minus_2",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "-2",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_minus_2",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "-2",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_two_pow_64",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "18446744073709551616",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_two_pow_64",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "18446744073709551616",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_two_pow_64",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "18446744073709551616",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_3_0_token",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "3.0",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "refuse:malformed",
+    "go_map": "accept:v3",
+    "go_raw": "refuse:malformed"
+   },
+   "note": "MARKED ROW: a number token with a fraction. Go raw bytes sees the token (malformed); Python receives a float (malformed); TypeScript and Go map receive the integer value and judge the value."
+  },
+  {
+   "id": "v3_protocol_version_2_0_token",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "2.0",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "refuse:malformed",
+    "go_map": "accept:v3",
+    "go_raw": "refuse:malformed"
+   },
+   "note": "MARKED ROW: a number token with a fraction. Go raw bytes sees the token (malformed); Python receives a float (malformed); TypeScript and Go map receive the integer value and judge the value."
+  },
+  {
+   "id": "v3_emitted_two_pow_64_minus_1",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "18446744073709551615",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "accept:v3",
+    "go_map": "refuse:malformed",
+    "go_raw": "accept:v3"
+   },
+   "note": "MARKED ROW: 2^64 - 1. Python (int) and Go raw bytes (token) see the exact value; TypeScript and Go map receive the double 2^64, which is out of range (malformed)."
+  },
+  {
+   "id": "v3_protocol_version_two_pow_64_minus_1",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "18446744073709551615",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:unsupported_protocol_version",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:unsupported_protocol_version"
+   },
+   "note": "MARKED ROW: 2^64 - 1. Python (int) and Go raw bytes (token) see the exact value; TypeScript and Go map receive the double 2^64, which is out of range (malformed)."
+  },
+  {
+   "id": "v2_emitted_two_pow_64_minus_1",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "18446744073709551615",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": "MARKED ROW: 2^64 - 1. Python (int) and Go raw bytes (token) see the exact value; TypeScript and Go map receive the double 2^64, which is out of range (malformed)."
+  },
+  {
+   "id": "v3_emitted_3",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "3",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "accept:v3",
+    "go_map": "accept:v3",
+    "go_raw": "accept:v3"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_3",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "3",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_4",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "4",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "accept:v3",
+    "go_map": "accept:v3",
+    "go_raw": "accept:v3"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_4",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "4",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_2",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "2",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_2",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "2",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v2",
+    "python": "accept:v2",
+    "go_map": "accept:v2",
+    "go_raw": "accept:v2"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_0",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "0",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_0",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "0",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v2",
+    "python": "accept:v2",
+    "go_map": "accept:v2",
+    "go_raw": "accept:v2"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_null",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "null",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_null",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": "null",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v2",
+    "python": "accept:v2",
+    "go_map": "accept:v2",
+    "go_raw": "accept:v2"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_absent",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": null,
+   "absent": true,
+   "expected": {
+    "ts": "refuse:version_downgrade_detected",
+    "python": "refuse:version_downgrade_detected",
+    "go_map": "refuse:version_downgrade_detected",
+    "go_raw": "refuse:version_downgrade_detected"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_emitted_absent",
+   "base": "v2",
+   "field": "signable_protocol_version_emitted",
+   "token": null,
+   "absent": true,
+   "expected": {
+    "ts": "accept:v2",
+    "python": "accept:v2",
+    "go_map": "accept:v2",
+    "go_raw": "accept:v2"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_emitted_2_pow_53",
+   "base": "v3",
+   "field": "signable_protocol_version_emitted",
+   "token": "9007199254740992",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "accept:v3",
+    "go_map": "accept:v3",
+    "go_raw": "accept:v3"
+   },
+   "note": "exactly representable as a double"
+  },
+  {
+   "id": "v3_protocol_version_2",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "2",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v3",
+    "python": "accept:v3",
+    "go_map": "accept:v3",
+    "go_raw": "accept:v3"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_3",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "3",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:unsupported_protocol_version",
+    "python": "refuse:unsupported_protocol_version",
+    "go_map": "refuse:unsupported_protocol_version",
+    "go_raw": "refuse:unsupported_protocol_version"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_0",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "0",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:unsupported_protocol_version",
+    "python": "refuse:unsupported_protocol_version",
+    "go_map": "refuse:unsupported_protocol_version",
+    "go_raw": "refuse:unsupported_protocol_version"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_null",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "null",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_2_pow_53",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": "9007199254740992",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:unsupported_protocol_version",
+    "python": "refuse:unsupported_protocol_version",
+    "go_map": "refuse:unsupported_protocol_version",
+    "go_raw": "refuse:unsupported_protocol_version"
+   },
+   "note": ""
+  },
+  {
+   "id": "v3_protocol_version_absent",
+   "base": "v3",
+   "field": "protocol_version",
+   "token": null,
+   "absent": true,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_protocol_version_2",
+   "base": "v2",
+   "field": "protocol_version",
+   "token": "2",
+   "absent": false,
+   "expected": {
+    "ts": "accept:v2",
+    "python": "accept:v2",
+    "go_map": "accept:v2",
+    "go_raw": "accept:v2"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_protocol_version_minus_2",
+   "base": "v2",
+   "field": "protocol_version",
+   "token": "-2",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:malformed",
+    "python": "refuse:malformed",
+    "go_map": "refuse:malformed",
+    "go_raw": "refuse:malformed"
+   },
+   "note": ""
+  },
+  {
+   "id": "v2_protocol_version_3",
+   "base": "v2",
+   "field": "protocol_version",
+   "token": "3",
+   "absent": false,
+   "expected": {
+    "ts": "refuse:unsupported_protocol_version",
+    "python": "refuse:unsupported_protocol_version",
+    "go_map": "refuse:unsupported_protocol_version",
+    "go_raw": "refuse:unsupported_protocol_version"
+   },
+   "note": ""
   }
  ]
 }

@@ -40,36 +40,66 @@ API (T-1322).
   the identity) was pinned by mistake, anyone could produce a signature the
   affected runtimes accepted for any certificate; the key check closes that.
   A malformed key (wrong length, bad base64) is reported as before.
-- **A signature field must be canonical standard padded base64** (alphabet
-  `A-Z a-z 0-9 + /`, `=` padding, nothing else: decode, re-encode, compare);
-  anything else is `invalid_signature`. Before, TypeScript accepted any text
+- **Signature text.** The check first decides, as before, whether each of
+  the two signature fields (`witness_signature`, `signable_v3_signature`) is
+  blank or present, and from that `witness_signature_missing` and
+  `version_downgrade_detected`. After that, every signature field that is
+  present must be canonical standard padded base64 (alphabet
+  `A-Z a-z 0-9 + /`, `=` padding, nothing else: decode, re-encode, compare),
+  otherwise the result is `invalid_signature`. This includes
+  `witness_signature` on a v3 certificate, where it is not the signature that
+  is verified. Before, TypeScript accepted any text
   `Buffer.from(text, 'base64')` decodes (unpadded, URL-safe, embedded white
   space, trailing characters such as `!`), so a certificate with such a
   signature text verified in TypeScript and was refused in Python and Go.
   Go skipped CR / LF inside the text, and Go and Python accepted non-zero
-  padding bits; both are refused now. The base64 form of the witness PUBLIC
-  KEY argument is not changed by this release.
+  padding bits; both are refused now.
 - **One white-space set for "is this signature field blank".** All three
   SDKs use the set of Go's `unicode.IsSpace` (U+0009–000D, U+0020, U+0085,
   U+00A0, U+1680, U+2000–200A, U+2028, U+2029, U+202F, U+205F, U+3000).
   TypeScript's `trim()` differed on two code points: a field holding only
   U+0085 is now blank (was: present) and a field holding only U+FEFF is now
-  present (was: blank).
+  present (was: blank). One input verifies now that was refused before, in
+  TypeScript only: a legacy v2 certificate whose `signable_v3_signature`
+  holds nothing but U+0085 is treated like one with an empty field, as Python
+  and Go already did.
 
 ### Changed
-- A `protocol_version` that is not an integer value (for example `2.5`, or a
-  number too large for a double) is now reported as `malformed` instead of
-  `unsupported_protocol_version`, as the Python and Go SDKs already did. A
-  `signable_protocol_version_emitted` that is not a finite number is
-  `malformed` as well.
+- One value rule for `protocol_version` and
+  `signable_protocol_version_emitted`, in all three SDKs: the value must be a
+  JSON number that is an integer from 0 to 2^64 − 1; anything else — a
+  fraction, a negative, a string, a boolean, an array, a number too large —
+  is `malformed`. An absent or `null` `signable_protocol_version_emitted`
+  still means 0. In TypeScript this changes which existing reason some
+  garbage input gets: a `protocol_version` of `2.5`, `-2` or a number too
+  large for a double was `unsupported_protocol_version` and is `malformed`
+  now; a `signable_protocol_version_emitted` given as `"3"`, `[3]` or `3.5`
+  was used as if it were 3 and is `malformed` now.
 
 ### Unchanged
-- Given an already parsed object, the simple check judges values;
-  number-token rules apply only where an SDK reads the raw text (Go with raw
-  bytes). `JSON.parse` turns the token `2.0` into the number 2, the same
-  value a genuine certificate has, and the signed bytes are rebuilt from the
-  value — so such a certificate still verifies in TypeScript.
 - v2 / v3 signable reconstruction, verdict names, reason codes, exports.
+
+### Known limits (unchanged by this release)
+These apply to the simple check in all three packages of this release.
+1. Given an already parsed object, the simple check judges values;
+   number-token rules apply only where an SDK reads the raw text (Go with raw
+   bytes). A number written `2.0000000000000001` in the JSON text is the
+   value 2 once parsed, so TypeScript and Go with map input accept it; the
+   signed bytes are rebuilt from the value.
+2. The base64 form of the PUBLIC KEY argument is not normalised the same way
+   in the three SDKs: TypeScript accepts unpadded text and trailing
+   characters that Python and Go refuse.
+3. The simple check does not validate every claim field the same way in the
+   three SDKs. Examples: a claim without `request_id` or `service_id`, a
+   `signable_v3_signature` that is not a string, a sanitizer
+   `canonical_payload` with trailing characters.
+4. The refusal REASON for an out-of-range integer can differ: a double cannot
+   hold every integer between 2^53 and 2^64, so TypeScript and Go with map
+   input may report `malformed` where Python and Go with raw bytes report
+   `unsupported_protocol_version`.
+5. Per-call cost: the key check adds two modular exponentiations to every
+   verification (measured about 45 → 219 µs on Node 22 and 35 → 189 µs on
+   Python 3.12).
 
 ## [Python 1.4.2] — 2026-10-11
 
@@ -85,15 +115,25 @@ measurements and the base64 rule (T-1322).
   does not contain them). Before, a certificate without the v3 version field
   whose `signable_v3_signature` was just U+001C verified as v2; it is now
   refused as `version_downgrade_detected`, as in TypeScript and Go.
-- A signature text with non-zero base64 padding bits is `invalid_signature`.
-- `verify_ed25519` accepts `bytes`, `bytearray` and `memoryview` for the
-  signature and the message on every supported `cryptography` version.
+- A signature field that is present must be canonical standard padded
+  base64 — also `witness_signature` on a v3 certificate — otherwise
+  `invalid_signature`; non-zero base64 padding bits are refused.
+- `verify_ed25519` takes the signature and the message through the buffer
+  protocol (`bytes`, `bytearray`, `memoryview`, `array.array`, ...) on every
+  supported `cryptography` version; anything else raises `TypeError`.
 
 ### Changed
-- A `protocol_version` outside 0..2^64−1 is `malformed` (was
-  `unsupported_protocol_version`). With default interpreter settings
-  `json.loads` itself refuses an integer of more than 4,300 digits before
-  the SDK is called.
+- The value rule of `sdk 1.4.1` for `protocol_version` and
+  `signable_protocol_version_emitted`: an `int` (not `bool`) from 0 to
+  2^64 − 1, otherwise `malformed`. This changes which existing reason some
+  garbage input gets: a negative or too large `protocol_version` was
+  `unsupported_protocol_version`; a `signable_protocol_version_emitted` given
+  as the string `"3"` was used as 3. The same range is applied to a
+  `VeilCertificate` instance passed in directly. With default interpreter
+  settings `json.loads` itself refuses an integer of more than 4,300 digits
+  before the SDK is called.
+
+See "Known limits" under `sdk 1.4.1`.
 
 ## [Go v1.3.2] — 2026-10-11
 
@@ -104,19 +144,32 @@ measurements and the base64 rule (T-1322).
 - `VerifyCertificate` applies the same Ed25519 rule before `crypto/ed25519`
   is called (small-order or non-canonical `R`, `S >= L`, small-order or
   invalid public key → `ReasonInvalidSignature`).
-- A signature text that is not canonical standard padded base64 is
-  `ReasonInvalidSignature`: `base64.StdEncoding` skipped CR / LF and accepted
+- A signature field that is present must be canonical standard padded
+  base64 — also `witness_signature` on a v3 certificate — otherwise
+  `ReasonInvalidSignature`. `base64.StdEncoding` skipped CR / LF and accepted
   non-zero padding bits.
+- The two version fields are no longer converted from `float64` to `int`
+  when out of range. That conversion gives different results on arm64 and
+  amd64, so a value of 2^63 or more could lead to a different verdict per
+  CPU architecture.
 
 ### Changed
 - With `[]byte` / `json.RawMessage` input, `protocol_version` and
   `signable_protocol_version_emitted` must be written as plain integers
-  (digits only — no sign, fraction or exponent — and at most 20 digits),
-  otherwise the result is `ReasonMalformed`. Before, the token `2.0` or
-  `2.0000000000000001` was read as 2 and the certificate verified. Input
-  given as `map[string]any` or `*VeilCertificate` is judged by value, as
-  before: the caller's own decoder has already turned the token into a
+  (digits only — no sign, fraction or exponent — at most 20 digits and at
+  most 2^64 − 1), otherwise the result is `ReasonMalformed`. Before, the
+  token `2.0` or `2.0000000000000001` was read as 2 and the certificate
+  verified. Input given as `map[string]any` or `*VeilCertificate` is judged
+  by value: the caller's own decoder has already turned the token into a
   number.
+- The value rule of `sdk 1.4.1` for both fields, with raw bytes, map and struct input alike: an
+  integer from 0 to 2^64 − 1, otherwise `ReasonMalformed`. This changes
+  which existing reason some garbage input gets: a negative
+  `protocol_version` was `ReasonUnsupportedProtocolVersion`; a
+  `signable_protocol_version_emitted` that was a string, a boolean or an
+  array was ignored (treated as 0), and a fraction was truncated.
+
+See "Known limits" under `sdk 1.4.1`.
 
 ## [Python 1.4.1] — 2026-08-22
 

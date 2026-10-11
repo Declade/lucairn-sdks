@@ -9,6 +9,17 @@ from lucairn.types import VeilCertificate
 
 __all__ = ["parse_certificate"]
 
+_VERSION_MAX = 2**64 - 1
+
+
+def version_value_ok(value: Any) -> bool:
+    """The value rule of the two version fields (``protocol_version``,
+    ``signable_protocol_version_emitted``), the same in the TypeScript, Python
+    and Go SDKs and applied before any coercion: an ``int`` (not ``bool``)
+    from 0 to 2**64 - 1. A ``float`` is refused even when integral; strings,
+    lists, dicts and negatives are refused."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= _VERSION_MAX
+
 
 def parse_certificate(raw: Any) -> VeilCertificate:
     """Structurally validate ``raw`` and return a :class:`VeilCertificate`.
@@ -56,11 +67,19 @@ def parse_certificate(raw: Any) -> VeilCertificate:
             reason="malformed",
             certificate_id=cert_id,
         )
-    if not 0 <= raw["protocol_version"] <= 2**64 - 1:
-        # Outside the unsigned 64-bit range (reachable when the caller's JSON
-        # parser admits very long integers): malformed, as in the Go SDK.
+    if not version_value_ok(raw["protocol_version"]):
         raise LucairnCertificateError(
             "Certificate missing required fields",
+            reason="malformed",
+            certificate_id=cert_id,
+        )
+    emitted = raw.get("signable_protocol_version_emitted")
+    if emitted is not None and not version_value_ok(emitted):
+        # Absent or null means 0 (unchanged). Anything else must satisfy the
+        # value rule BEFORE the model coerces it (the model would turn "3"
+        # into 3).
+        raise LucairnCertificateError(
+            "signable_protocol_version_emitted must be a non-negative integer",
             reason="malformed",
             certificate_id=cert_id,
         )

@@ -269,6 +269,12 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 	}
 
 	signatureBytes, err := decodeSignatureText(signatureToVerify)
+	if err == nil && useV3 {
+		// On the v3 path witness_signature is not the signature that is
+		// verified, but it is present, and every signature field that is
+		// present must be canonical standard padded base64.
+		_, err = decodeSignatureText(parsed.WitnessSignature)
+	}
 	if err != nil {
 		return nil, &PipelineError{
 			Reason:        ReasonInvalidSignature,

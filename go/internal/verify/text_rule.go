@@ -39,36 +39,42 @@ func decodeSignatureText(text string) ([]byte, error) {
 // top level of a certificate.
 var integerTokenFields = []string{"protocol_version", "signable_protocol_version_emitted"}
 
-// IntegerTokenProblem inspects the RAW JSON text of a certificate and returns
-// a non-empty reason when one of the integers the witness-only check reads is
-// a number token that is not a plain integer: digits only (no sign, fraction
-// or exponent) and at most 20 digits. A caller that hands the SDK an already
-// decoded map has lost the token, so this rule applies to raw-bytes input
-// only. A field that is absent, or whose value is not a number (null, a
-// string, ...), is left to the existing structural checks. Text that is not
-// a JSON object returns "" as well: the existing decode reports it.
+// IntegerTokens inspects the RAW JSON text of a certificate. For each of the
+// integers the witness-only check reads from the top level it looks at the
+// number TOKEN:
 //
-// The decoded values the pipeline works on are NOT produced here — the caller
-// keeps its own json.Unmarshal — so this check cannot change what feeds the
-// signable reconstruction.
-func IntegerTokenProblem(raw []byte) string {
+//   - problem is non-empty when a token is a number that is not a plain
+//     integer: digits only (no sign, fraction or exponent), at most 20 digits
+//     and a value of at most 2^64 − 1;
+//   - tokens holds the exact digits of each field that IS a plain integer
+//     token, so the caller can hand the exact value on instead of the float64
+//     encoding/json produced from it (a float64 cannot hold every integer
+//     above 2^53).
+//
+// A caller that hands the SDK an already decoded map has lost the token, so
+// this applies to raw-bytes input only. A field that is absent, or whose
+// value is not a number (null, a string, ...), is left to the structural
+// checks of Parse. Text that is not a JSON object returns ("", nil): the
+// existing decode reports it.
+//
+// Only these two top-level fields are looked at. Neither is part of the
+// signable reconstruction, which keeps working on the values the caller's
+// own json.Unmarshal produced.
+func IntegerTokens(raw []byte) (problem string, tokens map[string]json.Number) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {
-		return ""
+		return "", nil
 	}
+	tokens = map[string]json.Number{}
 	for _, field := range integerTokenFields {
 		tok := bytes.TrimSpace(top[field])
 		if len(tok) == 0 || (tok[0] != '-' && (tok[0] < '0' || tok[0] > '9')) {
 			continue
 		}
-		if len(tok) > 20 {
-			return field + " must be an integer of at most 20 digits"
+		if _, ok := versionValue(json.Number(tok)); !ok {
+			return field + " must be an integer token: digits only (no sign, fraction or exponent), at most 20 digits, at most 2^64 - 1", nil
 		}
-		for _, c := range tok {
-			if c < '0' || c > '9' {
-				return field + " must be an integer (digits only: no sign, fraction or exponent)"
-			}
-		}
+		tokens[field] = json.Number(tok)
 	}
-	return ""
+	return "", tokens
 }

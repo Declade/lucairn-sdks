@@ -41,8 +41,10 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  * rules apply only where an SDK reads the raw text (Go with raw bytes). A
  * `protocol_version` written `2.0` in the JSON text reaches this function as
  * the number 2, identical to a genuine certificate, and the signed bytes are
- * rebuilt from the value. A `protocol_version` that is not an integer value
- * (2.5, or a number too large for a double) is `malformed`.
+ * rebuilt from the value. `protocol_version` and, when present and not null,
+ * `signable_protocol_version_emitted` must each be a number whose value is an
+ * integer from 0 to below 2^64; anything else (a string, an array, a boolean,
+ * a fraction, a negative, a number too large for a double) is `malformed`.
  *
  * @param rawCert - protojson-shaped `VeilCertificate` as served by the
  *   gateway at GET /api/v1/veil/certificate/{request_id}. This arc does
@@ -80,8 +82,9 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *   - `witness_mismatch` — keys.witnessKeyId !== cert.witness_key_id
  *   - `witness_signature_missing` — cert.witness_signature is empty or
  *     whitespace-only
- *   - `invalid_signature` — Ed25519 verification failed, the signature
- *     text is not canonical standard padded base64, or the provided
+ *   - `invalid_signature` — Ed25519 verification failed, a signature
+ *     field that is present (`witness_signature`, `signable_v3_signature`)
+ *     is not canonical standard padded base64, or the provided
  *     witnessPublicKey is malformed
  *   - `version_downgrade_detected` — `signable_v3_signature` is present but
  *     `signable_protocol_version_emitted` is absent or < 3; this is a
@@ -270,6 +273,15 @@ async function verifyV3(
   const signatureBytes = decodeSignatureText(v3SigRaw);
   if (signatureBytes === null) {
     throw new LucairnCertificateError('signable_v3_signature is not canonical standard padded base64', {
+      reason: 'invalid_signature',
+      certificateId: cert.certificate_id,
+    });
+  }
+  // On the v3 path witness_signature is not the signature that is verified,
+  // but it is present (step 4), and every signature field that is present
+  // must be canonical standard padded base64.
+  if (decodeSignatureText(cert.witness_signature) === null) {
+    throw new LucairnCertificateError('Witness signature is not canonical standard padded base64', {
       reason: 'invalid_signature',
       certificateId: cert.certificate_id,
     });

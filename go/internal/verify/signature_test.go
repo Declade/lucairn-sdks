@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"math/big"
 	"testing"
 )
@@ -25,7 +26,7 @@ import (
 //
 // and each SDK's test pins this sha256, so the three copies of the rule are
 // held to one set of inputs and expected results.
-const sigRuleVectorsSHA256 = "26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20"
+const sigRuleVectorsSHA256 = "f72b5055fc223c2c063194b3cf963dbbc639c2330a29b34f8a24ef4d8590ad8b"
 
 type sigRuleVector struct {
 	ID        string `json:"id"`
@@ -326,32 +327,143 @@ func TestTextRule_CanonicalBase64(t *testing.T) {
 	}
 }
 
-func TestIntegerTokenProblem(t *testing.T) {
+func TestIntegerTokens(t *testing.T) {
 	ok := []string{
 		`{"protocol_version":2}`, `{"protocol_version": 2 ,"signable_protocol_version_emitted":3}`,
-		`{"protocol_version":0}`, `{"protocol_version":18446744073709551615}`, `{"protocol_version":99999999999999999999}`,
+		`{"protocol_version":0}`, `{"protocol_version":18446744073709551615}`,
 		`{}`, `{"protocol_version":null}`, `{"protocol_version":"2"}`, `{"protocol_version":true}`, `{"protocol_version":[2.5]}`,
 		`{"signable_protocol_version_emitted":null}`, `{"other":2.5,"claims":[{"protocol_version":2.5}]}`,
 		`[1.5]`, `not json`, ``,
 	}
 	for _, s := range ok {
-		if p := IntegerTokenProblem([]byte(s)); p != "" {
+		if p, _ := IntegerTokens([]byte(s)); p != "" {
 			t.Errorf("%s: %s", s, p)
 		}
 	}
 	bad := []string{
 		`{"protocol_version":2.0}`, `{"protocol_version":2.0000000000000001}`, `{"protocol_version":2e0}`, `{"protocol_version":2E0}`,
 		`{"protocol_version":-2}`, `{"protocol_version":-0}`, `{"protocol_version":2.5}`, `{"protocol_version":100000000000000000000}`,
+		`{"protocol_version":18446744073709551616}`, `{"protocol_version":99999999999999999999}`,
 		`{"protocol_version":2,"signable_protocol_version_emitted":3.0}`, `{"signable_protocol_version_emitted":3e0}`,
 		`{"signable_protocol_version_emitted":-3}`, `{"protocol_version":2,"protocol_version":2.0}`,
 	}
 	for _, s := range bad {
-		if p := IntegerTokenProblem([]byte(s)); p == "" {
+		if p, toks := IntegerTokens([]byte(s)); p == "" || toks != nil {
 			t.Errorf("%s: no problem reported", s)
 		}
 	}
 	// last duplicate wins, as in encoding/json
-	if p := IntegerTokenProblem([]byte(`{"protocol_version":2.0,"protocol_version":2}`)); p != "" {
+	if p, _ := IntegerTokens([]byte(`{"protocol_version":2.0,"protocol_version":2}`)); p != "" {
 		t.Errorf("last duplicate is an integer token: %s", p)
+	}
+	// the exact digits are handed back for plain integer tokens only
+	_, toks := IntegerTokens([]byte(`{"protocol_version":2,"signable_protocol_version_emitted":18446744073709551615,"x":1}`))
+	if len(toks) != 2 || toks["protocol_version"] != "2" || toks["signable_protocol_version_emitted"] != "18446744073709551615" {
+		t.Errorf("tokens = %v", toks)
+	}
+	if _, toks := IntegerTokens([]byte(`{"protocol_version":"2","signable_protocol_version_emitted":null}`)); len(toks) != 0 {
+		t.Errorf("non-number values must not be handed back: %v", toks)
+	}
+}
+
+// versionValue never converts an out-of-range float64 to int (that
+// conversion differs between arm64 and amd64), so these results are the same
+// on every architecture.
+func TestVersionValue(t *testing.T) {
+	type want struct {
+		n  int
+		ok bool
+	}
+	cases := []struct {
+		in   any
+		want want
+	}{
+		{float64(2), want{2, true}}, {float64(3), want{3, true}}, {float64(0), want{0, true}},
+		{math.Copysign(0, -1), want{0, true}},
+		{float64(2147483647), want{math.MaxInt32, true}}, {float64(2147483648), want{math.MaxInt32, true}},
+		{float64(1 << 53), want{math.MaxInt32, true}},
+		{9223372036854775808.0, want{math.MaxInt32, true}},  // 2^63
+		{18446744073709549568.0, want{math.MaxInt32, true}}, // the largest float64 below 2^64
+		{18446744073709551616.0, want{0, false}},            // 2^64
+		{1e300, want{0, false}}, {math.Inf(1), want{0, false}}, {math.Inf(-1), want{0, false}}, {math.NaN(), want{0, false}},
+		{-1.0, want{0, false}}, {-9.3e18, want{0, false}}, {2.5, want{0, false}}, {3.0000000000000004, want{0, false}},
+		{2, want{2, true}}, {-2, want{0, false}}, {math.MaxInt, want{math.MaxInt32, true}},
+		{json.Number("2"), want{2, true}}, {json.Number("18446744073709551615"), want{math.MaxInt32, true}},
+		{json.Number("18446744073709551616"), want{0, false}}, {json.Number("2.0"), want{0, false}},
+		{json.Number("-2"), want{0, false}}, {json.Number("2e0"), want{0, false}}, {json.Number(""), want{0, false}},
+		{"3", want{0, false}}, {true, want{0, false}}, {[]any{3.0}, want{0, false}}, {map[string]any{}, want{0, false}}, {nil, want{0, false}},
+		{int64(2), want{0, false}},
+	}
+	for _, c := range cases {
+		n, ok := versionValue(c.in)
+		if n != c.want.n || ok != c.want.ok {
+			t.Errorf("versionValue(%#v) = (%d, %v), want (%d, %v)", c.in, n, ok, c.want.n, c.want.ok)
+		}
+	}
+}
+
+// --- prechecks, independent of crypto/ed25519 (shared precheck vectors) ---
+
+func TestEd25519Rule_SmallOrderListIsExactlyTheSharedSeven(t *testing.T) {
+	var doc struct {
+		SmallOrderY []string `json:"small_order_y"`
+	}
+	if err := json.Unmarshal(loadV3Fixture(t, "ed25519-rule-vectors.json"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(ed25519SmallOrderY) != 7 || len(doc.SmallOrderY) != 7 {
+		t.Fatalf("list has %d entries, shared file %d, want 7", len(ed25519SmallOrderY), len(doc.SmallOrderY))
+	}
+	have := map[string]bool{}
+	for _, h := range ed25519SmallOrderY {
+		have[h] = true
+	}
+	for _, h := range doc.SmallOrderY {
+		if !have[h] {
+			t.Errorf("%s missing from the list", h)
+		}
+	}
+	if len(have) != 7 {
+		t.Fatalf("list has duplicates")
+	}
+}
+
+func TestEd25519Rule_SharedPrecheckVectors(t *testing.T) {
+	var doc struct {
+		Pre []struct {
+			ID         string `json:"id"`
+			Kind       string `json:"kind"`
+			Hex        string `json:"hex"`
+			Acceptable bool   `json:"acceptable"`
+		} `json:"precheck_vectors"`
+	}
+	if err := json.Unmarshal(loadV3Fixture(t, "ed25519-rule-vectors.json"), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Pre) != 56 {
+		t.Fatalf("%d precheck vectors, want 56", len(doc.Pre))
+	}
+	seen := map[string]bool{}
+	for _, v := range doc.Pre {
+		v := v
+		seen[v.ID] = v.Acceptable
+		t.Run(v.ID, func(t *testing.T) {
+			b := sigRuleHex(t, v.Hex)
+			var got bool
+			switch v.Kind {
+			case "key":
+				got = ed25519KeyAcceptable(b)
+			case "signature":
+				got = ed25519SignatureEncodingAcceptable(b)
+			default:
+				t.Fatalf("kind %q", v.Kind)
+			}
+			if got != v.Acceptable {
+				t.Errorf("precheck = %v, want %v", got, v.Acceptable)
+			}
+		})
+	}
+	if !seen["sig_ordinary_r_s_l_minus_1"] || seen["sig_ordinary_r_s_l"] || seen["key_invalid_point_off_curve"] || seen["key_y_p_minus_1_sign_0"] {
+		t.Fatal("boundary vectors missing or changed")
 	}
 }
