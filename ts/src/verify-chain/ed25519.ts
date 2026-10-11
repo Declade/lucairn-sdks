@@ -78,13 +78,20 @@ const SMALL_ORDER_Y = new Set([
   'eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
 ]);
 
-const isSmallOrder = (enc: Uint8Array): boolean => SMALL_ORDER_Y.has(hex(masked(enc)));
+/**
+ * True for the 14 small-order encodings. Module-internal (not re-exported from
+ * the package index): shared with the witness-only verifier
+ * (`verify-certificate/signature.ts`) so there is ONE list.
+ */
+export const isSmallOrder = (enc: Uint8Array): boolean => SMALL_ORDER_Y.has(hex(masked(enc)));
 
 /**
  * The canonical encoding of a curve point: y (the low 255 bits) < p, some x
  * satisfies −x² + y² = 1 + d·x²·y², and the sign bit is clear when x is 0.
+ * Module-internal, shared with the witness-only verifier like
+ * {@link isSmallOrder}.
  */
-function canonicalCurvePoint(enc: Uint8Array): boolean {
+export function canonicalCurvePoint(enc: Uint8Array): boolean {
   const y = littleEndian(masked(enc));
   if (y >= P) return false;
   const y2 = (y * y) % P;

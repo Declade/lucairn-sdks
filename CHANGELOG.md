@@ -120,6 +120,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same reason. `--json` is unchanged.
 
 ### Fixed
+- **The witness-only check refuses a small-order `R`, a small-order or
+  non-canonical public key and `S >= L` by its own code (T-1322).**
+  `verifyCertificate` (TS), `verify_certificate` (Python) and
+  `VerifyCertificate` (Go) check the witness signature only. Until now they
+  handed the key and signature straight to the platform crypto library, so
+  the result for a signature whose `R` is a small-order point (for example
+  the identity, made with nonce 0) depended on the library version: measured
+  on the parity-corpus case `tamper_witness_signature_small_order_r`, Node 22
+  and Node 25 (OpenSSL 3.x), Python `cryptography` 46.0.5 and 50.0.2, and Go
+  1.26 `crypto/ed25519` accepted it; Node 26 (OpenSSL 4.0.3) refused it. The
+  three functions now call the same Ed25519 acceptance rule as the chain
+  verifier of the same SDK (one list of the seven small-order values per
+  language, no copy): the signature must be 64 bytes with `S < L` and `R` the
+  canonical encoding of a point that is not of small order, and the public
+  key (after the existing normalisation, on its 32 raw bytes) must be the
+  canonical encoding of a curve point that is not of small order. Each
+  refusal is reported as the existing invalid-signature result
+  (`invalid_signature`); there is no new reason code, error type or export,
+  and a malformed key (wrong length, bad base64) is reported as before. The
+  chain verifier's refusal of the published parity-corpus test keys is not
+  applied to the witness-only functions. Producing a signature with a
+  small-order `R` that satisfies the equation needs the witness signing key,
+  so this is not a forgery by an outsider: it removes a result that differed
+  by runtime. The Go `lucairn-bundle-verify` signature step calls
+  `VerifyCertificate` and therefore applies the same rule. No change to the
+  v2 / v3 signable bytes.
 - Python chain verifier: every walk over a signed document (canonical form,
   case-variant keys, surrogate scan, value pointers) is iterative, so a
   legal depth-256 document verifies the same at any caller stack depth (it
@@ -127,9 +153,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports the step-8d cap flag, matching TS and Go (no result changes).
 
 ### Unchanged
-- `verifyCertificate` / `verify_certificate` / `VerifyCertificate` and the
-  v2 / v3 witness signable reconstructions are byte-for-byte unchanged. The
-  new layer is additive.
+- The v2 / v3 witness signable reconstructions are byte-for-byte unchanged,
+  and the chain verifier is an additive layer. `verifyCertificate` /
+  `verify_certificate` / `VerifyCertificate` keep their signature, result and
+  reason codes; their one behaviour change is the Ed25519 rule under Fixed
+  above.
 
 ## [Python 1.4.1] — 2026-08-22
 
