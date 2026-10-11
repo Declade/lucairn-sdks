@@ -40,6 +40,8 @@ def verify_ed25519(
     """
 
     raw = normalize_ed25519_public_key(public_key)
+    # bytes, bytearray and memoryview signatures are all accepted, as before.
+    signature = bytes(signature)
     if not key_acceptable(raw) or not signature_encoding_acceptable(signature):
         return False
     try:

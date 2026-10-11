@@ -1,10 +1,8 @@
 package verify
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // SupportedProtocolVersion is the only protocol version v1 of the SDK
@@ -110,7 +108,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		}
 	}
 
-	if strings.TrimSpace(parsed.WitnessSignature) == "" {
+	if isBlankSignatureText(parsed.WitnessSignature) {
 		return nil, &PipelineError{
 			Reason:        ReasonWitnessSignatureMissing,
 			CertificateID: parsed.CertificateID,
@@ -150,7 +148,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 	//
 	// The combination "v3 sig present + version absent/low" is not a valid cert
 	// shape; reject it unconditionally.
-	v3SigPresent := strings.TrimSpace(parsed.SignableV3Signature) != ""
+	v3SigPresent := !isBlankSignatureText(parsed.SignableV3Signature)
 	if v3SigPresent && !useV3 {
 		return nil, &PipelineError{
 			Reason:        ReasonVersionDowngradeDetected,
@@ -188,7 +186,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		// verification of the six v3-only fields. Reject as downgrade tampering
 		// rather than witness_signature_missing (which implies a structural
 		// malformation on an otherwise-genuine v2 cert).
-		if strings.TrimSpace(parsed.SignableV3Signature) == "" {
+		if isBlankSignatureText(parsed.SignableV3Signature) {
 			return nil, &PipelineError{
 				Reason:        ReasonVersionDowngradeDetected,
 				CertificateID: parsed.CertificateID,
@@ -270,7 +268,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		signableVersion = "v2"
 	}
 
-	signatureBytes, err := base64.StdEncoding.DecodeString(signatureToVerify)
+	signatureBytes, err := decodeSignatureText(signatureToVerify)
 	if err != nil {
 		return nil, &PipelineError{
 			Reason:        ReasonInvalidSignature,

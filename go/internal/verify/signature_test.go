@@ -25,7 +25,7 @@ import (
 //
 // and each SDK's test pins this sha256, so the three copies of the rule are
 // held to one set of inputs and expected results.
-const sigRuleVectorsSHA256 = "f7bd4f8122c91078a705a480a929b8e832d8f205cf52525d35438d50f53a5818"
+const sigRuleVectorsSHA256 = "26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20"
 
 type sigRuleVector struct {
 	ID        string `json:"id"`
@@ -217,5 +217,141 @@ func TestVerifyEd25519_MalformedKeyStillAnError(t *testing.T) {
 		if ok, err := VerifyEd25519([]byte("m"), make([]byte, 64), bad); err == nil || ok {
 			t.Errorf("%v: ok=%v err=%v, want a normalization error", bad, ok, err)
 		}
+	}
+}
+
+// Every small-order encoding, one by one, at helper level: on the list,
+// refused as key, refused as R (S = 1 is below L, so only R decides).
+func TestEd25519Rule_EverySmallOrderEncoding(t *testing.T) {
+	sOne := sigRuleLE32(big.NewInt(1))
+	masked := map[string]bool{}
+	for _, e := range sigRuleSmallOrder(t) {
+		before := append([]byte{}, e...)
+		if !smallOrderEncoding(e) {
+			t.Errorf("%x: not on the small-order list", e)
+		}
+		if ed25519KeyAcceptable(e) {
+			t.Errorf("%x: accepted as key", e)
+		}
+		if ed25519SignatureEncodingAcceptable(append(append([]byte{}, e...), sOne...)) {
+			t.Errorf("%x: accepted as R", e)
+		}
+		if string(before) != string(e) {
+			t.Errorf("%x: the helper wrote to the caller's slice", before)
+		}
+		m := append([]byte{}, e...)
+		m[31] &= 0x7f
+		masked[string(m)] = true
+	}
+	if len(masked) != 7 {
+		t.Fatalf("%d distinct values with the sign bit cleared, want 7", len(masked))
+	}
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if smallOrderEncoding(pub) || !ed25519KeyAcceptable(pub) || !ed25519SignatureEncodingAcceptable(append(append([]byte{}, pub...), sOne...)) {
+		t.Fatalf("an ordinary point %x is refused", pub)
+	}
+}
+
+// Slices that are views into a larger array verify like fresh slices, and
+// the caller's bytes are never written to.
+func TestVerifyEd25519_SliceViewsAndNoMutation(t *testing.T) {
+	msg := []byte("witness-only signature rule")
+	var pub ed25519.PublicKey
+	var priv ed25519.PrivateKey
+	for pub == nil || pub[31]&0x80 == 0 { // a key whose sign bit is set
+		var err error
+		if pub, priv, err = ed25519.GenerateKey(rand.Reader); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sig := ed25519.Sign(priv, msg)
+	backing := make([]byte, 200)
+	for i := range backing {
+		backing[i] = 0xff
+	}
+	copy(backing[17:], sig)
+	copy(backing[100:], pub)
+	copy(backing[140:], msg)
+	before := append([]byte{}, backing...)
+	if !mustVerify(t, backing[140:140+len(msg)], backing[17:81], backing[100:132]) {
+		t.Fatal("genuine signature refused on slice views")
+	}
+	if !mustVerify(t, msg, sig, []byte(pub)) {
+		t.Fatal("genuine signature refused")
+	}
+	if string(before) != string(backing) {
+		t.Fatal("VerifyEd25519 wrote to the caller's bytes")
+	}
+}
+
+// --- signature text rules (shared with the TypeScript and Python SDKs) ---
+
+func TestTextRule_WhiteSpaceSet(t *testing.T) {
+	blank := []rune{0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000}
+	if !isBlankSignatureText("") || !isBlankSignatureText(string(blank)) {
+		t.Fatal("white space not blank")
+	}
+	for _, r := range blank {
+		if !isBlankSignatureText(string(r)) {
+			t.Errorf("U+%04X is not blank", r)
+		}
+	}
+	for _, r := range []rune{0x1c, 0x1d, 0x1e, 0x1f, 0xfeff, 0x200b, 0x180e, 0x00, 0x41} {
+		if isBlankSignatureText(string(r)) || isBlankSignatureText(" "+string(r)+" ") {
+			t.Errorf("U+%04X counts as blank", r)
+		}
+	}
+}
+
+func TestTextRule_CanonicalBase64(t *testing.T) {
+	raw := make([]byte, 64)
+	for i := range raw {
+		raw[i] = 7
+	}
+	text := base64.StdEncoding.EncodeToString(raw)
+	if got, err := decodeSignatureText(text); err != nil || string(got) != string(raw) {
+		t.Fatalf("canonical text refused: %v", err)
+	}
+	nonzero := text[:len(text)-3] + "x==" // "Bw==" with non-zero padding bits
+	if got, err := base64.StdEncoding.DecodeString(nonzero); err != nil || string(got) != string(raw) {
+		t.Fatalf("test vector: %v", err)
+	}
+	for _, bad := range []string{text[:len(text)-2], text + "!", " " + text, text + "\n", text[:40] + "\r\n" + text[40:], nonzero} {
+		if _, err := decodeSignatureText(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
+func TestIntegerTokenProblem(t *testing.T) {
+	ok := []string{
+		`{"protocol_version":2}`, `{"protocol_version": 2 ,"signable_protocol_version_emitted":3}`,
+		`{"protocol_version":0}`, `{"protocol_version":18446744073709551615}`, `{"protocol_version":99999999999999999999}`,
+		`{}`, `{"protocol_version":null}`, `{"protocol_version":"2"}`, `{"protocol_version":true}`, `{"protocol_version":[2.5]}`,
+		`{"signable_protocol_version_emitted":null}`, `{"other":2.5,"claims":[{"protocol_version":2.5}]}`,
+		`[1.5]`, `not json`, ``,
+	}
+	for _, s := range ok {
+		if p := IntegerTokenProblem([]byte(s)); p != "" {
+			t.Errorf("%s: %s", s, p)
+		}
+	}
+	bad := []string{
+		`{"protocol_version":2.0}`, `{"protocol_version":2.0000000000000001}`, `{"protocol_version":2e0}`, `{"protocol_version":2E0}`,
+		`{"protocol_version":-2}`, `{"protocol_version":-0}`, `{"protocol_version":2.5}`, `{"protocol_version":100000000000000000000}`,
+		`{"protocol_version":2,"signable_protocol_version_emitted":3.0}`, `{"signable_protocol_version_emitted":3e0}`,
+		`{"signable_protocol_version_emitted":-3}`, `{"protocol_version":2,"protocol_version":2.0}`,
+	}
+	for _, s := range bad {
+		if p := IntegerTokenProblem([]byte(s)); p == "" {
+			t.Errorf("%s: no problem reported", s)
+		}
+	}
+	// last duplicate wins, as in encoding/json
+	if p := IntegerTokenProblem([]byte(`{"protocol_version":2.0,"protocol_version":2}`)); p != "" {
+		t.Errorf("last duplicate is an integer token: %s", p)
 	}
 }

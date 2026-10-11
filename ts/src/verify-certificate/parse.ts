@@ -22,6 +22,13 @@ export function parseCertificate(raw: unknown): VeilCertificate {
     typeof cert.witness_signature !== 'string' ||
     typeof cert.issued_at !== 'string' ||
     typeof cert.protocol_version !== 'number' ||
+    // An integer VALUE is required: 2.5, or a number too large for a double
+    // (JSON.parse yields Infinity), is malformed — as in the Python and Go SDKs.
+    !Number.isInteger(cert.protocol_version) ||
+    // Optional field; a number that is not finite (an overflowing token) is
+    // malformed, as in the Python and Go SDKs.
+    (typeof cert.signable_protocol_version_emitted === 'number' &&
+      !Number.isFinite(cert.signable_protocol_version_emitted)) ||
     !Array.isArray(cert.claims) ||
     typeof cert.verification !== 'object' ||
     cert.verification === null

@@ -1,6 +1,6 @@
 {
  "format": "lucairn-ed25519-rule-vectors/v1",
- "note": "Synthetic TEST vectors for the witness-only Ed25519 acceptance rule (T-1322). The keys are derived from a public label, so they are test keys. The same file, byte for byte, sits in the TypeScript, Python and Go test folders; each SDK's test runs every vector through its verifyEd25519 primitive and pins the file's sha256.",
+ "note": "Synthetic TEST vectors for the witness-only certificate check (T-1322). The same file, byte for byte, sits in the TypeScript, Python and Go test folders; each SDK's test pins the file's sha256. `vectors`: every entry goes through the SDK's verifyEd25519 primitive (keys derived from a public label, so they are test keys). `certificate_field_vectors`: one signature text field of a base certificate fixture is replaced and the certificate goes through verifyCertificate; base v2 = cert-valid-anchored.json with the test witness key, base v3 = the recorded v3 certificate with the production witness public key.",
  "vectors": [
   {
    "id": "genuine_sign_bit_clear_key",
@@ -433,6 +433,616 @@
    "signature_hex": "",
    "expected": "refuse",
    "note": "empty signature"
+  }
+ ],
+ "certificate_field_vectors": [
+  {
+   "id": "v2_unchanged",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "accept:v2",
+   "note": "control: the base certificate"
+  },
+  {
+   "id": "v2_witness_signature_only_u0085",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u0085",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u0085",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u0085",
+   "expected": "accept:v2",
+   "note": "blank: counts as absent"
+  },
+  {
+   "id": "v2_witness_signature_only_ufeff",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\ufeff",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_ufeff",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\ufeff",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present (not in the white-space set) on a certificate without the v3 version field"
+  },
+  {
+   "id": "v2_witness_signature_only_u001c",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u001c",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u001c",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u001c",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present (not in the white-space set) on a certificate without the v3 version field"
+  },
+  {
+   "id": "v2_witness_signature_only_u001f",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u001f",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u001f",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u001f",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present (not in the white-space set) on a certificate without the v3 version field"
+  },
+  {
+   "id": "v2_witness_signature_only_spaces",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "   ",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_spaces",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "   ",
+   "expected": "accept:v2",
+   "note": "blank: counts as absent"
+  },
+  {
+   "id": "v2_witness_signature_only_u3000_u2028_u00a0",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u3000\u2028\u00a0",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u3000_u2028_u00a0",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u3000\u2028\u00a0",
+   "expected": "accept:v2",
+   "note": "blank: counts as absent"
+  },
+  {
+   "id": "v2_witness_signature_only_u200b",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u200b",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u200b",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u200b",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present (not in the white-space set) on a certificate without the v3 version field"
+  },
+  {
+   "id": "v2_witness_signature_only_u180e",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\u180e",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_u180e",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\u180e",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "present (not in the white-space set) on a certificate without the v3 version field"
+  },
+  {
+   "id": "v2_witness_signature_only_tab_newline_u1680_u205f",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "\t\n\u1680\u205f",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v2_signable_v3_signature_only_tab_newline_u1680_u205f",
+   "base": "v2",
+   "field": "signable_v3_signature",
+   "text": "\t\n\u1680\u205f",
+   "expected": "accept:v2",
+   "note": "blank: counts as absent"
+  },
+  {
+   "id": "v2_witness_signature_unpadded",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_one_pad_char",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg=",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_three_pad_chars",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg===",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_nonzero_padding_bits",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dh==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_space",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS bZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_newline",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS\nbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_crlf",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS\r\nbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_tab",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS\tbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_leading_space",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": " MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_trailing_space",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg== ",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_trailing_newline",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==\n",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_trailing_bang",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==!",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_bang",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS!bZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_trailing_extra_quantum",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==AAAA",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_trailing_nul",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==\u0000",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_nbsp",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS\u00a0bZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_embedded_zero_width_space",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI/csuhPHCHmTduSaSFgA5LS\u200bbZoeHGlLNdeJHm/WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_url_safe_alphabet",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI_csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm_WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v2_witness_signature_url_safe_alphabet_unpadded",
+   "base": "v2",
+   "field": "witness_signature",
+   "text": "MomXzkJsESRo8wGwTI_csuhPHCHmTduSaSFgA5LSbZoeHGlLNdeJHm_WHyQTSUX5iSJA1WPT5yelj5lxMX12Dg",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_unchanged",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "accept:v3",
+   "note": "control: the base certificate"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u0085",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u0085",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "blank on a certificate with the v3 version field"
+  },
+  {
+   "id": "v3_witness_signature_only_u0085",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u0085",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_ufeff",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\ufeff",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v3_witness_signature_only_ufeff",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\ufeff",
+   "expected": "accept:v3",
+   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u001c",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u001c",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v3_witness_signature_only_u001c",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u001c",
+   "expected": "accept:v3",
+   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u001f",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u001f",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v3_witness_signature_only_u001f",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u001f",
+   "expected": "accept:v3",
+   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_spaces",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "   ",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "blank on a certificate with the v3 version field"
+  },
+  {
+   "id": "v3_witness_signature_only_spaces",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "   ",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u3000_u2028_u00a0",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u3000\u2028\u00a0",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "blank on a certificate with the v3 version field"
+  },
+  {
+   "id": "v3_witness_signature_only_u3000_u2028_u00a0",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u3000\u2028\u00a0",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u200b",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u200b",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v3_witness_signature_only_u200b",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u200b",
+   "expected": "accept:v3",
+   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_u180e",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\u180e",
+   "expected": "refuse:invalid_signature",
+   "note": "present (not in the white-space set), and not base64"
+  },
+  {
+   "id": "v3_witness_signature_only_u180e",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\u180e",
+   "expected": "accept:v3",
+   "note": "present; on the v3 path this field is tested for presence only (the v3 signature is the one verified)"
+  },
+  {
+   "id": "v3_signable_v3_signature_only_tab_newline_u1680_u205f",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "\t\n\u1680\u205f",
+   "expected": "refuse:version_downgrade_detected",
+   "note": "blank on a certificate with the v3 version field"
+  },
+  {
+   "id": "v3_witness_signature_only_tab_newline_u1680_u205f",
+   "base": "v3",
+   "field": "witness_signature",
+   "text": "\t\n\u1680\u205f",
+   "expected": "refuse:witness_signature_missing",
+   "note": "blank"
+  },
+  {
+   "id": "v3_signable_v3_signature_unpadded",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_one_pad_char",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg=",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_three_pad_chars",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg===",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_nonzero_padding_bits",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDh==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_space",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9 dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_newline",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9\ndlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_crlf",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9\r\ndlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_tab",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9\tdlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_leading_space",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": " OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_trailing_space",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg== ",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_trailing_newline",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==\n",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_trailing_bang",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==!",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_bang",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9!dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_trailing_extra_quantum",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==AAAA",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_trailing_nul",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==\u0000",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_nbsp",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9\u00a0dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_embedded_zero_width_space",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t+SAofSdVCxExd87MkFCwOd2FnV/QlGujJe9\u200bdlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_url_safe_alphabet",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t-SAofSdVCxExd87MkFCwOd2FnV_QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg==",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
+  },
+  {
+   "id": "v3_signable_v3_signature_url_safe_alphabet_unpadded",
+   "base": "v3",
+   "field": "signable_v3_signature",
+   "text": "OSw8t-SAofSdVCxExd87MkFCwOd2FnV_QlGujJe9dlbc3hMGDXkFjet7P2YQYI22fZgqZnxwa5CnLmgF67IpDg",
+   "expected": "refuse:invalid_signature",
+   "note": "not canonical standard padded base64"
   }
  ]
 }
