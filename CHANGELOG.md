@@ -107,30 +107,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same strict parser as every other read.
 
 ### Changed
-- **Garbage in `protocol_version` / `signable_protocol_version_emitted` is
-  `malformed` in the witness-only check (T-1322).** These two integers must
-  be integers in [0, 2^64 - 1]. TS: a number that is not such an integer
-  (including `Infinity`, which is what `JSON.parse` makes of an oversized
-  token) was `unsupported_protocol_version` for `protocol_version` and was
-  compared as a number for `signable_protocol_version_emitted`; it is now
-  `malformed` (parity-corpus case `tamper_protocol_version_oversized_integer`).
-  Python: an integer outside the range, and a `float` in
-  `signable_protocol_version_emitted`, are now `malformed` (a `float`
-  `protocol_version` already was); note that Python's default `json.loads`
-  raises on an integer token of more than 4,300 digits before the SDK is
-  called. Go, for `[]byte` / `json.RawMessage` input only: both fields must
-  be written as integer TOKENS (digits only, at most 2^64 - 1), so `2.0`,
-  `2e0`, `-1` and `2.0000000000000001` are `malformed` (parity-corpus case
-  `tamper_protocol_version_float_token`); map and `*VeilCertificate` input
-  are judged by value as before. Other integers keep their result
-  (`protocol_version` 3 is still `unsupported_protocol_version`).
-- **Scope of the witness-only check, stated.** Given an already parsed
-  object, the simple check judges values; number-token rules apply only where
-  the SDK reads the raw text (Go with raw bytes; the chain verifier in all
-  three). TS and Python take a parsed object, so in TS the token
-  `2.0000000000000001` has already become the number 2 when the check runs
-  and that certificate verifies there (its signed bytes are those of the
-  untampered certificate); `verifyCertificateChain` refuses it.
+- **`protocol_version` and `signable_protocol_version_emitted` in the
+  witness-only check: one value rule, `malformed` otherwise (T-1322).**
+  `signable_protocol_version_emitted` absent or `null` still means 0. A
+  present value, and `protocol_version` always, must be a JSON number whose
+  value is an integer from 0 to 2^64 - 1; anything else (a string such as
+  `"3"`, an array, a boolean, an object, a fraction, NaN / Infinity, a
+  negative number, a value of 2^64 or more) now gets the existing reason
+  `malformed` instead of being coerced, ignored, compared as a number or
+  reported as `unsupported_protocol_version`. A valid `protocol_version`
+  other than 2 is `unsupported_protocol_version` as before. The rule is
+  applied by TS, by Python for dict input and for a `VeilCertificate`
+  instance (a Python `float` is `malformed` even when integral), and by Go
+  for map input; with `[]byte` / `json.RawMessage` input Go applies it to the
+  number TOKEN (digits only), so `2.0`, `2e0` and `2.0000000000000001` are
+  `malformed` there (parity-corpus cases
+  `tamper_protocol_version_oversized_integer` and
+  `tamper_protocol_version_float_token`). In Go the decision no longer
+  depends on the CPU architecture for values of 2^63 and above. Python's
+  default `json.loads` raises on an integer token of more than 4,300 digits
+  before the SDK is called.
 - **`lucairn-bundle-verify`: the stored Rekor inclusion-proof JSON is read
   strictly** (certificates and audit roots): a duplicate key, a key other than
   `checkpoint` / `hashes` / `logIndex` / `rootHash` / `treeSize`
@@ -175,11 +171,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `lucairn-bundle-verify` signature step calls `VerifyCertificate` and
   therefore applies the same rules, including the input rules below. No
   change to the v2 / v3 signable bytes.
-- **The witness-only check reads its input the same way in all three SDKs
-  (T-1322).** Measured differences between `verifyCertificate` (TS),
-  `verify_certificate` (Python) and `VerifyCertificate` (Go) on the same
-  certificate are removed. Every change makes a language stricter, with
-  one exception named below (TS and U+0085):
+- **Measured differences between the three witness-only checks on the same
+  certificate are removed (T-1322).** `verifyCertificate` (TS),
+  `verify_certificate` (Python) and `VerifyCertificate` (Go) now apply the
+  rules below identically. Every change makes a language stricter, with one
+  exception named below (TS and U+0085). The limits that remain are listed
+  under "Known limits".
   - *Blank or present.* Whether `witness_signature` / `signable_v3_signature`
     is blank is decided with ONE whitespace set, Go's `unicode.IsSpace` (the
     chain verifier's set, same helper). Python used `str.strip()`, which
@@ -188,28 +185,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `version_downgrade_detected`, as in TS and Go (parity-corpus case
     `tamper_signable_v3_signature_control_char`). TS used `.trim()`, which
     does not remove U+0085 (in the set) and removes U+FEFF (not in the set);
-    both now follow the set. The U+0085 case is the one place where a
-    language accepts more than before: in TS a legacy v2 certificate whose
+    both now follow the set. The U+0085 case is the one certificate that
+    verifies now and did not before: in TS a legacy v2 certificate whose
     `signable_v3_signature` is only U+0085 was `version_downgrade_detected`
     and now verifies as v2, as it already did in Python and Go (the field is
-    blank, and the v2 witness signature is checked as before).
-  - *Signature text.* `witness_signature` and `signable_v3_signature` must be
-    canonical standard padded base64 (decode, re-encode, compare; the chain
-    verifier's rule and helper), else `invalid_signature`. TS decoded with
+    blank, the same as `""`, and the v2 witness signature is checked as
+    before).
+  - *Signature text.* `witness_signature_missing` and
+    `version_downgrade_detected` are decided first, on blank / present, as
+    before. After that, every signature field that is present (non-blank)
+    must be canonical standard padded base64 (decode, re-encode, compare;
+    the chain verifier's rule and helper), else `invalid_signature`:
+    `witness_signature` on every certificate, and `signable_v3_signature` on
+    a v3 certificate. This includes `witness_signature` on a v3 certificate,
+    where the v3 signature is the one verified. Before: TS decoded with
     Node's permissive decoder and accepted missing padding, the URL-safe
     alphabet, whitespace and any text after the signature (a valid signature
-    followed by `!` verified). Go accepted CR / LF inside the text. All three
-    accepted non-zero padding bits. The public-key text is read as before
-    (known, unchanged: all three accept non-zero padding bits there, which
-    the chain verifier's key loader refuses).
-  - *Python buffer types.* `verify_ed25519` again takes a signature given as
-    `bytearray` or `memoryview` (first version of this fix raised
-    `TypeError` on them; never released).
+    followed by `!` verified); Go accepted CR / LF inside the text; all three
+    accepted non-zero padding bits; and on a v3 certificate the content of
+    `witness_signature` was not looked at beyond blank / present.
+  - *Python `verify_ed25519` buffers.* Message and signature are read through
+    the buffer protocol, as the crypto library did: `bytes`, `bytearray`,
+    `memoryview` and `array.array("B")` verify a genuine signature, and a
+    non-buffer argument raises `TypeError`. A non-contiguous (strided)
+    `memoryview`, which the library refused, is now read as its bytes.
 - Python chain verifier: every walk over a signed document (canonical form,
   case-variant keys, surrogate scan, value pointers) is iterative, so a
   legal depth-256 document verifies the same at any caller stack depth (it
   could fail when called from a deep stack). The two-signer tier no longer
   reports the step-8d cap flag, matching TS and Go (no result changes).
+
+### Known limits (unchanged by this release)
+These apply to the witness-only check (`verifyCertificate` /
+`verify_certificate` / `VerifyCertificate`); the chain verifier reads the raw
+text and is not affected by 1 to 3.
+1. Given an already parsed object, the simple check judges values, so a
+   number written `2.0000000000000001` is the value 2 (TS, and Go with map
+   input). Number-token rules apply only where the SDK reads the raw text (Go
+   with raw bytes; the chain verifier in all three).
+2. The base64 form of the PUBLIC KEY argument is not normalised the same way
+   in the three SDKs (TS accepts an unpadded key and trailing characters).
+3. The simple check does not validate every claim field the same way in the
+   three SDKs. Examples: a claim without `request_id` / `service_id`, a
+   non-string `signable_v3_signature`, a sanitizer `canonical_payload` with
+   trailing characters.
+4. Refusal REASONS for out-of-range integers can differ: 2^64 - 1 is in range
+   for Python and for Go with raw bytes; TS and Go with map input hold it as
+   the float 2^64 and report `malformed`.
+5. Per-call cost: the key check adds two modular exponentiations per
+   verification (measured ≈ 45 → 219 µs on Node 22, 35 → 189 µs on
+   Python 3.12).
 
 ### Unchanged
 - The v2 / v3 witness signable reconstructions are byte-for-byte unchanged,
