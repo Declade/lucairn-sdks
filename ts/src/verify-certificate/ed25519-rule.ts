@@ -58,8 +58,8 @@ const SMALL_ORDER_Y = new Set([
   'eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
 ]);
 
-/** True for the 14 small-order encodings (32 bytes). */
-function isSmallOrder(enc: Uint8Array): boolean {
+/** True for the 14 small-order encodings (32 bytes). Exported for this package's tests only. */
+export function isSmallOrder(enc: Uint8Array): boolean {
   return SMALL_ORDER_Y.has(hex(masked(enc)));
 }
 

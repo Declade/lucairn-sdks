@@ -13,7 +13,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LucairnCertificateError } from './errors.js';
 import { verifyCertificate } from './verify-certificate/index.js';
+import { ed25519KeyAcceptable, ed25519SignatureEncodingAcceptable, isSmallOrder } from './verify-certificate/ed25519-rule.js';
+import { deriveWitnessSignedBytesV3 } from './verify-certificate/signable.js';
 import { verifyEd25519 } from './verify-certificate/signature.js';
+import { decodeSignatureText, isBlankSignatureText } from './verify-certificate/text-rule.js';
+import type { VeilCertificate } from './types.js';
 
 const fixturesDir = join(__dirname, 'verify-certificate', '__fixtures__');
 
@@ -23,7 +27,7 @@ const fixturesDir = join(__dirname, 'verify-certificate', '__fixtures__');
 //   go/internal/verify/testdata/ed25519-rule-vectors.json
 // and each SDK's test pins this sha256, so the three copies of the rule are
 // held to one set of inputs and expected results.
-const VECTORS_SHA256 = 'f7bd4f8122c91078a705a480a929b8e832d8f205cf52525d35438d50f53a5818';
+const VECTORS_SHA256 = '26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20';
 const VECTORS_FILE = 'ed25519-rule-vectors.json';
 
 // Parity-corpus case `tamper_witness_signature_small_order_r` (corpus
@@ -48,7 +52,31 @@ interface Vector {
 const sha256File = (name: string): string =>
   createHash('sha256').update(readFileSync(join(fixturesDir, name))).digest('hex');
 const hx = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, 'hex'));
-const VECTORS = (JSON.parse(readFileSync(join(fixturesDir, VECTORS_FILE), 'utf8')) as { vectors: Vector[] }).vectors;
+interface FieldVector {
+  id: string;
+  base: 'v2' | 'v3';
+  field: 'witness_signature' | 'signable_v3_signature';
+  text: string;
+  expected: string;
+}
+const VECTOR_DOC = JSON.parse(readFileSync(join(fixturesDir, VECTORS_FILE), 'utf8')) as {
+  vectors: Vector[];
+  certificate_field_vectors: FieldVector[];
+};
+const VECTORS = VECTOR_DOC.vectors;
+const FIELD_VECTORS = VECTOR_DOC.certificate_field_vectors;
+const loadJson = <T = any>(name: string): T => JSON.parse(readFileSync(join(fixturesDir, name), 'utf8')) as T;
+
+/** verifyCertificate as one comparable string: `accept:<v2|v3>` or `refuse:<reason>`. */
+async function outcome(cert: unknown, keys: { witnessKeyId: string; witnessPublicKey: string }): Promise<string> {
+  try {
+    const r = await verifyCertificate(cert, keys);
+    return `accept:${r.signableVersion}`;
+  } catch (e) {
+    if (e instanceof LucairnCertificateError) return `refuse:${e.reason}`;
+    throw e;
+  }
+}
 
 const L = 2n ** 252n + 27742317777372353535851937790883648493n;
 const le = (b: Uint8Array): bigint => {
@@ -168,5 +196,187 @@ describe('verifyEd25519: fresh keys made in the test (no false refusal)', () => 
     expect(() => verifyEd25519(message, sig, new Uint8Array(31))).toThrow(TypeError);
     expect(() => verifyEd25519(message, sig, new Uint8Array(33))).toThrow(TypeError);
     expect(() => verifyEd25519(message, sig, 7 as unknown as string)).toThrow(TypeError);
+  });
+});
+
+describe('ed25519-rule helpers: every small-order encoding, one by one', () => {
+  const smallOrder = VECTORS.filter((v) => v.group === 'small_order_key').map((v) => hx(v.public_key_hex));
+  // S = 1 is below L, so only R decides.
+  const sOne = le32(1n);
+
+  it('the 14 encodings are 7 values, each with the sign bit clear and set', () => {
+    expect(smallOrder).toHaveLength(14);
+    const masked = new Set(smallOrder.map((e) => Buffer.from(Uint8Array.from(e, (b, i) => (i === 31 ? b & 0x7f : b))).toString('hex')));
+    expect(masked.size).toBe(7);
+  });
+
+  for (const e of smallOrder) {
+    const name = Buffer.from(e).toString('hex');
+    it(`${name} is on the list, refused as key and refused as R`, () => {
+      expect(isSmallOrder(e)).toBe(true);
+      expect(ed25519KeyAcceptable(e)).toBe(false);
+      expect(ed25519SignatureEncodingAcceptable(cat(e, sOne))).toBe(false);
+    });
+  }
+
+  it('an ordinary point is not on the list', () => {
+    const { raw } = freshKey();
+    expect(isSmallOrder(raw)).toBe(false);
+    expect(ed25519KeyAcceptable(raw)).toBe(true);
+    expect(ed25519SignatureEncodingAcceptable(cat(raw, sOne))).toBe(true);
+  });
+});
+
+describe('verifyEd25519: buffer forms', () => {
+  const message = new TextEncoder().encode('witness-only signature rule');
+
+  it('accepts a genuine signature as Uint8Array, Buffer and as a view into a larger buffer, and does not write to the caller', () => {
+    const { raw, privateKey } = freshKey();
+    const sigBuf = sign(null, Buffer.from(message), privateKey);
+    const padded = new Uint8Array(200).fill(0xff);
+    padded.set(sigBuf, 17);
+    padded.set(raw, 100);
+    padded.set(message, 140);
+    const sigView = padded.subarray(17, 17 + 64);
+    const keyView = padded.subarray(100, 132);
+    const msgView = padded.subarray(140, 140 + message.length);
+    const before = Buffer.from(padded).toString('hex');
+
+    expect(verifyEd25519(message, new Uint8Array(sigBuf), raw)).toBe(true);
+    expect(verifyEd25519(Buffer.from(message), sigBuf, Buffer.from(raw))).toBe(true);
+    expect(verifyEd25519(msgView, sigView, keyView)).toBe(true);
+    // refusals on views: a small-order R and a small-order key
+    const smallR = Uint8Array.from(padded);
+    smallR.fill(0, 17, 17 + 32);
+    smallR[17] = 1;
+    expect(verifyEd25519(msgView, smallR.subarray(17, 17 + 64), keyView)).toBe(false);
+
+    expect(Buffer.from(padded).toString('hex')).toBe(before);
+    // the sign-bit masking works on a copy: a key with the sign bit set stays as given
+    const withSign = Uint8Array.from(raw);
+    withSign[31] |= 0x80;
+    const copy = Uint8Array.from(withSign);
+    ed25519KeyAcceptable(withSign);
+    isSmallOrder(withSign);
+    expect(withSign).toEqual(copy);
+  });
+});
+
+describe('signature text rules (shared with the Python and Go SDKs)', () => {
+  it('white space is the Go unicode.IsSpace set: U+0085 is blank, U+FEFF and U+001C are not', () => {
+    const cp = (...c: number[]): string => String.fromCharCode(...c);
+    expect(isBlankSignatureText('')).toBe(true);
+    expect(isBlankSignatureText(cp(0x85))).toBe(true);
+    expect(isBlankSignatureText(cp(0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, 0x2000, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000))).toBe(true);
+    for (const c of [0x1c, 0x1d, 0x1e, 0x1f, 0xfeff, 0x200b, 0x180e, 0x00, 0x41]) {
+      expect(isBlankSignatureText(cp(c))).toBe(false);
+      expect(isBlankSignatureText(' ' + cp(c) + ' ')).toBe(false);
+    }
+  });
+
+  it('a signature text must be canonical standard padded base64', () => {
+    const text = Buffer.from(new Uint8Array(64).fill(7)).toString('base64');
+    expect(decodeSignatureText(text)).toEqual(new Uint8Array(64).fill(7));
+    for (const bad of [text.slice(0, -2), text + '!', ' ' + text, text + '\n', text.replace(/\+/g, '-')]) {
+      if (bad !== text) expect(decodeSignatureText(bad)).toBeNull();
+    }
+  });
+
+  const BASES = {
+    v2: (): Record<string, unknown> => loadJson('cert-valid-anchored.json'),
+    v3: (): Record<string, unknown> => loadJson('cert-real-v3-production.json'),
+  };
+  const KEYS = {
+    v2: (): { witnessKeyId: string; witnessPublicKey: string } => ({
+      witnessKeyId: 'witness_v1',
+      witnessPublicKey: loadJson<{ publicKey: string }>('witness-keypair.json').publicKey,
+    }),
+    v3: (): { witnessKeyId: string; witnessPublicKey: string } => {
+      const k = loadJson<{ witnessKeyId: string; publicKeyBase64: string }>('production-witness-pubkey.json');
+      return { witnessKeyId: k.witnessKeyId, witnessPublicKey: k.publicKeyBase64 };
+    },
+  };
+
+  it('the shared file holds the white-space and base64 field vectors', () => {
+    expect(FIELD_VECTORS.length).toBe(76);
+    const ids = new Set(FIELD_VECTORS.map((v) => v.id));
+    for (const id of [
+      'v2_signable_v3_signature_only_u0085',
+      'v2_signable_v3_signature_only_ufeff',
+      'v2_signable_v3_signature_only_u001c',
+      'v3_signable_v3_signature_trailing_bang',
+      'v3_signable_v3_signature_nonzero_padding_bits',
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+
+  for (const v of FIELD_VECTORS) {
+    it(`${v.id} → ${v.expected}`, async () => {
+      const cert = BASES[v.base]();
+      cert[v.field] = v.text;
+      expect(await outcome(cert, KEYS[v.base]())).toBe(v.expected);
+    });
+  }
+});
+
+describe('corpus cases of the parse layer (copied verbatim, same bytes in the Python and Go test folders)', () => {
+  const sha = {
+    'corpus-tamper_signable_v3_signature_control_char.json': 'f2deec7b3549ab30e42a67a29a70c2b566b42528ea6d1c43ffd2da16e4c35bb2',
+    'corpus-tamper_protocol_version_float_token.json': 'e9a576edf871084cf187832b5e7d9506dc8df26641182f78343cf20517c5b69f',
+    'corpus-tamper_protocol_version_oversized_integer.json': '0920687b2cd9b01a68689dd2903045fceebcd06ea9186c19635ef8b6056e2bfb',
+  };
+
+  it('the fixtures are the corpus files, byte for byte', () => {
+    for (const [name, want] of Object.entries(sha)) expect(sha256File(name)).toBe(want);
+  });
+
+  it('signable_v3_signature holding only U+001C is present: version_downgrade_detected', async () => {
+    const c = loadJson('corpus-tamper_signable_v3_signature_control_char.json');
+    expect(c.certificate.signable_v3_signature).toBe(String.fromCharCode(0x1c));
+    expect(await outcome(c.certificate, CORPUS_WITNESS)).toBe('refuse:version_downgrade_detected');
+  });
+
+  it('a protocol_version too large for a double is malformed (was unsupported_protocol_version)', async () => {
+    const c = loadJson('corpus-tamper_protocol_version_oversized_integer.json');
+    expect(c.certificate.protocol_version).toBe(Infinity);
+    expect(c.expected.default.reason).toBe('malformed');
+    expect(await outcome(c.certificate, CORPUS_WITNESS)).toBe('refuse:malformed');
+  });
+
+  it('a protocol_version that is not an integer value is malformed; other integers stay unsupported_protocol_version', async () => {
+    const base = loadJson('corpus-tamper_protocol_version_float_token.json').certificate;
+    expect(await outcome({ ...base, protocol_version: 2.5 }, CORPUS_WITNESS)).toBe('refuse:malformed');
+    expect(await outcome({ ...base, protocol_version: NaN }, CORPUS_WITNESS)).toBe('refuse:malformed');
+    expect(await outcome({ ...base, protocol_version: 3 }, CORPUS_WITNESS)).toBe('refuse:unsupported_protocol_version');
+    expect(await outcome({ ...base, signable_protocol_version_emitted: Infinity }, CORPUS_WITNESS)).toBe('refuse:malformed');
+  });
+
+  // The ONE documented difference. The corpus expects `malformed` for the
+  // number TOKEN 2.0000000000000001. JSON.parse hands this SDK the number 2 —
+  // the same value a genuine certificate has — so a verifier that is given a
+  // parsed object cannot see the token. The signed bytes are rebuilt from the
+  // VALUE, so nothing unsigned is accepted: they equal those of the same
+  // certificate with protocol_version 2.
+  it('the float TOKEN 2.0000000000000001 arrives as the value 2: accepted, with the signed bytes of protocol_version 2', async () => {
+    const c = loadJson('corpus-tamper_protocol_version_float_token.json');
+    expect(c.expected.default.reason).toBe('malformed');
+    expect(c.certificate.protocol_version).toBe(2);
+    expect(Number.isInteger(c.certificate.protocol_version)).toBe(true);
+    expect(await outcome(c.certificate, CORPUS_WITNESS)).toBe('accept:v3');
+    const withInteger = { ...c.certificate, protocol_version: JSON.parse('2') } as VeilCertificate;
+    expect(Buffer.from(deriveWitnessSignedBytesV3(c.certificate as VeilCertificate)).toString('hex')).toBe(
+      Buffer.from(deriveWitnessSignedBytesV3(withInteger)).toString('hex'),
+    );
+  });
+
+  it('a genuine certificate with protocol_version 2 still verifies (v2 fixture and the recorded v3 certificate)', async () => {
+    const v2 = loadJson('cert-valid-anchored.json');
+    expect(v2.protocol_version).toBe(2);
+    expect(await outcome(v2, { witnessKeyId: 'witness_v1', witnessPublicKey: loadJson('witness-keypair.json').publicKey })).toBe('accept:v2');
+    const v3 = loadJson('cert-real-v3-production.json');
+    expect(v3.protocol_version).toBe(2);
+    const k = loadJson('production-witness-pubkey.json');
+    expect(await outcome(v3, { witnessKeyId: k.witnessKeyId, witnessPublicKey: k.publicKeyBase64 })).toBe('accept:v3');
   });
 });

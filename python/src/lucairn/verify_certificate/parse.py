@@ -56,6 +56,14 @@ def parse_certificate(raw: Any) -> VeilCertificate:
             reason="malformed",
             certificate_id=cert_id,
         )
+    if not 0 <= raw["protocol_version"] <= 2**64 - 1:
+        # Outside the unsigned 64-bit range (reachable when the caller's JSON
+        # parser admits very long integers): malformed, as in the Go SDK.
+        raise LucairnCertificateError(
+            "Certificate missing required fields",
+            reason="malformed",
+            certificate_id=cert_id,
+        )
     if not isinstance(raw.get("claims"), list):
         raise LucairnCertificateError(
             "Certificate missing required fields",

@@ -8,6 +8,7 @@ import type {
 import { parseCertificate } from './parse.js';
 import { deriveWitnessSignedBytes, deriveWitnessSignedBytesV3 } from './signable.js';
 import { verifyEd25519 } from './signature.js';
+import { decodeSignatureText, isBlankSignatureText } from './text-rule.js';
 
 const SUPPORTED_PROTOCOL_VERSION = 2;
 // Minimum signable_protocol_version_emitted value that triggers v3 verification.
@@ -35,6 +36,13 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *
  * The result surfaces `anchorStatus` and `overallVerdict` as pass-through
  * metadata with JSDoc caveats — the SDK does NOT independently verify them.
+ *
+ * Given an already parsed object, the simple check judges VALUES; number-token
+ * rules apply only where an SDK reads the raw text (Go with raw bytes). A
+ * `protocol_version` written `2.0` in the JSON text reaches this function as
+ * the number 2, identical to a genuine certificate, and the signed bytes are
+ * rebuilt from the value. A `protocol_version` that is not an integer value
+ * (2.5, or a number too large for a double) is `malformed`.
  *
  * @param rawCert - protojson-shaped `VeilCertificate` as served by the
  *   gateway at GET /api/v1/veil/certificate/{request_id}. This arc does
@@ -65,13 +73,15 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *   enforce v3 at the call site if you rely on those fields.
  *
  * @throws `LucairnCertificateError` with one of 7 reasons:
- *   - `malformed` — cert shape invalid, or gateway invariant broken
+ *   - `malformed` — cert shape invalid (including a `protocol_version`
+ *     that is not an integer), or gateway invariant broken
  *     (cert.request_id mismatch vs claims[0]), or unknown verdict literal
  *   - `unsupported_protocol_version` — cert.protocol_version !== 2
  *   - `witness_mismatch` — keys.witnessKeyId !== cert.witness_key_id
  *   - `witness_signature_missing` — cert.witness_signature is empty or
  *     whitespace-only
- *   - `invalid_signature` — Ed25519 verification failed, or the provided
+ *   - `invalid_signature` — Ed25519 verification failed, the signature
+ *     text is not canonical standard padded base64, or the provided
  *     witnessPublicKey is malformed
  *   - `version_downgrade_detected` — `signable_v3_signature` is present but
  *     `signable_protocol_version_emitted` is absent or < 3; this is a
@@ -113,9 +123,10 @@ export async function verifyCertificate(
     );
   }
 
-  // Step 4: signature presence. trim() routes "" AND whitespace-only
-  // signatures to the same reason.
-  if (cert.witness_signature.trim().length === 0) {
+  // Step 4: signature presence. "" AND whitespace-only signatures get the
+  // same reason. The white-space set is the one all three SDKs use
+  // (text-rule.ts), not String.prototype.trim's.
+  if (isBlankSignatureText(cert.witness_signature)) {
     throw new LucairnCertificateError('Certificate has no witness signature', {
       reason: 'witness_signature_missing',
       certificateId: cert.certificate_id,
@@ -137,7 +148,7 @@ export async function verifyCertificate(
   // Both tampering directions throw 'version_downgrade_detected'.
   const sigEmitted = cert.signable_protocol_version_emitted ?? 0;
   const v3SigRaw = cert.signable_v3_signature;
-  const v3SigPresent = typeof v3SigRaw === 'string' && v3SigRaw.trim().length > 0;
+  const v3SigPresent = typeof v3SigRaw === 'string' && !isBlankSignatureText(v3SigRaw);
 
   let useV3: boolean;
   if (sigEmitted >= V3_SIGNABLE_VERSION_THRESHOLD) {
@@ -196,7 +207,13 @@ async function verifyV2(
     throw err;
   }
 
-  const signatureBytes = new Uint8Array(Buffer.from(cert.witness_signature, 'base64'));
+  const signatureBytes = decodeSignatureText(cert.witness_signature);
+  if (signatureBytes === null) {
+    throw new LucairnCertificateError('Witness signature is not canonical standard padded base64', {
+      reason: 'invalid_signature',
+      certificateId: cert.certificate_id,
+    });
+  }
   let valid: boolean;
   try {
     valid = verifyEd25519(signedBytes, signatureBytes, keys.witnessPublicKey);
@@ -250,7 +267,13 @@ async function verifyV3(
     throw err;
   }
 
-  const signatureBytes = new Uint8Array(Buffer.from(v3SigRaw, 'base64'));
+  const signatureBytes = decodeSignatureText(v3SigRaw);
+  if (signatureBytes === null) {
+    throw new LucairnCertificateError('signable_v3_signature is not canonical standard padded base64', {
+      reason: 'invalid_signature',
+      certificateId: cert.certificate_id,
+    });
+  }
   let valid: boolean;
   try {
     valid = verifyEd25519(signedBytes, signatureBytes, keys.witnessPublicKey);

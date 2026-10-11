@@ -38,8 +38,15 @@ _SMALL_ORDER_Y = frozenset(
 
 
 def _masked(enc: bytes) -> bytes:
-    """The encoding with the sign bit (top bit of byte 31) cleared."""
+    """The encoding with the sign bit (top bit of byte 31) cleared. Always a
+    new ``bytes`` object, whatever buffer type came in."""
+    enc = bytes(enc)
     return enc[:31] + bytes([enc[31] & 0x7F])
+
+
+def _is_small_order(enc: bytes) -> bool:
+    """True for the 14 small-order encodings (32 bytes)."""
+    return _masked(enc) in _SMALL_ORDER_Y
 
 
 def _canonical_curve_point(enc: bytes) -> bool:
@@ -63,7 +70,7 @@ def key_acceptable(raw: bytes) -> bool:
     raw = bytes(raw)
     if len(raw) != 32:
         return False
-    return _masked(raw) not in _SMALL_ORDER_Y and _canonical_curve_point(raw)
+    return not _is_small_order(raw) and _canonical_curve_point(raw)
 
 
 def signature_encoding_acceptable(sig: bytes) -> bool:
@@ -74,5 +81,5 @@ def signature_encoding_acceptable(sig: bytes) -> bool:
     sig = bytes(sig)
     if len(sig) != 64 or int.from_bytes(sig[32:], "little") >= _ED_L:
         return False
-    r = _masked(sig[:32])
-    return int.from_bytes(r, "little") < _ED_P and r not in _SMALL_ORDER_Y
+    r = sig[:32]
+    return int.from_bytes(_masked(r), "little") < _ED_P and not _is_small_order(r)

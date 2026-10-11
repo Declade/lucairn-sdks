@@ -25,6 +25,15 @@ import (
 // parsed object from GetCertificate), as any (e.g. map[string]any from a
 // json.Unmarshal), or as []byte / json.RawMessage (raw response body).
 // All three forms normalize to the same internal representation.
+//
+// Given an already parsed object (*VeilCertificate, map[string]any), the
+// simple check judges values; number-token rules apply only where the SDK
+// reads the raw text, which is this function with []byte / json.RawMessage
+// input: there protocol_version and signable_protocol_version_emitted must
+// be written as plain integers (digits only — no sign, fraction or exponent
+// — and at most 20 digits), otherwise the result is ReasonMalformed. A
+// caller's own json.Unmarshal turns the token 2.0 into the same value as 2,
+// so that rule cannot be applied to a map.
 func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificateResult, error) {
 	if keys.WitnessKeyID == "" {
 		return nil, &ConfigError{Message: "VerifyCertificateKeys.WitnessKeyID must be non-empty"}
@@ -120,6 +129,9 @@ func normalizeCertInput(cert any) (any, error) {
 				Err:     err,
 			}
 		}
+		if err := rawIntegerTokens(v, out); err != nil {
+			return nil, err
+		}
 		return out, nil
 	case json.RawMessage:
 		var out any
@@ -130,6 +142,9 @@ func normalizeCertInput(cert any) (any, error) {
 				Err:     err,
 			}
 		}
+		if err := rawIntegerTokens(v, out); err != nil {
+			return nil, err
+		}
 		return out, nil
 	case string:
 		return v, nil // let Parse reject as "not a JSON object"
@@ -137,4 +152,22 @@ func normalizeCertInput(cert any) (any, error) {
 		// Pass through — Parse will reject anything it doesn't know.
 		return v, nil
 	}
+}
+
+// rawIntegerTokens applies the number-token rule to raw-bytes input, where
+// the JSON text is still visible: protocol_version and
+// signable_protocol_version_emitted, when they are numbers, must be written
+// as plain integers (digits only, at most 20). decoded is the value the
+// existing json.Unmarshal produced from the same bytes; it is only read for
+// the certificate id of the error and is passed on unchanged.
+func rawIntegerTokens(raw []byte, decoded any) error {
+	problem := verify.IntegerTokenProblem(raw)
+	if problem == "" {
+		return nil
+	}
+	certID := ""
+	if m, ok := decoded.(map[string]any); ok {
+		certID, _ = m["certificate_id"].(string)
+	}
+	return &CertificateError{Reason: ReasonMalformed, CertificateID: certID, Message: problem}
 }

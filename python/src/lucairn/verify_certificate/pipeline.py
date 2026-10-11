@@ -42,6 +42,10 @@ from lucairn.verify_certificate.signable import (
 )
 from lucairn.verify_certificate.v3_signable import derive_v3_signed_bytes
 from lucairn.verify_certificate.signature import verify_ed25519
+from lucairn.verify_certificate._text_rule import (
+    decode_signature_text,
+    is_blank_signature_text,
+)
 
 __all__ = ["verify_certificate"]
 
@@ -73,6 +77,11 @@ def verify_certificate(
     they land in a follow-up arc (2b-cert-strong) pending gateway fixes.
     The result surfaces ``anchor_status`` and ``overall_verdict`` as
     pass-through metadata — the SDK does NOT independently verify them.
+
+    Given an already parsed object, the simple check judges VALUES;
+    number-token rules apply only where an SDK reads the raw text (Go with
+    raw bytes). ``protocol_version`` must be an ``int`` in 0..2**64-1 (a
+    ``float`` such as 2.0 is ``malformed``).
 
     SECURITY NOTE: when ``signable_version == 'v2'`` on the returned result,
     the fields ``api_key_id``, ``client_id``, ``byok_exempt``, and the
@@ -152,10 +161,11 @@ def verify_certificate(
             certificate_id=cert.certificate_id,
         )
 
-    # ``strip()`` routes "" AND whitespace-only signatures to the same reason
+    # "" AND whitespace-only signatures get the same reason (the white-space
+    # set is the one all three SDKs use, see ``_text_rule``)
     # — "   " base64-decodes to empty bytes which would otherwise surface as
     # a confusing invalid_signature.
-    if cert.witness_signature.strip() == "":
+    if is_blank_signature_text(cert.witness_signature):
         raise LucairnCertificateError(
             "Certificate has no witness signature",
             reason="witness_signature_missing",
@@ -169,7 +179,7 @@ def verify_certificate(
     # A genuine v2-only cert carries NO signable_v3_signature.  If the version
     # field is absent/< 3 but the cert still carries a non-empty v3 signature,
     # the version field was stripped from a real v3 cert — reject immediately.
-    if not use_v3 and cert.signable_v3_signature and cert.signable_v3_signature.strip():
+    if not use_v3 and not is_blank_signature_text(cert.signable_v3_signature):
         raise LucairnCertificateError(
             "Certificate carries a signable_v3_signature but "
             f"signable_protocol_version_emitted={cert.signable_protocol_version_emitted!r} "
@@ -188,7 +198,7 @@ def verify_certificate(
         # from a real v3 cert (the other direction of a downgrade attack from the
         # TOB-SDK-PY-01a guard above).  Raise the same reason so both tampering
         # directions surface identically to the caller.
-        if not cert.signable_v3_signature or cert.signable_v3_signature.strip() == "":
+        if is_blank_signature_text(cert.signable_v3_signature):
             raise LucairnCertificateError(
                 f"Certificate has signable_protocol_version_emitted="
                 f"{cert.signable_protocol_version_emitted!r} (>= 3) but "
@@ -212,8 +222,8 @@ def verify_certificate(
             ) from exc
 
         try:
-            signature_bytes = base64.b64decode(cert.signable_v3_signature, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
+            signature_bytes = decode_signature_text(cert.signable_v3_signature)
+        except ValueError as exc:
             raise LucairnCertificateError(
                 f"signable_v3_signature base64 decode failed: {exc}",
                 reason="invalid_signature",
@@ -265,9 +275,7 @@ def verify_certificate(
         # is always False on the v2 path because the guard already rejected any
         # cert with a non-empty v3 sig.  Kept as an explicit field on the
         # result for forward-compatibility if the guard semantics ever relax.)
-        v3_sig_stripped = bool(
-            cert.signable_v3_signature and cert.signable_v3_signature.strip()
-        )
+        v3_sig_stripped = not is_blank_signature_text(cert.signable_v3_signature)
 
         try:
             signed_bytes = derive_witness_signed_bytes(cert)
@@ -282,8 +290,8 @@ def verify_certificate(
             ) from exc
 
         try:
-            signature_bytes = base64.b64decode(cert.witness_signature, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:  # type: ignore[attr-defined]
+            signature_bytes = decode_signature_text(cert.witness_signature)
+        except ValueError as exc:
             raise LucairnCertificateError(
                 f"Witness signature base64 decode failed: {exc}",
                 reason="invalid_signature",
