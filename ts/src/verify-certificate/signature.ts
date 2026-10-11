@@ -1,4 +1,5 @@
 import { verify as cryptoVerify, createPublicKey } from 'node:crypto';
+import { ed25519KeyAcceptable, ed25519SignatureEncodingAcceptable } from './ed25519-rule.js';
 import { normalizeEd25519PublicKey } from './keys.js';
 
 // SPKI DER prefix for raw Ed25519 SubjectPublicKeyInfo. Decoded:
@@ -16,12 +17,24 @@ const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 // one from the SPKI-wrapped raw key via createPublicKey. Returns a plain
 // boolean — the orchestrator layer is responsible for translating false
 // into a LucairnCertificateError.
+//
+// Before the library is called, this SDK's own rule (ed25519-rule.ts) is
+// applied to the 32 raw key bytes and to the signature bytes, so the result
+// does not depend on the OpenSSL build behind `node:crypto`. Each of these
+// returns false (an invalid signature):
+//   - a public key that is a small-order encoding or is not the canonical
+//     encoding of a curve point;
+//   - a signature that is not 64 bytes R ‖ S, has S >= L, or whose R is a
+//     non-canonical encoding (y >= p) or a small-order point.
+// A MALFORMED key (wrong type, wrong length) still throws TypeError from the
+// normaliser, as before.
 export function verifyEd25519(
   message: Uint8Array,
   signature: Uint8Array,
   publicKey: Uint8Array | string,
 ): boolean {
   const raw = normalizeEd25519PublicKey(publicKey);
+  if (!ed25519KeyAcceptable(raw) || !ed25519SignatureEncodingAcceptable(signature)) return false;
   const spki = Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(raw)]);
   const key = createPublicKey({ key: spki, format: 'der', type: 'spki' });
   return cryptoVerify(null, Buffer.from(message), key, Buffer.from(signature));

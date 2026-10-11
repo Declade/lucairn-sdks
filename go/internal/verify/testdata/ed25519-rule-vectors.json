@@ -1,0 +1,438 @@
+{
+ "format": "lucairn-ed25519-rule-vectors/v1",
+ "note": "Synthetic TEST vectors for the witness-only Ed25519 acceptance rule (T-1322). The keys are derived from a public label, so they are test keys. The same file, byte for byte, sits in the TypeScript, Python and Go test folders; each SDK's test runs every vector through its verifyEd25519 primitive and pins the file's sha256.",
+ "vectors": [
+  {
+   "id": "genuine_sign_bit_clear_key",
+   "group": "genuine",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "accept",
+   "note": "honest signature; key encoding has the sign bit clear"
+  },
+  {
+   "id": "genuine_sign_bit_set_key",
+   "group": "genuine",
+   "public_key_hex": "d1dd95636749669036b21b8970ab655c0807a834338940f2d16b2f9bf84aafa0",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "79e97d84c28f2a5a64828d4eb80ab337814d989be950729673f78716c6401dba453b983232886536f6ebc2eb4e28980f3a12302674a63acb349ce04775bcdb09",
+   "expected": "accept",
+   "note": "honest signature; key encoding has the sign bit set"
+  },
+  {
+   "id": "genuine_empty_message",
+   "group": "genuine",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "",
+   "signature_hex": "324369ed814e00cfa695f4fbacd426359de0fc5a6859aa566ff55b30d49cdd28906ec7a9ec7c1d35a4db1b3232e4941e6d653a927d478e34f674164702e43505",
+   "expected": "accept",
+   "note": "honest signature over the empty message"
+  },
+  {
+   "id": "genuine_long_message",
+   "group": "genuine",
+   "public_key_hex": "d1dd95636749669036b21b8970ab655c0807a834338940f2d16b2f9bf84aafa0",
+   "message_hex": "81272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b3781272eedec36d7d4ab9b6dcc8f3b84cca9f2383d545213ca0a6326983af7bb0c869f17dd06c95c89322122997144a32da80af27e8f976e97d2c5cf55e3ae8b37",
+   "signature_hex": "39174827580211cf5641b25a46879b759894cecb48b91b750e6357f88004b67629f493ed19312247a0834bdd43d926bf4c48de2e62dcdffe7b4e697153fa0c09",
+   "expected": "accept",
+   "note": "honest signature over 2560 bytes"
+  },
+  {
+   "id": "genuine_r_sign_bit_set",
+   "group": "genuine",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "72207369676e206269742031",
+   "signature_hex": "abff55f6e964a70be13bd8570b4a3cac338b97bae3116e95330afa75ea6bba93a93e844f506aeb6ad676b53d077201e2ac416408db23b37e9bc2e61a63500707",
+   "expected": "accept",
+   "note": "honest signature whose R encoding has the sign bit set"
+  },
+  {
+   "id": "wrong_message",
+   "group": "invalid",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f7221",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "honest signature, different message"
+  },
+  {
+   "id": "wrong_key",
+   "group": "invalid",
+   "public_key_hex": "d1dd95636749669036b21b8970ab655c0807a834338940f2d16b2f9bf84aafa0",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "honest signature, different key"
+  },
+  {
+   "id": "flipped_s_bit",
+   "group": "invalid",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c243e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "honest signature with one bit of S flipped"
+  },
+  {
+   "id": "small_order_r_00_00000000",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "00000000000000000000000000000000000000000000000000000000000000008971bd04c8124fbb9b08b7c5713fa2ec519b4b4d8e7b931cfef745d2a4875809",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_01_00000000",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "000000000000000000000000000000000000000000000000000000000000008062fab283e73fe769e5aa4ca604694d95af085dade15cf321ed86067bd8fb0200",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_02_01000000",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "0100000000000000000000000000000000000000000000000000000000000000d18d4d93997fcf6bcfd087b66ba10ec541b1d3988e0575b7caf137b5b4096502",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_03_01000000",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "0100000000000000000000000000000000000000000000000000000000000080e6d02b8d41cd1ec586dd8f46aa84476913003efc863f08cd49dba413c5a6390b",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_04_26e8958f",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05f4ffb43269f0fef3bc0e4d31414029920d46fa037547ddfcc629f6de151e4800",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_05_26e8958f",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85187c5e9dea1e8adc5072a10c668342efb31c2002f524bc9698fba681d425460b",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_06_c7176a70",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a54a76b0875c2dbf24bcd40377c8faaa9e3da82323b4892c9a21f30b7fe702302",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_07_c7176a70",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa15db0361520603f4465b86c58a6d38b93fe8d71bd7f8152fccd2880aaf96bc00",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_08_ecffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f3418ae3a7ed13cae19384c41c5b1a3e2eeea4aa8c207606968c10f30848c8901",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_09_ecffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd4533f9f42d69e34e84c9059aca330a417e1fe81cf8ccb99355284930ff68905",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_10_edffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f9a15bb0a1cc869f34129951dc1a809136e132de7d99ba6e8a2e814d43b4faa03",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_11_edffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff106a4fa7b72a751dc099a12ec84bf0d8a453e7e5aab48d43de880dbcd3f40801",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_12_eeffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fb697ee8562f14a3127f2271dd921f7b52af4a11d457f20f34c5861d7d356e80d",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_r_13_eeffffff",
+   "group": "small_order_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc35bbc72a2872b1b272356b6a5b7010f130985626859f9f63c3034f968b1f208",
+   "expected": "refuse",
+   "note": "R is a small-order encoding; S = H(R||A||M)*a mod L (for R = the identity the cofactorless equation holds)"
+  },
+  {
+   "id": "small_order_key_00_00000000",
+   "group": "small_order_key",
+   "public_key_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+   "message_hex": "736d616c6c2d6f72646572206b6579203132",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_01_00000000",
+   "group": "small_order_key",
+   "public_key_hex": "0000000000000000000000000000000000000000000000000000000000000080",
+   "message_hex": "736d616c6c2d6f72646572206b65792030",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_02_01000000",
+   "group": "small_order_key",
+   "public_key_hex": "0100000000000000000000000000000000000000000000000000000000000000",
+   "message_hex": "736d616c6c2d6f72646572206b65792033",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_03_01000000",
+   "group": "small_order_key",
+   "public_key_hex": "0100000000000000000000000000000000000000000000000000000000000080",
+   "message_hex": "736d616c6c2d6f72646572206b65792030",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_04_26e8958f",
+   "group": "small_order_key",
+   "public_key_hex": "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+   "message_hex": "736d616c6c2d6f72646572206b65792037",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_05_26e8958f",
+   "group": "small_order_key",
+   "public_key_hex": "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+   "message_hex": "736d616c6c2d6f72646572206b65792031",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_06_c7176a70",
+   "group": "small_order_key",
+   "public_key_hex": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+   "message_hex": "736d616c6c2d6f72646572206b6579203232",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_07_c7176a70",
+   "group": "small_order_key",
+   "public_key_hex": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+   "message_hex": "736d616c6c2d6f72646572206b65792033",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_08_ecffffff",
+   "group": "small_order_key",
+   "public_key_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "message_hex": "736d616c6c2d6f72646572206b65792033",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_09_ecffffff",
+   "group": "small_order_key",
+   "public_key_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "message_hex": "736d616c6c2d6f72646572206b65792032",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_10_edffffff",
+   "group": "small_order_key",
+   "public_key_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "message_hex": "736d616c6c2d6f72646572206b65792032",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_11_edffffff",
+   "group": "small_order_key",
+   "public_key_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "message_hex": "736d616c6c2d6f72646572206b65792034",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_12_eeffffff",
+   "group": "small_order_key",
+   "public_key_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "message_hex": "736d616c6c2d6f72646572206b65792032",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "small_order_key_13_eeffffff",
+   "group": "small_order_key",
+   "public_key_hex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "message_hex": "736d616c6c2d6f72646572206b6579203230",
+   "signature_hex": "58666666666666666666666666666666666666666666666666666666666666660100000000000000000000000000000000000000000000000000000000000000",
+   "expected": "refuse",
+   "note": "public key is a small-order encoding; R = base point, S = 1, H(R||A||M) mod L divisible by 8 (the cofactorless equation holds for every small-order A)"
+  },
+  {
+   "id": "key_invalid_point_off_curve",
+   "group": "invalid_point_key",
+   "public_key_hex": "0200000000000000000000000000000000000000000000000000000000000000",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "public key is not the canonical encoding of a curve point"
+  },
+  {
+   "id": "key_invalid_point_noncanonical_y",
+   "group": "invalid_point_key",
+   "public_key_hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "public key is not the canonical encoding of a curve point"
+  },
+  {
+   "id": "key_invalid_point_noncanonical_y_max",
+   "group": "invalid_point_key",
+   "public_key_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "public key is not the canonical encoding of a curve point"
+  },
+  {
+   "id": "s_plus_l",
+   "group": "noncanonical_s",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd6b177c124c9415b4fbda52cd3cf578c6f2cfef1de6bc8d7c2a69594515951813",
+   "expected": "refuse",
+   "note": "honest signature with S replaced by S + L"
+  },
+  {
+   "id": "s_equals_l",
+   "group": "noncanonical_s",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdedd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010",
+   "expected": "refuse",
+   "note": "S = L"
+  },
+  {
+   "id": "s_all_ff",
+   "group": "noncanonical_s",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "expected": "refuse",
+   "note": "S = 2^256 - 1"
+  },
+  {
+   "id": "r_noncanonical_y_p_plus_3",
+   "group": "noncanonical_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "R has y = p + 3"
+  },
+  {
+   "id": "r_noncanonical_y_max",
+   "group": "noncanonical_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "R has y = 2^255 - 1"
+  },
+  {
+   "id": "r_noncanonical_y_p_plus_3_sign_set",
+   "group": "noncanonical_r",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a69594515951803",
+   "expected": "refuse",
+   "note": "R has y = p + 3 and the sign bit set"
+  },
+  {
+   "id": "signature_63_bytes",
+   "group": "length",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a695945159518",
+   "expected": "refuse",
+   "note": "63-byte signature"
+  },
+  {
+   "id": "signature_65_bytes",
+   "group": "length",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "c4382bac7628ff071bc17a8e816fcb84cdd8cc67d0bcaee43600633bb2c8dccd7e4386b53131035c253e5b2a5efb99b1f2cfef1de6bc8d7c2a6959451595180300",
+   "expected": "refuse",
+   "note": "65-byte signature"
+  },
+  {
+   "id": "signature_empty",
+   "group": "length",
+   "public_key_hex": "287d8b73719a1cff7cd5f584a0ea36026b4ac8c15036d778501ab4a7b09efd2a",
+   "message_hex": "6c75636169726e20656432353531392072756c6520766563746f72",
+   "signature_hex": "",
+   "expected": "refuse",
+   "note": "empty signature"
+  }
+ ]
+}
