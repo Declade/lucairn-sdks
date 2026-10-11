@@ -177,6 +177,15 @@ def test_signature_and_message_buffer_forms_verify(wrap: Any) -> None:
     assert verify_ed25519(MESSAGE, wrap(sig), SMALL_ORDER[0]) is False
 
 
+def test_non_buffer_signature_or_message_still_raises_type_error() -> None:
+    _, raw = _fresh_key()
+    for bad in ("text", 64, None):
+        with pytest.raises(TypeError):
+            verify_ed25519(MESSAGE, bad, raw)  # type: ignore[arg-type]
+        with pytest.raises(TypeError):
+            verify_ed25519(bad, bytes(64), raw)  # type: ignore[arg-type]
+
+
 def test_key_buffer_forms() -> None:
     """Key forms are the normaliser's, unchanged: bytes, bytearray and a
     base64 string are accepted; a memoryview key raises TypeError as before."""

@@ -4,7 +4,7 @@ Client for **Lucairn** — privacy-preserving AI gateway.
 
 ## Status
 
-`1.1.1`. Ships alongside the TypeScript SDK and behaves identically at the
+`1.4.2`. Ships alongside the TypeScript SDK and behaves identically at the
 observable level. See the [monorepo README](../README.md) for the full SDK
 index.
 
