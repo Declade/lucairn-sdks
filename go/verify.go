@@ -3,6 +3,7 @@ package lucairn
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/declade/lucairn-sdks/go/internal/verify"
@@ -25,6 +26,14 @@ import (
 // parsed object from GetCertificate), as any (e.g. map[string]any from a
 // json.Unmarshal), or as []byte / json.RawMessage (raw response body).
 // All three forms normalize to the same internal representation.
+//
+// Given an already parsed object (map or struct), the simple check judges
+// values; number-token rules apply only where the SDK reads the raw text (Go
+// with raw bytes; the chain verifier in all three SDKs). With []byte or
+// json.RawMessage input, protocol_version and
+// signable_protocol_version_emitted must be integer tokens (digits only, at
+// most 2^64-1), else ReasonMalformed: 2.0, 2e0 or 2.0000000000000001 are
+// refused there, while a map holding float64(2) is accepted.
 func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificateResult, error) {
 	if keys.WitnessKeyID == "" {
 		return nil, &ConfigError{Message: "VerifyCertificateKeys.WitnessKeyID must be non-empty"}
@@ -112,29 +121,60 @@ func normalizeCertInput(cert any) (any, error) {
 		}
 		return out, nil
 	case []byte:
-		var out any
-		if err := json.Unmarshal(v, &out); err != nil {
-			return nil, &CertificateError{
-				Reason:  ReasonMalformed,
-				Message: "failed to parse certificate bytes as JSON: " + err.Error(),
-				Err:     err,
-			}
-		}
-		return out, nil
+		return decodeCertText(v, "bytes")
 	case json.RawMessage:
-		var out any
-		if err := json.Unmarshal(v, &out); err != nil {
-			return nil, &CertificateError{
-				Reason:  ReasonMalformed,
-				Message: "failed to parse certificate RawMessage as JSON: " + err.Error(),
-				Err:     err,
-			}
-		}
-		return out, nil
+		return decodeCertText(v, "RawMessage")
 	case string:
 		return v, nil // let Parse reject as "not a JSON object"
 	default:
 		// Pass through — Parse will reject anything it doesn't know.
 		return v, nil
 	}
+}
+
+// certIntegerFields are the integers the witness-only check reads.
+var certIntegerFields = []string{"protocol_version", "signable_protocol_version_emitted"}
+
+// decodeCertText decodes a certificate given as raw JSON text. The generic
+// decode is the one a caller's own json.Unmarshal would do (numbers as
+// float64), so everything downstream sees the same values as with map input.
+// In addition, because the text is in hand here, the integers the check reads
+// must be written as integer TOKENS (digits only, at most 20 digits, at most
+// 2^64-1): a float64 decode would round 2.0000000000000001 to 2. Map and
+// *VeilCertificate input carry no tokens and are judged by value.
+func decodeCertText(b []byte, kind string) (any, error) {
+	var out any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, &CertificateError{
+			Reason:  ReasonMalformed,
+			Message: "failed to parse certificate " + kind + " as JSON: " + err.Error(),
+			Err:     err,
+		}
+	}
+	if _, isObject := out.(map[string]any); !isObject {
+		return out, nil // Parse reports "not a JSON object"
+	}
+	var tokens map[string]json.RawMessage
+	if err := json.Unmarshal(b, &tokens); err != nil {
+		return nil, &CertificateError{
+			Reason:  ReasonMalformed,
+			Message: "failed to parse certificate " + kind + " as JSON: " + err.Error(),
+			Err:     err,
+		}
+	}
+	for _, field := range certIntegerFields {
+		tok := tokens[field]
+		if len(tok) == 0 || !(tok[0] == '-' || (tok[0] >= '0' && tok[0] <= '9')) {
+			continue // absent or not a number: Parse decides, as for map input
+		}
+		if _, ok := verify.ChainInteger(json.Number(string(tok)), math.MaxUint64); !ok {
+			certID, _ := out.(map[string]any)["certificate_id"].(string)
+			return nil, &CertificateError{
+				Reason:        ReasonMalformed,
+				CertificateID: certID,
+				Message:       field + " must be written as an integer token in [0, 2^64-1]",
+			}
+		}
+	}
+	return out, nil
 }

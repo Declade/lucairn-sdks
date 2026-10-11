@@ -32,6 +32,23 @@ export function parseCertificate(raw: unknown): VeilCertificate {
     });
   }
 
+  // The two integers this check reads must be integers in [0, 2^64 - 1]
+  // (JSON.parse turns an oversized token into Infinity). Anything else is
+  // garbage input, not a newer protocol.
+  if (!isUint64(cert.protocol_version)) {
+    throw new LucairnCertificateError('protocol_version must be an integer in [0, 2^64 - 1]', {
+      reason: 'malformed',
+      certificateId: certId,
+    });
+  }
+  const emitted: unknown = cert.signable_protocol_version_emitted;
+  if (typeof emitted === 'number' && !isUint64(emitted)) {
+    throw new LucairnCertificateError(
+      'signable_protocol_version_emitted must be an integer in [0, 2^64 - 1]',
+      { reason: 'malformed', certificateId: certId },
+    );
+  }
+
   // C6 — verification.overall_verdict must be a string (protojson enum
   // form). The signable derivation step later maps this string to a Go
   // int enum; reject non-string values here rather than letting them
@@ -45,4 +62,9 @@ export function parseCertificate(raw: unknown): VeilCertificate {
   }
 
   return cert as VeilCertificate;
+}
+
+/** An integer value in [0, 2^64 - 1] (2^64 is the first double above that range). */
+function isUint64(v: number): boolean {
+  return Number.isInteger(v) && v >= 0 && v < 2 ** 64;
 }
