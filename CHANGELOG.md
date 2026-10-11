@@ -146,7 +146,10 @@ measurements and the base64 rule (T-1322).
   `VeilCertificate` instance passed in directly. A `float` is `malformed`
   even when it is integral: a `signable_protocol_version_emitted` written
   `3.0` (some JSON re-serialisers write integers that way) was read as 3
-  from a dict and is `malformed` now; write it as `3`. With default interpreter
+  from a dict and is `malformed` now; write it as `3`. The rule sees what it
+  is given: a `VeilCertificate` built with `model_validate` has already had
+  `"3"` or `3.0` converted to the integer 3 by the model, so such an instance
+  verifies where the same dict is `malformed`. With default interpreter
   settings `json.loads` itself refuses an integer of more than 4,300 digits
   before the SDK is called.
 
