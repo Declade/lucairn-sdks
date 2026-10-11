@@ -185,8 +185,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `version_downgrade_detected`, as in TS and Go (parity-corpus case
     `tamper_signable_v3_signature_control_char`). TS used `.trim()`, which
     does not remove U+0085 (in the set) and removes U+FEFF (not in the set);
-    both now follow the set. The U+0085 case is the one certificate that
-    verifies now and did not before: in TS a legacy v2 certificate whose
+    both now follow the set. Among signature-field inputs, the U+0085 case
+    is the one certificate that verifies now and did not before: in TS a legacy v2 certificate whose
     `signable_v3_signature` is only U+0085 was `version_downgrade_detected`
     and now verifies as v2, as it already did in Python and Go (the field is
     blank, the same as `""`, and the v2 witness signature is checked as
@@ -215,7 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   could fail when called from a deep stack). The two-signer tier no longer
   reports the step-8d cap flag, matching TS and Go (no result changes).
 
-### Known limits (unchanged by this release)
+### Known limits
 These apply to the witness-only check (`verifyCertificate` /
 `verify_certificate` / `VerifyCertificate`); the chain verifier reads the raw
 text and is not affected by 1 to 3.
@@ -229,12 +229,38 @@ text and is not affected by 1 to 3.
    three SDKs. Examples: a claim without `request_id` / `service_id`, a
    non-string `signable_v3_signature`, a sanitizer `canonical_payload` with
    trailing characters.
-4. Refusal REASONS for out-of-range integers can differ: 2^64 - 1 is in range
-   for Python and for Go with raw bytes; TS and Go with map input hold it as
-   the float 2^64 and report `malformed`.
+4. A double cannot hold every integer between 2^53 and 2^64, so TS and Go
+   with map input do not see such a value as written. A `protocol_version`
+   in that range is refused everywhere, but the reason can differ
+   (`malformed` or `unsupported_protocol_version`). A
+   `signable_protocol_version_emitted` of exactly 2^64 - 1 is read as a v3
+   marker by Python and by Go with raw bytes and is `malformed` in TS and Go
+   with map input. That field is not signed; it only selects which signature
+   must verify.
 5. Per-call cost: the key check adds two modular exponentiations per
    verification (measured ≈ 45 → 219 µs on Node 22, 35 → 189 µs on
    Python 3.12).
+6. The simple check accepts a certificate that carries only the older (v2)
+   witness signature. Values that only the newer (v3) signature covers
+   (`api_key_id`, `client_id`, `byok_exempt`, the sanitizer hashes) are then
+   not vouched for by the result. Callers who need those values vouched for
+   pass the require-v3 option - TS `minimumSignableVersion: 'v3'`, Python
+   `minimum_signable_version="v3"`, Go
+   `VerifyCertificateKeys.MinimumSignableVersion: "v3"` - which refuses a
+   certificate verified on the v2 path, or use the chain verifier
+   (`verifyCertificateChain` and its Python and Go counterparts).
+7. Acceptance changes outside the signature fields, both in the unsigned
+   `signable_protocol_version_emitted` selector: Go now reads a value from
+   2^63 up to 2^64 - 1 as a v3 marker on every architecture (before, such a
+   value could be read as 0 or as a negative number depending on the CPU
+   architecture and the input form, and the certificate was refused as
+   `version_downgrade_detected`); Python refuses a dict whose value is the
+   float `3.0` as `malformed` (it was read as 3; some JSON re-serialisers
+   write integers that way - write `3`).
+8. Python: the value rule sees what it is given. A `VeilCertificate` built
+   with `model_validate` has already had `"3"` or `3.0` converted to the
+   integer 3 by the model, so such an instance verifies where the same dict
+   is `malformed`; the range check still applies to the instance.
 
 ### Unchanged
 - The v2 / v3 witness signable reconstructions are byte-for-byte unchanged,
