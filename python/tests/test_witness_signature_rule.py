@@ -35,7 +35,7 @@ _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 #   go/internal/verify/testdata/ed25519-rule-vectors.json
 # and each SDK's test pins this sha256, so the three copies of the rule are
 # held to one set of inputs and expected results.
-VECTORS_SHA256 = "26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20"
+VECTORS_SHA256 = "f72b5055fc223c2c063194b3cf963dbbc639c2330a29b34f8a24ef4d8590ad8b"
 VECTORS_FILE = _FIXTURES_DIR / "ed25519-rule-vectors.json"
 
 # Parity-corpus case ``tamper_witness_signature_small_order_r`` (corpus
@@ -51,6 +51,8 @@ CORPUS_WITNESS = VerifyCertificateKeys(
 _VECTOR_DOC = json.loads(VECTORS_FILE.read_text(encoding="utf-8"))
 VECTORS: list[dict[str, str]] = _VECTOR_DOC["vectors"]
 FIELD_VECTORS: list[dict[str, str]] = _VECTOR_DOC["certificate_field_vectors"]
+PRECHECK_VECTORS: list[dict[str, Any]] = _VECTOR_DOC["precheck_vectors"]
+VERSION_VECTORS: list[dict[str, Any]] = _VECTOR_DOC["version_field_vectors"]
 _TS_FIXTURES = Path(__file__).resolve().parent.parent.parent / "ts" / "src" / "verify-certificate" / "__fixtures__"
 SMALL_ORDER = [bytes.fromhex(v["public_key_hex"]) for v in VECTORS if v["group"] == "small_order_key"]
 
@@ -163,10 +165,27 @@ def test_malformed_key_still_raises_type_error() -> None:
             verify_ed25519(MESSAGE, bytes(64), bad)  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("wrap", [bytes, bytearray, memoryview], ids=lambda w: w.__name__)
+def _array_b(data: bytes) -> Any:
+    import array
+
+    return array.array("B", data)
+
+
+def _strided(data: bytes) -> memoryview:
+    """A non-contiguous memoryview whose logical content is ``data``."""
+    spread = bytearray(len(data) * 2)
+    spread[::2] = data
+    view = memoryview(spread)[::2]
+    assert not view.contiguous and view.tobytes() == data
+    return view
+
+
+@pytest.mark.parametrize(
+    "wrap", [bytes, bytearray, memoryview, _array_b, _strided], ids=lambda w: w.__name__.lstrip("_")
+)
 def test_signature_and_message_buffer_forms_verify(wrap: Any) -> None:
-    """bytes, bytearray and memoryview signatures / messages verified at
-    runtime before this rule existed; they still do."""
+    """Every buffer form verifies: bytes, bytearray, memoryview (also
+    strided) and array.array("B")."""
     private, raw = _fresh_key()
     sig = private.sign(MESSAGE)
     assert verify_ed25519(MESSAGE, wrap(sig), raw) is True
@@ -280,7 +299,7 @@ def test_signature_text_must_be_canonical_standard_padded_base64() -> None:
 
 
 def test_field_vector_coverage() -> None:
-    assert len(FIELD_VECTORS) == 76
+    assert len(FIELD_VECTORS) == 100
     ids = {v["id"] for v in FIELD_VECTORS}
     assert {
         "v2_signable_v3_signature_only_u0085",
@@ -288,6 +307,10 @@ def test_field_vector_coverage() -> None:
         "v2_signable_v3_signature_only_u001c",
         "v3_signable_v3_signature_trailing_bang",
         "v3_signable_v3_signature_nonzero_padding_bits",
+        "v3_witness_signature_only_ufeff",
+        "v3_witness_signature_only_u001c",
+        "v3_witness_signature_bang",
+        "v3_witness_signature_trailing_bang",
     } <= ids
 
 
@@ -353,7 +376,7 @@ def test_oversized_integer_protocol_version() -> None:
 
 def test_protocol_version_range() -> None:
     cert, keys = _base("v3")
-    for bad in (2**64, -1, -2):
+    for bad in (2**64, -1, -2, 2.0, "2", [2], True):
         assert _outcome({**cert, "protocol_version": bad}, keys) == "refuse:malformed"
     for other in (0, 3, 2**64 - 1):
         assert _outcome({**cert, "protocol_version": other}, keys) == "refuse:unsupported_protocol_version"
@@ -364,6 +387,79 @@ def test_genuine_certificates_with_protocol_version_2_still_verify() -> None:
         cert, keys = _base(which)
         assert cert["protocol_version"] == 2
         assert _outcome(cert, keys) == "accept:" + which
+
+
+# --- prechecks, independent of the crypto library (shared precheck vectors) -------------
+
+
+def test_small_order_list_has_exactly_the_seven_shared_values() -> None:
+    assert len(_ed25519_rule._SMALL_ORDER_Y) == 7
+    assert sorted(v.hex() for v in _ed25519_rule._SMALL_ORDER_Y) == sorted(_VECTOR_DOC["small_order_y"])
+
+
+def test_precheck_vector_coverage() -> None:
+    assert len(PRECHECK_VECTORS) == 56
+    by_id = {v["id"]: v["acceptable"] for v in PRECHECK_VECTORS}
+    assert by_id["sig_ordinary_r_s_l_minus_1"] is True and by_id["sig_ordinary_r_s_l"] is False
+    for key_id in (
+        "key_invalid_point_off_curve",
+        "key_y_p_minus_1_sign_0",
+        "key_y_p_sign_0",
+        "key_y_p_plus_1_sign_0",
+        "key_y_2_pow_255_minus_1_sign_0",
+    ):
+        assert by_id[key_id] is False
+    assert len([v for v in PRECHECK_VECTORS if v["kind"] == "key" and v["acceptable"]]) >= 6
+
+
+@pytest.mark.parametrize("vector", PRECHECK_VECTORS, ids=lambda v: v["id"])
+def test_shared_precheck_vector(vector: dict[str, Any]) -> None:
+    data = bytes.fromhex(vector["hex"])
+    check = _ed25519_rule.key_acceptable if vector["kind"] == "key" else _ed25519_rule.signature_encoding_acceptable
+    assert check(data) is vector["acceptable"]
+
+
+# --- version fields: one value rule (shared version vectors, column "python") ------------
+
+
+def _with_version(vector: dict[str, Any]) -> tuple[Any, VerifyCertificateKeys]:
+    cert, keys = _base(vector["base"])
+    if vector["absent"]:
+        cert.pop(vector["field"], None)
+    else:
+        cert[vector["field"]] = json.loads(vector["token"])
+    return cert, keys
+
+
+def test_version_vector_coverage() -> None:
+    assert len(VERSION_VECTORS) == 54
+
+
+@pytest.mark.parametrize("vector", VERSION_VECTORS, ids=lambda v: v["id"])
+def test_shared_version_field_vector(vector: dict[str, Any]) -> None:
+    cert, keys = _with_version(vector)
+    assert _outcome(cert, keys) == vector["expected"]["python"]
+
+
+def test_model_input_gets_the_same_version_domain_check_as_a_dict() -> None:
+    """A VeilCertificate instance passed in directly skips parse_certificate;
+    the range of the two version fields is checked for it as well."""
+    from lucairn.types import VeilCertificate
+
+    for which, field, bad in (
+        ("v3", "protocol_version", -2),
+        ("v3", "protocol_version", 2**64),
+        ("v3", "signable_protocol_version_emitted", -1),
+        ("v3", "signable_protocol_version_emitted", 2**64),
+        ("v2", "signable_protocol_version_emitted", -1),
+    ):
+        cert, keys = _base(which)
+        cert[field] = bad
+        assert _outcome(cert, keys) == "refuse:malformed"
+        assert _outcome(VeilCertificate.model_validate(cert), keys) == "refuse:malformed"
+    for which in ("v2", "v3"):
+        cert, keys = _base(which)
+        assert _outcome(VeilCertificate.model_validate(cert), keys) == "accept:" + which
 
 
 # --- nothing new became public ------------------------------------------------------

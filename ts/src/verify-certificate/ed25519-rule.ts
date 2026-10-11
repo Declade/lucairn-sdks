@@ -46,9 +46,9 @@ const hex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
  * The seven small-order y values (little-endian, sign bit cleared) — the
  * libsodium blocklist: 0, 1, p−1, p, p+1 and the two order-8 values. With the
  * sign bit either way: the 8 canonical small-order encodings plus 6
- * non-canonical ones.
+ * non-canonical ones. Exported for this package's tests only.
  */
-const SMALL_ORDER_Y = new Set([
+export const SMALL_ORDER_Y: ReadonlySet<string> = new Set([
   '0000000000000000000000000000000000000000000000000000000000000000',
   '0100000000000000000000000000000000000000000000000000000000000000',
   '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05',

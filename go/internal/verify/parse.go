@@ -3,6 +3,8 @@ package verify
 import (
 	"encoding/json"
 	"errors"
+	"math"
+	"strconv"
 )
 
 // ErrParseMalformed is returned by Parse on structural validation failure
@@ -85,25 +87,12 @@ func Parse(raw any) (*RawCert, error) {
 		return nil, &ErrParseMalformed{Reason: "certificate missing required field issued_at", CertificateID: certID}
 	}
 
-	// protocol_version: JSON decodes integers as float64 under the
-	// generic unmarshal path; accept either.
-	switch pv := m["protocol_version"].(type) {
-	case float64:
-		if pv != float64(int(pv)) {
-			return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
-		}
-		cert.ProtocolVersion = int(pv)
-	case int:
-		cert.ProtocolVersion = pv
-	case json.Number:
-		n, err := pv.Int64()
-		if err != nil {
-			return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
-		}
-		cert.ProtocolVersion = int(n)
-	default:
+	// protocol_version: required; the shared value rule (versionValue).
+	pv, pvOK := versionValue(m["protocol_version"])
+	if !pvOK {
 		return nil, &ErrParseMalformed{Reason: "protocol_version must be an integer", CertificateID: certID}
 	}
+	cert.ProtocolVersion = pv
 
 	claimsRaw, ok2 := m["claims"].([]any)
 	if !ok2 {
@@ -156,17 +145,15 @@ func Parse(raw any) (*RawCert, error) {
 	}
 
 	// v3 dual-protocol fields (optional — absent on legacy v2 certs).
-	// signable_protocol_version_emitted: may be float64 (JSON number) or int.
-	switch pve := m["signable_protocol_version_emitted"].(type) {
-	case float64:
-		cert.SignableProtocolVersionEmitted = int(pve)
-	case int:
-		cert.SignableProtocolVersionEmitted = pve
-	case json.Number:
-		if n, err := pve.Int64(); err == nil {
-			cert.SignableProtocolVersionEmitted = int(n)
+	// signable_protocol_version_emitted: absent or JSON null → 0 (v2 cert;
+	// zero value). Present and not null: the shared value rule, otherwise
+	// malformed.
+	if pve := m["signable_protocol_version_emitted"]; pve != nil {
+		n, ok3 := versionValue(pve)
+		if !ok3 {
+			return nil, &ErrParseMalformed{Reason: "signable_protocol_version_emitted must be a non-negative integer", CertificateID: certID}
 		}
-		// absent or nil → 0 (v2 cert; zero-value)
+		cert.SignableProtocolVersionEmitted = n
 	}
 	if sv3, ok3 := mustStr("signable_v3_signature"); ok3 {
 		cert.SignableV3Signature = sv3
@@ -247,3 +234,60 @@ func itoa(i int) string {
 
 // sentinel for errors.Is consumers
 var ErrNotMap = errors.New("not a JSON object")
+
+// versionValue applies the value rule of the two version fields
+// (protocol_version, signable_protocol_version_emitted), the same in the
+// TypeScript, Python and Go SDKs: a JSON number whose value is an integer
+// >= 0 and at most 2^64 − 1. It returns the value as an int that is safe on
+// every architecture: the decision is taken on the float64 (or on the digits
+// of a json.Number) and a float64 is never converted to int unless it is in
+// range — converting an out-of-range float64 to int gives a different result
+// on arm64 and amd64. Values above math.MaxInt32 are reported as
+// math.MaxInt32: callers only compare against 2 and 3.
+//
+// Accepted Go types: float64 (what encoding/json produces; a float64 cannot
+// hold 2^64 − 1, so the upper bound is "below 2^64"), int, and json.Number
+// (digits only, at most 20, value at most 2^64 − 1). Everything else —
+// strings, booleans, arrays, objects, fractions, negatives, NaN, ±Inf — is
+// refused.
+func versionValue(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		// 18446744073709551616 = 2^64, exactly representable.
+		if math.IsNaN(n) || n < 0 || n >= 18446744073709551616.0 || n != math.Trunc(n) {
+			return 0, false
+		}
+		if n > math.MaxInt32 {
+			return math.MaxInt32, true
+		}
+		return int(n), true
+	case int:
+		if n < 0 {
+			return 0, false
+		}
+		if n > math.MaxInt32 {
+			return math.MaxInt32, true
+		}
+		return n, true
+	case json.Number:
+		s := string(n)
+		if len(s) == 0 || len(s) > 20 {
+			return 0, false
+		}
+		for i := 0; i < len(s); i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return 0, false
+			}
+		}
+		u, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		if u > math.MaxInt32 {
+			return math.MaxInt32, true
+		}
+		return int(u), true
+	default:
+		return 0, false
+	}
+}

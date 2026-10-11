@@ -1,6 +1,16 @@
 import { LucairnCertificateError } from '../errors.js';
 import type { VeilCertificate, VeilVerificationResult } from '../types.js';
 
+// The value rule of the two version fields (protocol_version,
+// signable_protocol_version_emitted), the same in the TypeScript, Python and
+// Go SDKs and applied before any coercion: a JSON number whose value is an
+// integer >= 0 and at most 2^64 − 1. A double cannot hold 2^64 − 1, so here
+// the upper bound is "below 2^64". Strings, arrays, booleans, objects,
+// fractions, NaN / Infinity and negatives are malformed.
+function isVersionValue(v: unknown): boolean {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 2 ** 64;
+}
+
 // Structural validation — asserts the shape this arc reads. Does NOT
 // validate enum literal membership beyond "string" here (the signable
 // derivation layer throws `malformed` on unknown verdict literals, which
@@ -21,14 +31,13 @@ export function parseCertificate(raw: unknown): VeilCertificate {
     typeof cert.witness_key_id !== 'string' ||
     typeof cert.witness_signature !== 'string' ||
     typeof cert.issued_at !== 'string' ||
-    typeof cert.protocol_version !== 'number' ||
-    // An integer VALUE is required: 2.5, or a number too large for a double
-    // (JSON.parse yields Infinity), is malformed — as in the Python and Go SDKs.
-    !Number.isInteger(cert.protocol_version) ||
-    // Optional field; a number that is not finite (an overflowing token) is
-    // malformed, as in the Python and Go SDKs.
-    (typeof cert.signable_protocol_version_emitted === 'number' &&
-      !Number.isFinite(cert.signable_protocol_version_emitted)) ||
+    // The two version fields share one value rule (isVersionValue below):
+    // protocol_version is required; signable_protocol_version_emitted may be
+    // absent or null (→ 0), anything else must satisfy the rule.
+    !isVersionValue(cert.protocol_version) ||
+    (cert.signable_protocol_version_emitted !== undefined &&
+      cert.signable_protocol_version_emitted !== null &&
+      !isVersionValue(cert.signable_protocol_version_emitted)) ||
     !Array.isArray(cert.claims) ||
     typeof cert.verification !== 'object' ||
     cert.verification === null

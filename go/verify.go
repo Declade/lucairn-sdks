@@ -31,9 +31,14 @@ import (
 // reads the raw text, which is this function with []byte / json.RawMessage
 // input: there protocol_version and signable_protocol_version_emitted must
 // be written as plain integers (digits only — no sign, fraction or exponent
-// — and at most 20 digits), otherwise the result is ReasonMalformed. A
-// caller's own json.Unmarshal turns the token 2.0 into the same value as 2,
-// so that rule cannot be applied to a map.
+// — at most 20 digits and at most 2^64 − 1), otherwise the result is
+// ReasonMalformed. A caller's own json.Unmarshal turns the token 2.0 into
+// the same value as 2, so that rule cannot be applied to a map.
+//
+// With raw bytes, map and struct input alike, protocol_version and (when present and not null)
+// signable_protocol_version_emitted must be a number whose value is an
+// integer >= 0 and at most 2^64 − 1 (a float64 from a map: below 2^64);
+// a string, a boolean, an array, a fraction or a negative is ReasonMalformed.
 func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificateResult, error) {
 	if keys.WitnessKeyID == "" {
 		return nil, &ConfigError{Message: "VerifyCertificateKeys.WitnessKeyID must be non-empty"}
@@ -157,17 +162,26 @@ func normalizeCertInput(cert any) (any, error) {
 // rawIntegerTokens applies the number-token rule to raw-bytes input, where
 // the JSON text is still visible: protocol_version and
 // signable_protocol_version_emitted, when they are numbers, must be written
-// as plain integers (digits only, at most 20). decoded is the value the
-// existing json.Unmarshal produced from the same bytes; it is only read for
-// the certificate id of the error and is passed on unchanged.
+// as plain integers (digits only, at most 20, at most 2^64 − 1). decoded is
+// the value the existing json.Unmarshal produced from the same bytes. For
+// these two top-level fields only, the float64 is replaced by the exact
+// token (json.Number), so a value above 2^53 is judged exactly; neither field
+// is part of the signable reconstruction, and nothing else in decoded is
+// touched.
 func rawIntegerTokens(raw []byte, decoded any) error {
-	problem := verify.IntegerTokenProblem(raw)
-	if problem == "" {
-		return nil
+	problem, tokens := verify.IntegerTokens(raw)
+	m, isMap := decoded.(map[string]any)
+	if problem != "" {
+		certID := ""
+		if isMap {
+			certID, _ = m["certificate_id"].(string)
+		}
+		return &CertificateError{Reason: ReasonMalformed, CertificateID: certID, Message: problem}
 	}
-	certID := ""
-	if m, ok := decoded.(map[string]any); ok {
-		certID, _ = m["certificate_id"].(string)
+	if isMap {
+		for field, tok := range tokens {
+			m[field] = tok
+		}
 	}
-	return &CertificateError{Reason: ReasonMalformed, CertificateID: certID, Message: problem}
+	return nil
 }

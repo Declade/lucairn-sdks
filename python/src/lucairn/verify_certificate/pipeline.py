@@ -35,7 +35,7 @@ from lucairn.types import (
     VerifyCertificateKeys,
     VerifyCertificateResult,
 )
-from lucairn.verify_certificate.parse import parse_certificate
+from lucairn.verify_certificate.parse import parse_certificate, version_value_ok
 from lucairn.verify_certificate.signable import (
     SIGNABLE_PROTOCOL_VERSION,
     derive_witness_signed_bytes,
@@ -80,8 +80,11 @@ def verify_certificate(
 
     Given an already parsed object, the simple check judges VALUES;
     number-token rules apply only where an SDK reads the raw text (Go with
-    raw bytes). ``protocol_version`` must be an ``int`` in 0..2**64-1 (a
-    ``float`` such as 2.0 is ``malformed``).
+    raw bytes). ``protocol_version`` and, when present and not ``None``,
+    ``signable_protocol_version_emitted`` must each be an ``int`` (not
+    ``bool``) from 0 to 2**64 - 1; anything else — a ``float`` such as 2.0, a
+    string, a list, a negative — is ``malformed``. The same range is applied
+    to a :class:`VeilCertificate` instance passed in directly.
 
     SECURITY NOTE: when ``signable_version == 'v2'`` on the returned result,
     the fields ``api_key_id``, ``client_id``, ``byok_exempt``, and the
@@ -144,6 +147,17 @@ def verify_certificate(
     cert: VeilCertificate = (
         raw_cert if isinstance(raw_cert, VeilCertificate) else parse_certificate(raw_cert)
     )
+    if not version_value_ok(cert.protocol_version) or not version_value_ok(
+        cert.signable_protocol_version_emitted
+    ):
+        # A dict was checked by parse_certificate already; this applies the
+        # same value rule to a VeilCertificate instance passed in directly.
+        raise LucairnCertificateError(
+            "protocol_version and signable_protocol_version_emitted must be "
+            "integers from 0 to 2**64 - 1",
+            reason="malformed",
+            certificate_id=cert.certificate_id,
+        )
 
     if cert.protocol_version != SUPPORTED_PROTOCOL_VERSION:
         raise LucairnCertificateError(
@@ -223,9 +237,13 @@ def verify_certificate(
 
         try:
             signature_bytes = decode_signature_text(cert.signable_v3_signature)
+            # On the v3 path witness_signature is not the signature that is
+            # verified, but it is present, and every signature field that is
+            # present must be canonical standard padded base64.
+            decode_signature_text(cert.witness_signature)
         except ValueError as exc:
             raise LucairnCertificateError(
-                f"signable_v3_signature base64 decode failed: {exc}",
+                f"signature text is not canonical standard padded base64: {exc}",
                 reason="invalid_signature",
                 certificate_id=cert.certificate_id,
                 cause=exc,

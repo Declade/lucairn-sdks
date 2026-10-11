@@ -205,7 +205,7 @@ func TestVerifyCertificate_SharedFieldVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(data)
-	if got := hex.EncodeToString(sum[:]); got != "26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20" {
+	if got := hex.EncodeToString(sum[:]); got != "f72b5055fc223c2c063194b3cf963dbbc639c2330a29b34f8a24ef4d8590ad8b" {
 		t.Fatalf("ed25519-rule-vectors.json sha256 = %s (the file must be identical in the three SDKs)", got)
 	}
 	var doc struct {
@@ -220,8 +220,8 @@ func TestVerifyCertificate_SharedFieldVectors(t *testing.T) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Fields) != 76 {
-		t.Fatalf("%d field vectors, want 76", len(doc.Fields))
+	if len(doc.Fields) != 100 {
+		t.Fatalf("%d field vectors, want 100", len(doc.Fields))
 	}
 	v2Keys := VerifyCertificateKeys{WitnessKeyID: "witness_v1", WitnessPublicKey: witnessKeypair(t)["publicKey"]}
 	v3Keys := productionKeys(t)
@@ -251,5 +251,121 @@ func TestVerifyCertificate_SharedFieldVectors(t *testing.T) {
 				t.Errorf("raw bytes input: got %s, want %s", got, v.Expected)
 			}
 		})
+	}
+}
+
+// The shared version_field_vectors: one of the two version fields is replaced
+// by a JSON token (or removed). Columns "go_map" (the caller decoded the JSON
+// into map[string]any) and "go_raw" (the token verbatim in the raw bytes).
+// The outcomes — including the values at and around 2^63 and 2^64 — are the
+// same on arm64 and amd64: no out-of-range float64 is converted to int.
+func TestVerifyCertificate_SharedVersionFieldVectors(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("internal", "verify", "testdata", "ed25519-rule-vectors.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Versions []struct {
+			ID       string  `json:"id"`
+			Base     string  `json:"base"`
+			Field    string  `json:"field"`
+			Token    *string `json:"token"`
+			Absent   bool    `json:"absent"`
+			Expected struct {
+				GoMap string `json:"go_map"`
+				GoRaw string `json:"go_raw"`
+			} `json:"expected"`
+		} `json:"version_field_vectors"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Versions) != 54 {
+		t.Fatalf("%d version vectors, want 54", len(doc.Versions))
+	}
+	v2Keys := VerifyCertificateKeys{WitnessKeyID: "witness_v1", WitnessPublicKey: witnessKeypair(t)["publicKey"]}
+	v3Keys := productionKeys(t)
+	for _, v := range doc.Versions {
+		v := v
+		t.Run(v.ID, func(t *testing.T) {
+			name, keys := "cert-valid-anchored.json", v2Keys
+			if v.Base == "v3" {
+				name, keys = "cert-real-v3-production.json", v3Keys
+			}
+			// raw bytes: every field as its own raw JSON, the token verbatim
+			fixture, err := os.ReadFile(filepath.Join(tsFixturesDir(t), name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(fixture, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if v.Absent {
+				delete(fields, v.Field)
+			} else {
+				fields[v.Field] = json.RawMessage(*v.Token)
+			}
+			raw, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := certOutcome(t, raw, keys); got != v.Expected.GoRaw {
+				t.Errorf("raw bytes: got %s, want %s", got, v.Expected.GoRaw)
+			}
+			if got := certOutcome(t, json.RawMessage(raw), keys); got != v.Expected.GoRaw {
+				t.Errorf("json.RawMessage: got %s, want %s", got, v.Expected.GoRaw)
+			}
+			// map: what a caller's own json.Unmarshal produces from the same text
+			var m map[string]any
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatalf("caller-side decode: %v", err)
+			}
+			if got := certOutcome(t, m, keys); got != v.Expected.GoMap {
+				t.Errorf("map input: got %s, want %s", got, v.Expected.GoMap)
+			}
+		})
+	}
+}
+
+// Go values a map can hold that JSON cannot produce.
+func TestVerifyCertificate_VersionFieldGoValues(t *testing.T) {
+	keys := productionKeys(t)
+	for _, c := range []struct {
+		field string
+		value any
+		want  string
+	}{
+		{"protocol_version", 2, "accept:v3"},
+		{"protocol_version", -2, "refuse:malformed"},
+		{"protocol_version", json.Number("2"), "accept:v3"},
+		{"protocol_version", json.Number("2.0"), "refuse:malformed"},
+		{"protocol_version", json.Number("18446744073709551615"), "refuse:unsupported_protocol_version"},
+		{"protocol_version", 9223372036854775808.0, "refuse:unsupported_protocol_version"},
+		{"protocol_version", 18446744073709551616.0, "refuse:malformed"},
+		{"signable_protocol_version_emitted", 3, "accept:v3"},
+		{"signable_protocol_version_emitted", -1, "refuse:malformed"},
+		{"signable_protocol_version_emitted", json.Number("18446744073709551615"), "accept:v3"},
+		{"signable_protocol_version_emitted", 9223372036854775808.0, "accept:v3"},
+		{"signable_protocol_version_emitted", 18446744073709549568.0, "accept:v3"},
+		{"signable_protocol_version_emitted", 18446744073709551616.0, "refuse:malformed"},
+	} {
+		cert := loadFixture(t, "cert-real-v3-production.json")
+		cert[c.field] = c.value
+		if got := certOutcome(t, cert, keys); got != c.want {
+			t.Errorf("%s = %#v: got %s, want %s", c.field, c.value, got, c.want)
+		}
+	}
+	// *VeilCertificate input goes through the same value rule.
+	raw, err := os.ReadFile(filepath.Join("internal", "verify", "testdata", "real-v3-cert.fixture.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var typed VeilCertificate
+	if err := json.Unmarshal(raw, &typed); err != nil {
+		t.Fatal(err)
+	}
+	if got := certOutcome(t, &typed, keys); got != "accept:v3" {
+		t.Errorf("*VeilCertificate: %s", got)
 	}
 }

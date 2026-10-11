@@ -13,7 +13,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LucairnCertificateError } from './errors.js';
 import { verifyCertificate } from './verify-certificate/index.js';
-import { ed25519KeyAcceptable, ed25519SignatureEncodingAcceptable, isSmallOrder } from './verify-certificate/ed25519-rule.js';
+import {
+  SMALL_ORDER_Y,
+  ed25519KeyAcceptable,
+  ed25519SignatureEncodingAcceptable,
+  isSmallOrder,
+} from './verify-certificate/ed25519-rule.js';
 import { deriveWitnessSignedBytesV3 } from './verify-certificate/signable.js';
 import { verifyEd25519 } from './verify-certificate/signature.js';
 import { decodeSignatureText, isBlankSignatureText } from './verify-certificate/text-rule.js';
@@ -27,7 +32,7 @@ const fixturesDir = join(__dirname, 'verify-certificate', '__fixtures__');
 //   go/internal/verify/testdata/ed25519-rule-vectors.json
 // and each SDK's test pins this sha256, so the three copies of the rule are
 // held to one set of inputs and expected results.
-const VECTORS_SHA256 = '26033d6336fd735dc5c4db068fbcb682cbd6385f8167b8afbb5d44769062fd20';
+const VECTORS_SHA256 = 'f72b5055fc223c2c063194b3cf963dbbc639c2330a29b34f8a24ef4d8590ad8b';
 const VECTORS_FILE = 'ed25519-rule-vectors.json';
 
 // Parity-corpus case `tamper_witness_signature_small_order_r` (corpus
@@ -59,9 +64,26 @@ interface FieldVector {
   text: string;
   expected: string;
 }
+interface PrecheckVector {
+  id: string;
+  kind: 'key' | 'signature';
+  hex: string;
+  acceptable: boolean;
+}
+interface VersionVector {
+  id: string;
+  base: 'v2' | 'v3';
+  field: 'protocol_version' | 'signable_protocol_version_emitted';
+  token: string | null;
+  absent: boolean;
+  expected: { ts: string; python: string; go_map: string; go_raw: string };
+}
 const VECTOR_DOC = JSON.parse(readFileSync(join(fixturesDir, VECTORS_FILE), 'utf8')) as {
   vectors: Vector[];
+  precheck_vectors: PrecheckVector[];
+  small_order_y: string[];
   certificate_field_vectors: FieldVector[];
+  version_field_vectors: VersionVector[];
 };
 const VECTORS = VECTOR_DOC.vectors;
 const FIELD_VECTORS = VECTOR_DOC.certificate_field_vectors;
@@ -298,7 +320,7 @@ describe('signature text rules (shared with the Python and Go SDKs)', () => {
   };
 
   it('the shared file holds the white-space and base64 field vectors', () => {
-    expect(FIELD_VECTORS.length).toBe(76);
+    expect(FIELD_VECTORS.length).toBe(100);
     const ids = new Set(FIELD_VECTORS.map((v) => v.id));
     for (const id of [
       'v2_signable_v3_signature_only_u0085',
@@ -306,6 +328,10 @@ describe('signature text rules (shared with the Python and Go SDKs)', () => {
       'v2_signable_v3_signature_only_u001c',
       'v3_signable_v3_signature_trailing_bang',
       'v3_signable_v3_signature_nonzero_padding_bits',
+      'v3_witness_signature_only_ufeff',
+      'v3_witness_signature_only_u001c',
+      'v3_witness_signature_bang',
+      'v3_witness_signature_trailing_bang',
     ]) {
       expect(ids.has(id)).toBe(true);
     }
@@ -378,5 +404,79 @@ describe('corpus cases of the parse layer (copied verbatim, same bytes in the Py
     expect(v3.protocol_version).toBe(2);
     const k = loadJson('production-witness-pubkey.json');
     expect(await outcome(v3, { witnessKeyId: k.witnessKeyId, witnessPublicKey: k.publicKeyBase64 })).toBe('accept:v3');
+  });
+});
+
+describe('ed25519-rule prechecks, independent of the crypto library (shared precheck vectors)', () => {
+  const PRE = VECTOR_DOC.precheck_vectors;
+
+  it('the small-order list has exactly the seven shared values', () => {
+    expect(SMALL_ORDER_Y.size).toBe(7);
+    expect([...SMALL_ORDER_Y].sort()).toEqual([...VECTOR_DOC.small_order_y].sort());
+    expect(VECTOR_DOC.small_order_y).toHaveLength(7);
+  });
+
+  it('the shared file holds the boundary vectors', () => {
+    expect(PRE.length).toBe(56);
+    const byId = new Map(PRE.map((v) => [v.id, v.acceptable]));
+    expect(byId.get('sig_ordinary_r_s_l_minus_1')).toBe(true);
+    expect(byId.get('sig_ordinary_r_s_l')).toBe(false);
+    expect(byId.get('key_invalid_point_off_curve')).toBe(false);
+    expect(byId.get('key_y_p_minus_1_sign_0')).toBe(false);
+    expect(byId.get('key_y_p_sign_0')).toBe(false);
+    expect(byId.get('key_y_p_plus_1_sign_0')).toBe(false);
+    expect(byId.get('key_y_2_pow_255_minus_1_sign_0')).toBe(false);
+    expect(PRE.filter((v) => v.kind === 'key' && v.acceptable).length).toBeGreaterThanOrEqual(6);
+    expect(PRE.filter((v) => v.kind === 'key' && !v.acceptable && /off_curve/.test(v.id)).length).toBeGreaterThanOrEqual(7);
+  });
+
+  for (const v of PRE) {
+    it(`${v.id} → precheck ${v.acceptable ? 'passes' : 'fails'}`, () => {
+      const bytes = hx(v.hex);
+      const got = v.kind === 'key' ? ed25519KeyAcceptable(bytes) : ed25519SignatureEncodingAcceptable(bytes);
+      expect(got).toBe(v.acceptable);
+    });
+  }
+});
+
+describe('version fields: one value rule (shared version vectors, column "ts")', () => {
+  const VERSIONS = VECTOR_DOC.version_field_vectors;
+  const base = {
+    v2: (): Record<string, unknown> => loadJson('cert-valid-anchored.json'),
+    v3: (): Record<string, unknown> => loadJson('cert-real-v3-production.json'),
+  };
+  const keys = {
+    v2: (): { witnessKeyId: string; witnessPublicKey: string } => ({
+      witnessKeyId: 'witness_v1',
+      witnessPublicKey: loadJson<{ publicKey: string }>('witness-keypair.json').publicKey,
+    }),
+    v3: (): { witnessKeyId: string; witnessPublicKey: string } => {
+      const k = loadJson<{ witnessKeyId: string; publicKeyBase64: string }>('production-witness-pubkey.json');
+      return { witnessKeyId: k.witnessKeyId, witnessPublicKey: k.publicKeyBase64 };
+    },
+  };
+
+  it('the shared file holds the version vectors', () => {
+    expect(VERSIONS.length).toBe(54);
+  });
+
+  for (const v of VERSIONS) {
+    it(`${v.id} → ${v.expected.ts}`, async () => {
+      const cert = base[v.base]();
+      if (v.absent) delete cert[v.field];
+      else cert[v.field] = JSON.parse(v.token as string);
+      expect(await outcome(cert, keys[v.base]())).toBe(v.expected.ts);
+    });
+  }
+
+  it('values JSON cannot carry are malformed too (NaN, Infinity, undefined protocol_version)', async () => {
+    for (const bad of [NaN, Infinity, -Infinity, 2 ** 64, -0.5]) {
+      expect(await outcome({ ...base.v3(), protocol_version: bad }, keys.v3())).toBe('refuse:malformed');
+      expect(await outcome({ ...base.v3(), signable_protocol_version_emitted: bad }, keys.v3())).toBe('refuse:malformed');
+    }
+    expect(await outcome({ ...base.v3(), protocol_version: undefined }, keys.v3())).toBe('refuse:malformed');
+    // undefined / null emitted version = absent = 0, unchanged
+    expect(await outcome({ ...base.v2(), signable_protocol_version_emitted: undefined }, keys.v2())).toBe('accept:v2');
+    expect(await outcome({ ...base.v2(), signable_protocol_version_emitted: null }, keys.v2())).toBe('accept:v2');
   });
 });
