@@ -407,6 +407,20 @@ export interface ListAuditEventsOptions {
 export interface VerifyCertificateKeys {
   witnessKeyId: string;
   witnessPublicKey: Uint8Array | string; // raw 32B OR base64
+  /**
+   * Optional: one Ed25519 public key (raw 32 bytes or base64) per
+   * claim-emitting `service_id` (e.g. `dsa-sanitizer`, `dsa-bridge`,
+   * `dsa-ai`, `dsa-audit`). The witness signature covers only the list of
+   * claim ids, not what each claim says; when this map is supplied,
+   * {@link verifyCertificate} also verifies every claim's own signature over
+   * its `canonical_payload`, and that the signed payload names the same
+   * `claim_id`. A claim whose service has no key here FAILS
+   * (`invalid_signature`); it is never skipped.
+   *
+   * When omitted, claim contents are NOT checked
+   * (`result.claimSignaturesVerified === false`).
+   */
+  servicePublicKeys?: Record<string, Uint8Array | string>;
 }
 
 /**
@@ -498,6 +512,14 @@ export interface VerifyCertificateResult {
    * Criterion #7 from prd-2026-06-08-typed-message-schema-sanitizer-rewrite.
    */
   signableVersion: 'v2' | 'v3';
+
+  /**
+   * `true` when `keys.servicePublicKeys` was supplied and every claim's own
+   * signature over its `canonical_payload` verified. `false` when no service
+   * keys were supplied: the claim CONTENTS were then not checked, only the
+   * witness-signed list of claim ids.
+   */
+  claimSignaturesVerified: boolean;
 
   /**
    * `true` when a `signable_v3_signature` was present on the cert but the

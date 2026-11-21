@@ -18,6 +18,11 @@ import (
 // AnchorStatus and OverallVerdict as pass-through metadata — the SDK does
 // NOT independently verify them.
 //
+// The witness signature covers only the list of claim ids. Set
+// keys.ServicePublicKeys to also verify each claim's own signature over its
+// canonical_payload (result.ClaimSignaturesVerified is then true); without it
+// a claim whose contents were changed after signing is NOT detected.
+//
 // On failure returns a *CertificateError. On keys nil / wrong-type input
 // returns a *ConfigError (programmer error, not a cert-verification
 // failure).
@@ -49,6 +54,7 @@ func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificate
 
 	result, runErr := verify.Run(rawAny, keys.WitnessKeyID, keys.WitnessPublicKey, verify.RunOptions{
 		MinimumSignableVersion: keys.MinimumSignableVersion,
+		ServicePublicKeys:      keys.ServicePublicKeys,
 	})
 	if runErr != nil {
 		var pe *verify.PipelineError
@@ -84,6 +90,7 @@ func VerifyCertificate(cert any, keys VerifyCertificateKeys) (*VerifyCertificate
 		OverallVerdict:             VeilVerdict(result.OverallVerdict),
 		SignableVersion:            result.SignableVersion,
 		V3SignatureStripped:        result.V3SignatureStripped,
+		ClaimSignaturesVerified:    result.ClaimSignaturesVerified,
 	}, nil
 }
 

@@ -475,10 +475,22 @@ class VerifyCertificateKeys:
             ``reason="witness_mismatch"``.
         witness_public_key: Raw 32-byte Ed25519 public key OR a base64
             string. The pipeline normalizes both forms.
+        service_public_keys: Optional map of claim-emitting ``service_id``
+            (e.g. ``dsa-sanitizer``, ``dsa-bridge``) to that service's
+            Ed25519 public key (raw 32 bytes or base64). The witness
+            signature covers only the list of claim ids, not what each
+            claim says; when this map is supplied, :func:`verify_certificate`
+            also verifies every claim's own signature over its
+            ``canonical_payload`` and that the signed payload names the same
+            ``claim_id``. A claim whose service has no key here FAILS
+            (``reason="invalid_signature"``); it is never skipped. When
+            omitted, claim contents are NOT checked
+            (``result.claim_signatures_verified`` is ``False``).
     """
 
     witness_key_id: str
     witness_public_key: bytes | str
+    service_public_keys: dict[str, bytes | str] | None = None
 
 
 @dataclass
@@ -536,6 +548,10 @@ class VerifyCertificateResult:
     overall_verdict: VeilVerdict
     signable_version: str = "v2"
     v3_signature_stripped: bool = False
+    # True when ``keys.service_public_keys`` was supplied and every claim's
+    # own signature over its canonical_payload verified; False when no
+    # service keys were supplied (claim CONTENTS were then not checked).
+    claim_signatures_verified: bool = False
 
 
 # ---------------------------------------------------------------------------

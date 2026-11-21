@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -35,6 +36,10 @@ type Result struct {
 	// covers (v3 or v2 per SignableVersion). Internal: the bundle verifier
 	// recomputes the content-bound anchor digest from them (T-1231 S2a).
 	SignedBytes []byte
+	// ClaimSignaturesVerified is true when RunOptions.ServicePublicKeys was
+	// supplied and every claim's own signature verified; false when no
+	// service keys were supplied (claim contents were then not checked).
+	ClaimSignaturesVerified bool
 }
 
 // FailureReason matches lucairn.VerifyCertificateFailureReason literals.
@@ -71,6 +76,12 @@ type RunOptions struct {
 	// ReasonSignableVersionInsufficient if the resolved signable version is
 	// not "v3". Empty string (default) allows both v2 and v3.
 	MinimumSignableVersion string
+	// ServicePublicKeys, when non-nil, maps each claim-emitting service_id to
+	// its Ed25519 public key (raw 32 bytes or base64 string). Run then also
+	// verifies every claim's own signature over its canonical_payload and that
+	// the signed payload names the same claim_id. A claim whose service has no
+	// key FAILS (ReasonInvalidSignature). nil = claim contents not checked.
+	ServicePublicKeys map[string]any
 }
 
 // Run executes the full verify pipeline on a raw JSON-decoded cert body.
@@ -314,6 +325,13 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		}
 	}
 
+	// Claim signatures BEFORE the version floor, so a tampered claim
+	// surfaces as invalid_signature rather than a policy verdict.
+	claimsOK, claimErr := verifyClaimSignatures(parsed.CertificateID, parsed.RawClaims, opts.ServicePublicKeys)
+	if claimErr != nil {
+		return nil, claimErr
+	}
+
 	anchorStatus := AnchorStatus(rawCert)
 	if anchorStatus == "" {
 		anchorStatus = "ANCHOR_STATUS_UNSPECIFIED"
@@ -348,5 +366,50 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 		SignableVersion:     signableVersion,
 		V3SignatureStripped: v3SignatureStripped,
 		SignedBytes:         signedBytes,
+
+		ClaimSignaturesVerified: claimsOK,
 	}, nil
+}
+
+// verifyClaimSignatures verifies every claim's own Ed25519 signature over its
+// canonical_payload with the caller-supplied key of its service_id, and that
+// the signed payload names the same claim_id as the (witness-signed) outer
+// claim. The witness signature covers only the claim ids, so without this a
+// claim whose contents were changed after signing still verified (level-3
+// review, entry 5). Returns false when serviceKeys is nil (nothing checked).
+func verifyClaimSignatures(certID string, claims []any, serviceKeys map[string]any) (bool, error) {
+	if serviceKeys == nil {
+		return false, nil
+	}
+	fail := func(msg string, err error) (bool, error) {
+		return false, &PipelineError{Reason: ReasonInvalidSignature, CertificateID: certID, Message: msg, Err: err}
+	}
+	for i, raw := range claims {
+		c, _ := raw.(map[string]any)
+		svc, _ := c["service_id"].(string)
+		key, ok := serviceKeys[svc]
+		if c == nil || !ok {
+			return fail(fmt.Sprintf("claims[%d]: no service public key supplied for service_id %q", i, svc), nil)
+		}
+		payload, okP := chainB64(c["canonical_payload"])
+		signature, okS := chainB64(c["signature"])
+		if !okP || !okS {
+			return fail(fmt.Sprintf("claims[%d]: canonical_payload and signature must be canonical standard padded base64", i), nil)
+		}
+		valid, err := VerifyEd25519(payload, signature, key)
+		if err != nil {
+			return fail(fmt.Sprintf("invalid service public key for %q: %v", svc, err), err)
+		}
+		if !valid {
+			return fail(fmt.Sprintf("claims[%d] (%s): claim Ed25519 signature verification failed", i, svc), nil)
+		}
+		var doc map[string]any
+		_ = json.Unmarshal(payload, &doc)
+		signedID, okID := doc["claim_id"].(string)
+		outerID, _ := c["claim_id"].(string)
+		if !okID || signedID != outerID {
+			return fail(fmt.Sprintf("claims[%d] (%s): signed canonical_payload does not name claim_id %q", i, svc, outerID), nil)
+		}
+	}
+	return true, nil
 }

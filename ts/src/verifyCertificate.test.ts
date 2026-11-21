@@ -255,6 +255,7 @@ describe('verifyCertificate — happy paths', () => {
       overallVerdict: 'VERDICT_VERIFIED',
       signableVersion: 'v2', // no signable_protocol_version_emitted on this fixture → v2 path
       v3SignatureStripped: false, // always false on the success path (TOB-SDK-TS-01)
+      claimSignaturesVerified: false, // no servicePublicKeys supplied (F16)
     });
   });
 

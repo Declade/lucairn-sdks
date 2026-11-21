@@ -253,6 +253,17 @@ type VerifyCertificateKeys struct {
 	// without invalidating the signature. Callers relying on those fields for
 	// access-control or audit decisions MUST set MinimumSignableVersion: "v3".
 	MinimumSignableVersion string
+
+	// ServicePublicKeys optionally maps each claim-emitting service_id (e.g.
+	// "dsa-sanitizer", "dsa-bridge", "dsa-ai", "dsa-audit") to that service's
+	// Ed25519 public key (raw 32 bytes or base64 string). The witness
+	// signature covers only the list of claim ids, not what each claim says;
+	// when this map is non-nil, VerifyCertificate also verifies every claim's
+	// own signature over its canonical_payload and that the signed payload
+	// names the same claim_id. A claim whose service has no key here FAILS
+	// (ReasonInvalidSignature); it is never skipped. nil = claim contents are
+	// NOT checked (result.ClaimSignaturesVerified == false).
+	ServicePublicKeys map[string]any
 }
 
 // VerifyCertificateResult is returned from a successful VerifyCertificate.
@@ -309,6 +320,12 @@ type VerifyCertificateResult struct {
 	// surfaced here as a diagnostic field for callers that opt out of the
 	// stripping guard (not recommended) and inspect the raw result.
 	V3SignatureStripped bool
+
+	// ClaimSignaturesVerified is true when VerifyCertificateKeys.ServicePublicKeys
+	// was supplied and every claim's own signature over its canonical_payload
+	// verified. false when no service keys were supplied: the claim CONTENTS
+	// were then not checked, only the witness-signed list of claim ids.
+	ClaimSignaturesVerified bool
 }
 
 // -- Proxy request / response types --------------------------------------

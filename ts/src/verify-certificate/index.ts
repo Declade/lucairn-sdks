@@ -56,6 +56,11 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *   `Uint8Array`, OR a base64 string encoding those 32 bytes. NOT PEM
  *   SPKI. Malformed input surfaces as
  *   `LucairnCertificateError({ reason: 'invalid_signature', cause })`.
+ * @param keys.servicePublicKeys - optional per-`service_id` claim keys.
+ *   The witness signature covers only the list of claim ids; supply these
+ *   to also verify each claim's own signature over its `canonical_payload`
+ *   (`result.claimSignaturesVerified` is then `true`). Without them a claim
+ *   whose contents were changed after signing is NOT detected.
  * @param options.minimumSignableVersion - when `'v3'`, throws
  *   `LucairnCertificateError({ reason: 'signable_version_insufficient' })`
  *   if the cert is verified via the v2 path. Use this when you rely on
@@ -83,7 +88,10 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *   - `witness_mismatch` — keys.witnessKeyId !== cert.witness_key_id
  *   - `witness_signature_missing` — cert.witness_signature is empty or
  *     whitespace-only (Go's `unicode.IsSpace` set)
- *   - `invalid_signature` — Ed25519 verification failed, a present
+ *   - `invalid_signature` — Ed25519 verification failed (the witness
+ *     signature, or, when `keys.servicePublicKeys` is supplied, a claim's
+ *     own signature / a claim with no supplied service key / a signed
+ *     payload naming another claim_id), a present
  *     signature field (`witness_signature`, and on a v3 certificate also
  *     `signable_v3_signature`) is not canonical standard padded base64, or
  *     the provided witnessPublicKey is malformed
@@ -249,6 +257,10 @@ async function verifyV2(
     });
   }
 
+  // Claim signatures BEFORE the version floor, so a tampered claim surfaces
+  // as invalid_signature rather than a policy verdict.
+  const claimSignaturesVerified = verifyClaimSignatures(cert, keys);
+
   // Strict-mode gate: caller explicitly requires v3.
   if (options?.minimumSignableVersion === 'v3') {
     throw new LucairnCertificateError(
@@ -259,7 +271,7 @@ async function verifyV2(
     );
   }
 
-  return buildResult(cert, 'v2');
+  return buildResult(cert, 'v2', claimSignaturesVerified);
 }
 
 async function verifyV3(
@@ -306,10 +318,66 @@ async function verifyV3(
     });
   }
 
-  return buildResult(cert, 'v3');
+  const claimSignaturesVerified = verifyClaimSignatures(cert, keys);
+  return buildResult(cert, 'v3', claimSignaturesVerified);
 }
 
-function buildResult(cert: VeilCertificate, signableVersion: 'v2' | 'v3'): VerifyCertificateResult {
+// Verify every claim's own Ed25519 signature over its canonical_payload with
+// the caller-supplied key of its service_id, and that the signed payload names
+// the same claim_id as the (witness-signed) outer claim. The witness signature
+// covers only the claim ids, so without this a claim whose contents were
+// changed after signing still verified (level-3 review, entry 5). Returns
+// false when the caller supplied no service keys (nothing checked).
+function verifyClaimSignatures(cert: VeilCertificate, keys: VerifyCertificateKeys): boolean {
+  const serviceKeys = keys.servicePublicKeys;
+  if (serviceKeys === undefined || serviceKeys === null) return false;
+  if (typeof serviceKeys !== 'object') {
+    throw new TypeError('verifyCertificate: keys.servicePublicKeys must be an object');
+  }
+  const certificateId = cert.certificate_id;
+  const fail = (message: string, cause?: unknown): never => {
+    throw new LucairnCertificateError(message, { reason: 'invalid_signature', certificateId, cause });
+  };
+  for (let i = 0; i < cert.claims.length; i++) {
+    const claim = cert.claims[i];
+    const svc = claim.service_id;
+    if (typeof svc !== 'string' || !Object.prototype.hasOwnProperty.call(serviceKeys, svc)) {
+      fail(`claims[${i}]: no service public key supplied for service_id ${JSON.stringify(svc)}`);
+    }
+    const payload = typeof claim.canonical_payload === 'string' ? canonicalBase64(claim.canonical_payload) : null;
+    const signature = typeof claim.signature === 'string' ? canonicalBase64(claim.signature) : null;
+    if (payload === null || signature === null) {
+      fail(`claims[${i}]: canonical_payload and signature must be canonical standard padded base64`);
+    }
+    let valid = false;
+    try {
+      valid = verifyEd25519(payload as Uint8Array, signature as Uint8Array, serviceKeys[svc]);
+    } catch (err) {
+      if (err instanceof TypeError) fail(`Invalid servicePublicKeys[${JSON.stringify(svc)}]: ${err.message}`, err);
+      throw err;
+    }
+    if (!valid) fail(`claims[${i}] (${svc}): claim Ed25519 signature verification failed`);
+    let signedClaimId: unknown;
+    try {
+      const doc: unknown = JSON.parse(Buffer.from(payload as Uint8Array).toString('utf8'));
+      signedClaimId = doc !== null && typeof doc === 'object' && !Array.isArray(doc)
+        ? (doc as Record<string, unknown>).claim_id
+        : undefined;
+    } catch {
+      signedClaimId = undefined;
+    }
+    if (signedClaimId !== claim.claim_id) {
+      fail(`claims[${i}] (${svc}): signed canonical_payload does not name claim_id ${JSON.stringify(claim.claim_id)}`);
+    }
+  }
+  return true;
+}
+
+function buildResult(
+  cert: VeilCertificate,
+  signableVersion: 'v2' | 'v3',
+  claimSignaturesVerified: boolean,
+): VerifyCertificateResult {
   return {
     certificateId: cert.certificate_id,
     requestId: cert.request_id,
@@ -322,5 +390,6 @@ function buildResult(cert: VeilCertificate, signableVersion: 'v2' | 'v3'): Verif
     // Always false on the success path: the downgrade check throws before
     // buildResult is reached when a stripped v3 sig is detected.
     v3SignatureStripped: false,
+    claimSignaturesVerified,
   };
 }
