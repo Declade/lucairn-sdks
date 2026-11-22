@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The next release from main is 2.0.0 (Go: `/v2` module path; new mcp-server major). No 1.x tag is cut from main; a 1.x fix is cut from the last 1.x tag.
+
+### Breaking
+- **Key-carrying clients never follow redirects (T-1474 F16).** TS
+  (`fetch` with `redirect: 'manual'`), Go (`CheckRedirect` returns
+  `http.ErrUseLastResponse`; a client passed via `WithHTTPClient` is copied,
+  never mutated), the mcp-server's `GatewayClient` and stdio bridge (`fetch`
+  with `redirect: 'manual'`; a 3xx is a `GatewayError` `redirect_refused` /
+  a JSON-RPC error) and Python (`httpx` `follow_redirects=False`, now pinned):
+  a 3xx response is a `LucairnHttpError` / `*HTTPError` naming the redirect,
+  so the API key is never sent to the address a `Location` header names.
+  Before this the TS, Go and mcp-server clients followed the redirect with
+  the key (the mcp-server also with the provider key).
+- **Plain `http://` base addresses only for this machine (T-1474 F16).** All
+  three clients accept `http://` only for `localhost`, `127.0.0.0/8`
+  (dotted quad) and `[::1]`; any other host needs `https://`. The TS client
+  previously accepted `http://` for any host; the Python and Go clients
+  previously also accepted mDNS `*.local` names, which are now refused
+  (a LAN name, not loopback). User-info and look-alike hosts
+  (`http://localhost@evil.example`, `http://localhost.evil.example`) are
+  judged by their real host. Breaking for callers that relied on plain
+  `http://` to a non-loopback host.
+
 ### Added
 - **Claim contents in the witness-only `verifyCertificate` (TS) /
   `verify_certificate` (Python) / `VerifyCertificate` (Go), opt-in (T-1474
@@ -131,25 +154,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same strict parser as every other read.
 
 ### Changed
-- **Key-carrying clients never follow redirects (T-1474 F16).** TS
-  (`fetch` with `redirect: 'manual'`), Go (`CheckRedirect` returns
-  `http.ErrUseLastResponse`; a client passed via `WithHTTPClient` is copied,
-  never mutated), the mcp-server's `GatewayClient` and stdio bridge (`fetch`
-  with `redirect: 'manual'`; a 3xx is a `GatewayError` `redirect_refused` /
-  a JSON-RPC error) and Python (`httpx` `follow_redirects=False`, now pinned):
-  a 3xx response is a `LucairnHttpError` / `*HTTPError` naming the redirect,
-  so the API key is never sent to the address a `Location` header names.
-  Before this the TS, Go and mcp-server clients followed the redirect with
-  the key (the mcp-server also with the provider key).
-- **Plain `http://` base addresses only for this machine (T-1474 F16).** All
-  three clients accept `http://` only for `localhost`, `127.0.0.0/8`
-  (dotted quad) and `[::1]`; any other host needs `https://`. The TS client
-  previously accepted `http://` for any host; the Python and Go clients
-  previously also accepted mDNS `*.local` names, which are now refused
-  (a LAN name, not loopback). User-info and look-alike hosts
-  (`http://localhost@evil.example`, `http://localhost.evil.example`) are
-  judged by their real host. Breaking for callers that relied on plain
-  `http://` to a non-loopback host.
 
 - **`protocol_version` and `signable_protocol_version_emitted` in the
   witness-only check: one value rule, `malformed` otherwise (T-1322).**
