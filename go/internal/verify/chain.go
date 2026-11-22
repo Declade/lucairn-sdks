@@ -335,6 +335,39 @@ func ChainFloat32(v any, zeroIfAbsent bool) (float32, bool) {
 	return g, true
 }
 
+// SignedClaimDocument applies step 7e (grammar part): the signed
+// canonical_payload bytes as ONE strict JSON document (no duplicate key), an
+// object, with no case-variant key. Shared with VerifyCertificate's claim
+// check.
+func SignedClaimDocument(cp []byte) (map[string]any, bool) {
+	parsed, err := DecodeDocument(cp)
+	cm, isObj := parsed.(map[string]any)
+	if err != nil || !isObj || CaseVariantKey(cm) {
+		return nil, false
+	}
+	return cm, true
+}
+
+// OuterFieldsMatchSigned applies step 7g: the canonical bytes rebuilt from
+// the claim's OUTER fields (claim_id, request_id, service_id, claim_type,
+// data_seen, data_not_seen) plus the signed payload and timestamp equal the
+// signed bytes cp. Shared with VerifyCertificate's claim check.
+func OuterFieldsMatchSigned(c, cm map[string]any, cp []byte) bool {
+	ds, ok1 := chainStrList(c["data_seen"])
+	dns, ok2 := chainStrList(c["data_not_seen"])
+	outerReq, ok3 := chainOptString(c["request_id"])
+	ct, _ := c["claim_type"].(string)
+	if !ok1 || !ok2 || !ok3 {
+		return false
+	}
+	rebuilt, err := CanonicalLexeme(map[string]any{
+		"claim_id": c["claim_id"], "request_id": outerReq, "service_id": c["service_id"],
+		"claim_type": chainClaimTypeNames[ct], "data_seen": ds, "data_not_seen": dns,
+		"payload": cm["payload"], "timestamp": cm["timestamp"],
+	})
+	return err == nil && bytes.Equal(rebuilt, cp)
+}
+
 // ChainIssuedAt applies step 5a (the ONE timestamp grammar) and returns
 // the UTC RFC3339Nano form.
 func ChainIssuedAt(s string) (string, bool) {
@@ -601,9 +634,8 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool, in ChainInputs) Chain
 		}
 		// 7e. One strict document, the case-variant key rule, and the
 		// running `values` bound (counted before any pointer is built).
-		parsed, err := DecodeDocument(cp)
-		cm, isObj := parsed.(map[string]any)
-		if err != nil || !isObj || CaseVariantKey(cm) {
+		cm, okDoc := SignedClaimDocument(cp)
+		if !okDoc {
 			return chainDecide("7e", chainNo)
 		}
 		valuesBytes += chainValuesBytes(cm, 0, MaxChainValuesPointerBytes-valuesBytes+1)
@@ -616,21 +648,10 @@ func RunChain(certJSON []byte, keys ChainKeys, minV3 bool, in ChainInputs) Chain
 			return chainDecide("7f", chainNo)
 		}
 		// 7g.
-		ds, ok1 := chainStrList(c["data_seen"])
-		dns, ok2 := chainStrList(c["data_not_seen"])
-		outerReq, ok3 := chainOptString(c["request_id"])
+		if !OuterFieldsMatchSigned(c, cm, cp) {
+			return chainDecide("7g", chainNo)
+		}
 		ct, _ := c["claim_type"].(string)
-		if !ok1 || !ok2 || !ok3 {
-			return chainDecide("7g", chainNo)
-		}
-		rebuilt, err := CanonicalLexeme(map[string]any{
-			"claim_id": c["claim_id"], "request_id": outerReq, "service_id": svc,
-			"claim_type": chainClaimTypeNames[ct], "data_seen": ds, "data_not_seen": dns,
-			"payload": cm["payload"], "timestamp": cm["timestamp"],
-		})
-		if err != nil || !bytes.Equal(rebuilt, cp) {
-			return chainDecide("7g", chainNo)
-		}
 		// 7h.
 		if cm["request_id"] != reqID {
 			return chainDecide("7h", chainNo)

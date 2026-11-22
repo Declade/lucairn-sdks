@@ -184,6 +184,26 @@ func main() {
 }
 ```
 
+> **Where the keys come from.** Take the witness public key and the
+> per-service public keys from a source **independent of the gateway whose
+> certificate you are checking** — for example keys your operator handed you
+> through a separate channel and that you pinned in your own configuration.
+> A key read from the same gateway (for example its
+> `/.well-known/veil-keys.json`) only shows that the certificate matches what
+> that gateway says: a gateway that forges certificates can serve matching
+> keys too. The SDK never fetches keys.
+>
+> **Claim contents.** The witness signature covers the list of claim ids, not
+> what each claim says. Pass `ServicePublicKeys` to `VerifyCertificate` to
+> also check each claim's own signature and that its outer fields match the
+> signed bytes (`result.ClaimSignaturesVerified`); `VerifyCertificateChain`
+> below checks everything.
+>
+> **Transport.** The client never follows a redirect (a 3xx is a
+> `*HTTPError`, also with a client passed via `WithHTTPClient`, which is copied, never changed), so the API key is never sent to another address, and
+> a plain `http://` `WithBaseURL` is accepted only for `localhost`,
+> `127.0.0.0/8` or `[::1]`.
+
 ## Public API
 
 ### `lucairn.New(apiKey string, opts ...Option) (*Client, error)`

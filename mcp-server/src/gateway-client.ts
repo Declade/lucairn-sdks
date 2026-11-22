@@ -172,6 +172,9 @@ export class GatewayClient {
         // (mcp_handler.go:516-524). Beyond that the gateway returns 202
         // ASYNC_PROCESSING; we abort instead of hanging forever.
         signal: AbortSignal.timeout(30_000),
+        // Never follow a redirect: the x-api-key and X-Upstream-Key headers
+        // would go to wherever the Location points (T-1474 F16).
+        redirect: 'manual',
       })
     } catch (err) {
       // AbortSignal.timeout fires a DOMException with name="TimeoutError"
@@ -198,6 +201,15 @@ export class GatewayClient {
         `network error reaching ${url}: ${msg}`,
         0,
         'network_error',
+      )
+    }
+
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+      await res.body?.cancel().catch(() => undefined)
+      throw new GatewayError(
+        `gateway redirected (${res.status}); redirects are not followed so the API key is never sent to another address`,
+        res.status,
+        'redirect_refused',
       )
     }
 

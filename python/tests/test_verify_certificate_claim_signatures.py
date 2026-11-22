@@ -41,10 +41,16 @@ def _b64(b: bytes) -> str:
     return base64.b64encode(b).decode()
 
 
+def _canon(doc: dict) -> bytes:
+    return json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()
+
+
 def _signed_claim(pair, claim_id: str, service_id: str, claim_type: str, payload: dict) -> dict:
+    # The gateway signs the short claim-type name in canonical JSON (the
+    # chain recipe's step 7g).
     doc = {
         "claim_id": claim_id,
-        "claim_type": claim_type,
+        "claim_type": claim_type.removeprefix("CLAIM_TYPE_"),
         "data_not_seen": [],
         "data_seen": [],
         "payload": payload,
@@ -52,7 +58,7 @@ def _signed_claim(pair, claim_id: str, service_id: str, claim_type: str, payload
         "service_id": service_id,
         "timestamp": "2026-11-21T08:00:00Z",
     }
-    cp = json.dumps(doc).encode()
+    cp = _canon(doc)
     return {
         "claim_id": claim_id,
         "request_id": "req_f16_0001",
@@ -106,7 +112,7 @@ def _tamper(raw: dict) -> dict:
     c = out["claims"][1]
     doc = json.loads(base64.b64decode(c["canonical_payload"]))
     doc["payload"]["entities_found"] = 0
-    c["canonical_payload"] = _b64(json.dumps(doc).encode())
+    c["canonical_payload"] = _b64(_canon(doc))
     return out
 
 
@@ -171,3 +177,48 @@ def test_non_canonical_base64_claim_signature_fails() -> None:
     raw = _cert(False)
     raw["claims"][0]["signature"] = raw["claims"][0]["signature"].rstrip("=")
     assert _reason(raw, WITH_SERVICES) == "invalid_signature"
+
+
+# Review round 1, finding 1: with service keys, every OUTER claim field must
+# agree with the signed canonical_payload (the chain verifier's step 7g
+# rebuild, shared code). Each edit leaves every signature valid. The
+# service_id case edits the bridge claim (the v3 witness signable reads the
+# sanitizer hashes by service_id); its twin name carries the bridge key.
+_OUTER_EDITS = [
+    ("data_seen", 1, ["raw_prompt"]),
+    ("data_not_seen", 1, ["pii_values"]),
+    ("claim_type", 1, "CLAIM_TYPE_EVENTS_RECORDED"),
+    ("request_id", 1, "req_f16_other"),
+    ("timestamp", 1, "2026-11-21T09:00:00Z"),
+    ("service_id", 0, "dsa-bridge-twin"),
+]
+
+
+@pytest.mark.parametrize("v3", [False, True], ids=["v2", "v3"])
+@pytest.mark.parametrize(("field", "idx", "value"), _OUTER_EDITS, ids=[e[0] for e in _OUTER_EDITS])
+def test_edited_outer_field_with_valid_signatures_is_not_valid(v3: bool, field: str, idx: int, value) -> None:
+    raw = _cert(v3)
+    raw["claims"][idx][field] = value
+    keys = VerifyCertificateKeys(
+        "witness_f16", WITNESS[1],
+        {"dsa-bridge": BRIDGE[1], "dsa-sanitizer": SANITIZER[1], "dsa-bridge-twin": BRIDGE[1]},
+    )
+    assert verify_certificate(raw, WITNESS_ONLY).claim_signatures_verified is False
+    assert _reason(raw, keys) == "invalid_signature"
+
+
+def test_outer_timestamp_compared_as_instant_not_text() -> None:
+    raw = _cert(False)
+    raw["claims"][1]["timestamp"] = "2026-11-21T08:00:00.000Z"
+    assert verify_certificate(raw, WITH_SERVICES).claim_signatures_verified is True
+
+
+def test_signed_payload_with_duplicate_claim_id_key_fails() -> None:
+    raw = _cert(False)
+    c = raw["claims"][1]
+    text = base64.b64decode(c["canonical_payload"]).decode()
+    dup = text.replace('{"claim_id":', '{"claim_id":"clm_other","claim_id":', 1).encode()
+    c["canonical_payload"] = _b64(dup)
+    c["signature"] = _b64(SANITIZER[0].sign(dup))
+    assert _reason(raw, WITH_SERVICES) == "invalid_signature"
+

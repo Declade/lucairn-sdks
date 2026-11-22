@@ -20,8 +20,12 @@ import (
 //
 // The witness signature covers only the list of claim ids. Set
 // keys.ServicePublicKeys to also verify each claim's own signature over its
-// canonical_payload (result.ClaimSignaturesVerified is then true); without it
-// a claim whose contents were changed after signing is NOT detected.
+// canonical_payload AND that the claim's outer fields (claim_id, request_id,
+// service_id, claim_type, data_seen, data_not_seen, timestamp) match those
+// signed bytes (result.ClaimSignaturesVerified is then true); without it a
+// claim whose contents or outer fields were changed after signing is NOT
+// detected. The typed claim objects, egress digests and cert_tier are
+// checked only by VerifyCertificateChain.
 //
 // On failure returns a *CertificateError. On keys nil / wrong-type input
 // returns a *ConfigError (programmer error, not a cert-verification

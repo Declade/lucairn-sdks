@@ -1,7 +1,6 @@
 package verify
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -327,7 +326,7 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 
 	// Claim signatures BEFORE the version floor, so a tampered claim
 	// surfaces as invalid_signature rather than a policy verdict.
-	claimsOK, claimErr := verifyClaimSignatures(parsed.CertificateID, parsed.RawClaims, opts.ServicePublicKeys)
+	claimsOK, claimErr := verifyClaimSignatures(parsed.CertificateID, parsed.RequestID, parsed.RawClaims, opts.ServicePublicKeys)
 	if claimErr != nil {
 		return nil, claimErr
 	}
@@ -374,10 +373,11 @@ func Run(rawCert any, keysWitnessKeyID string, keysWitnessPublicKey any, opts Ru
 // verifyClaimSignatures verifies every claim's own Ed25519 signature over its
 // canonical_payload with the caller-supplied key of its service_id, and that
 // the signed payload names the same claim_id as the (witness-signed) outer
-// claim. The witness signature covers only the claim ids, so without this a
+// claim and agrees with every outer claim field (the chain verifier's steps
+// 7e-7h). The witness signature covers only the claim ids, so without this a
 // claim whose contents were changed after signing still verified (level-3
 // review, entry 5). Returns false when serviceKeys is nil (nothing checked).
-func verifyClaimSignatures(certID string, claims []any, serviceKeys map[string]any) (bool, error) {
+func verifyClaimSignatures(certID, requestID string, claims []any, serviceKeys map[string]any) (bool, error) {
 	if serviceKeys == nil {
 		return false, nil
 	}
@@ -403,12 +403,36 @@ func verifyClaimSignatures(certID string, claims []any, serviceKeys map[string]a
 		if !valid {
 			return fail(fmt.Sprintf("claims[%d] (%s): claim Ed25519 signature verification failed", i, svc), nil)
 		}
-		var doc map[string]any
-		_ = json.Unmarshal(payload, &doc)
+		// The chain verifier's steps 7e-7h, shared code: the signed bytes are
+		// ONE strict JSON object (a duplicate or case-variant key is refused),
+		// name this claim_id, rebuild byte-for-byte from the OUTER fields, and
+		// carry the certificate's request_id.
+		doc, okDoc := SignedClaimDocument(payload)
+		if !okDoc {
+			return fail(fmt.Sprintf("claims[%d] (%s): signed canonical_payload is not one strict JSON object (duplicate or case-variant key, or bad grammar)", i, svc), nil)
+		}
 		signedID, okID := doc["claim_id"].(string)
 		outerID, _ := c["claim_id"].(string)
 		if !okID || signedID != outerID {
 			return fail(fmt.Sprintf("claims[%d] (%s): signed canonical_payload does not name claim_id %q", i, svc, outerID), nil)
+		}
+		if !OuterFieldsMatchSigned(c, doc, payload) {
+			return fail(fmt.Sprintf("claims[%d] (%s): an outer field (claim_id, request_id, service_id, claim_type, data_seen, data_not_seen) differs from the signed canonical_payload", i, svc), nil)
+		}
+		// The outer timestamp is written in another textual form than the
+		// signed one (protojson pads fractions to 3/6/9 digits), so it is
+		// compared as an instant with the chain's ONE timestamp grammar.
+		if outerTS, present := c["timestamp"]; present && outerTS != nil {
+			ots, okO := outerTS.(string)
+			ss, okS := doc["timestamp"].(string)
+			a, okA := ChainIssuedAt(ots)
+			b, okB := ChainIssuedAt(ss)
+			if !okO || !okS || !okA || !okB || a != b {
+				return fail(fmt.Sprintf("claims[%d] (%s): outer timestamp differs from the signed canonical_payload", i, svc), nil)
+			}
+		}
+		if signedReq, _ := doc["request_id"].(string); signedReq != requestID {
+			return fail(fmt.Sprintf("claims[%d] (%s): signed canonical_payload names another request_id than the certificate", i, svc), nil)
 		}
 	}
 	return true, nil

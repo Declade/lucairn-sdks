@@ -9,7 +9,8 @@ import { parseCertificate } from './parse.js';
 import { deriveWitnessSignedBytes, deriveWitnessSignedBytesV3 } from './signable.js';
 import { verifyEd25519 } from './signature.js';
 import { canonicalBase64 } from '../verify-chain/ed25519.js';
-import { trimSpace } from '../verify-chain/index.js';
+import { outerFieldsMatchSigned, rfc3339NanoUtc, signedClaimDocument, trimSpace } from '../verify-chain/index.js';
+import type { JObj, JVal } from '../verify-chain/json.js';
 
 const SUPPORTED_PROTOCOL_VERSION = 2;
 // Minimum signable_protocol_version_emitted value that triggers v3 verification.
@@ -59,8 +60,12 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  * @param keys.servicePublicKeys - optional per-`service_id` claim keys.
  *   The witness signature covers only the list of claim ids; supply these
  *   to also verify each claim's own signature over its `canonical_payload`
- *   (`result.claimSignaturesVerified` is then `true`). Without them a claim
- *   whose contents were changed after signing is NOT detected.
+ *   AND that the claim's outer fields (`claim_id`, `request_id`,
+ *   `service_id`, `claim_type`, `data_seen`, `data_not_seen`, `timestamp`)
+ *   match those signed bytes (`result.claimSignaturesVerified` is then
+ *   `true`). Without them a claim whose contents or outer fields were changed
+ *   after signing is NOT detected. The typed claim objects, egress digests
+ *   and `cert_tier` are checked only by `verifyCertificateChain`.
  * @param options.minimumSignableVersion - when `'v3'`, throws
  *   `LucairnCertificateError({ reason: 'signable_version_insufficient' })`
  *   if the cert is verified via the v2 path. Use this when you rely on
@@ -90,8 +95,9 @@ const V3_SIGNABLE_VERSION_THRESHOLD = 3;
  *     whitespace-only (Go's `unicode.IsSpace` set)
  *   - `invalid_signature` — Ed25519 verification failed (the witness
  *     signature, or, when `keys.servicePublicKeys` is supplied, a claim's
- *     own signature / a claim with no supplied service key / a signed
- *     payload naming another claim_id), a present
+ *     own signature / a claim with no supplied service key / signed bytes
+ *     that are not one strict JSON object / a signed payload naming another
+ *     claim_id / an outer claim field differing from the signed bytes), a present
  *     signature field (`witness_signature`, and on a v3 certificate also
  *     `signable_v3_signature`) is not canonical standard padded base64, or
  *     the provided witnessPublicKey is malformed
@@ -324,7 +330,8 @@ async function verifyV3(
 
 // Verify every claim's own Ed25519 signature over its canonical_payload with
 // the caller-supplied key of its service_id, and that the signed payload names
-// the same claim_id as the (witness-signed) outer claim. The witness signature
+// the same claim_id as the (witness-signed) outer claim and agrees with every
+// outer claim field (the chain verifier's steps 7e-7h). The witness signature
 // covers only the claim ids, so without this a claim whose contents were
 // changed after signing still verified (level-3 review, entry 5). Returns
 // false when the caller supplied no service keys (nothing checked).
@@ -357,20 +364,58 @@ function verifyClaimSignatures(cert: VeilCertificate, keys: VerifyCertificateKey
       throw err;
     }
     if (!valid) fail(`claims[${i}] (${svc}): claim Ed25519 signature verification failed`);
-    let signedClaimId: unknown;
-    try {
-      const doc: unknown = JSON.parse(Buffer.from(payload as Uint8Array).toString('utf8'));
-      signedClaimId = doc !== null && typeof doc === 'object' && !Array.isArray(doc)
-        ? (doc as Record<string, unknown>).claim_id
-        : undefined;
-    } catch {
-      signedClaimId = undefined;
+    // The chain verifier's steps 7e-7h, shared code: the signed bytes are ONE
+    // strict JSON object (a duplicate or case-variant key is refused), name
+    // this claim_id, rebuild byte-for-byte from the OUTER fields, and carry
+    // the certificate's request_id.
+    const cm = signedClaimDocument(payload as Uint8Array);
+    if (cm === null) {
+      fail(`claims[${i}] (${svc}): signed canonical_payload is not one strict JSON object (duplicate or case-variant key, or bad grammar)`);
     }
-    if (signedClaimId !== claim.claim_id) {
+    const signedDoc = cm as JObj;
+    if (signedDoc.get('claim_id') !== claim.claim_id) {
       fail(`claims[${i}] (${svc}): signed canonical_payload does not name claim_id ${JSON.stringify(claim.claim_id)}`);
+    }
+    if (outerFieldsMatchSigned(outerClaimFields(claim), signedDoc, payload as Uint8Array) === null) {
+      fail(
+        `claims[${i}] (${svc}): an outer field (claim_id, request_id, service_id, claim_type, data_seen, data_not_seen) differs from the signed canonical_payload`,
+      );
+    }
+    // The outer timestamp is written in another textual form than the signed
+    // one (protojson pads fractions to 3/6/9 digits), so it is compared as an
+    // instant with the chain's ONE timestamp grammar.
+    const outerTs = (claim as unknown as Record<string, unknown>).timestamp;
+    if (outerTs !== undefined && outerTs !== null) {
+      const signedTs = signedDoc.get('timestamp');
+      const a = typeof outerTs === 'string' ? rfc3339NanoUtc(outerTs) : null;
+      const b = typeof signedTs === 'string' ? rfc3339NanoUtc(signedTs) : null;
+      if (a === null || b === null || a !== b) {
+        fail(`claims[${i}] (${svc}): outer timestamp differs from the signed canonical_payload`);
+      }
+    }
+    if (signedDoc.get('request_id') !== cert.request_id) {
+      fail(`claims[${i}] (${svc}): signed canonical_payload names another request_id than the certificate`);
     }
   }
   return true;
+}
+
+// The outer claim fields the chain's step 7g rebuilds from, as the chain's
+// JSON value form. A value of an unexpected kind is mapped to `true`, which
+// the rebuild refuses (never a string, never a list).
+function outerClaimFields(claim: VeilCertificate['claims'][number]): JObj {
+  const raw = claim as unknown as Record<string, unknown>;
+  const conv = (v: unknown): JVal => {
+    if (v === undefined || v === null) return null;
+    if (typeof v === 'string') return v;
+    if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : true));
+    return true;
+  };
+  const out: JObj = new Map();
+  for (const k of ['claim_id', 'request_id', 'service_id', 'claim_type', 'data_seen', 'data_not_seen']) {
+    if (Object.prototype.hasOwnProperty.call(raw, k)) out.set(k, conv(raw[k]));
+  }
+  return out;
 }
 
 function buildResult(

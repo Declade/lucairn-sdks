@@ -83,7 +83,16 @@ _DEFAULT_TIMEOUT_S = 60.0
 _DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+def _is_loopback_host(host: str) -> bool:
+    """localhost, 127.0.0.0/8 (dotted quad) or ::1 — this machine only."""
+    if host in ("localhost", "::1"):
+        return True
+    parts = host.split(".")
+    return (
+        len(parts) == 4
+        and parts[0] == "127"
+        and all(p.isascii() and p.isdigit() and int(p) <= 255 for p in parts)
+    )
 
 
 def _normalize_base_url(raw: str) -> str:
@@ -97,16 +106,18 @@ def _normalize_base_url(raw: str) -> str:
         )
     if not parsed.netloc:
         raise LucairnConfigError(f"Invalid base_url: {raw}")
-    # Security: reject ``http://`` outside loopback / mDNS-local hosts so a
-    # misconfigured base_url cannot silently ship the api_key across a
-    # network in cleartext. Enterprise self-hosters binding to localhost
-    # over HTTP stay allowed; anyone intending a non-loopback production
-    # endpoint must use https://.
+    # Security: reject ``http://`` outside this machine (localhost,
+    # 127.0.0.0/8, ::1) so a misconfigured base_url cannot ship the api_key
+    # across a network in cleartext. ``urlparse`` lower-cases the scheme and
+    # host and splits off user-info, so ``http://localhost@evil.example`` and
+    # ``http://localhost.evil.example`` are judged by their real host. mDNS
+    # ``*.local`` names are a LAN, not loopback, and are refused (T-1474 F16).
     if parsed.scheme == "http":
         host = (parsed.hostname or "").lower()
-        if host not in _LOOPBACK_HOSTS and not host.endswith(".local"):
+        if not _is_loopback_host(host):
             raise LucairnConfigError(
-                f"base_url must use https:// for non-loopback hosts; got http://{host}"
+                "base_url must use https://; plain http is accepted only for "
+                f"localhost, 127.0.0.0/8 or [::1], got http://{host}"
             )
     return raw.rstrip("/")
 
@@ -517,7 +528,9 @@ class Lucairn:
         reason_phrase: str
         raw_bytes: bytes
         try:
-            with httpx.Client(timeout=httpx.Timeout(timeout_s)) as client:
+            # follow_redirects=False (httpx's default, pinned here): the
+            # api_key header must never go to the address a Location names.
+            with httpx.Client(timeout=httpx.Timeout(timeout_s), follow_redirects=False) as client:
                 with client.stream(
                     method=method,
                     url=url,
@@ -600,6 +613,13 @@ class Lucairn:
             # ``raw_text`` from the return tuple.
             parsed_body = text
 
+        if 300 <= status_code < 400:
+            raise LucairnHttpError(
+                f"Lucairn request was redirected ({status_code}); the SDK does not "
+                "follow redirects so the api_key is never sent to another address",
+                status=status_code,
+                body=parsed_body,
+            )
         if not (200 <= status_code < 300):
             raise LucairnHttpError(
                 f"Lucairn request failed: {status_code} {reason_phrase}",

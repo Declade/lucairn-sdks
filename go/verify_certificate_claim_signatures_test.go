@@ -37,9 +37,10 @@ func f16NewPair(t *testing.T) f16Pair {
 
 func f16SignedClaim(t *testing.T, p f16Pair, claimID, serviceID, claimType string, payload map[string]any) map[string]any {
 	t.Helper()
+	// The gateway signs the short claim-type name (the chain recipe's step 7g).
 	cp, err := json.Marshal(map[string]any{
 		"claim_id":      claimID,
-		"claim_type":    claimType,
+		"claim_type":    strings.TrimPrefix(claimType, "CLAIM_TYPE_"),
 		"data_not_seen": []any{},
 		"data_seen":     []any{},
 		"payload":       payload,
@@ -222,5 +223,66 @@ func TestVerifyCertificate_ClaimSignatures_FailClosed(t *testing.T) {
 	c0["signature"] = strings.TrimRight(c0["signature"].(string), "=")
 	if got := f16Reason(t, nonCanon, with); got != string(ReasonInvalidSignature) {
 		t.Errorf("non-canonical claim signature: got %q", got)
+	}
+}
+
+// Review round 1, finding 1: with service keys, every OUTER claim field must
+// agree with the signed canonical_payload (the chain verifier's step 7g
+// rebuild, shared code). Each edit leaves every signature valid. The
+// service_id case edits the bridge claim (the v3 witness signable reads the
+// sanitizer hashes by service_id); its twin name carries the bridge key.
+func TestVerifyCertificate_ClaimSignatures_OuterFieldsBound(t *testing.T) {
+	edits := []struct {
+		field string
+		idx   int
+		value any
+	}{
+		{"data_seen", 1, []any{"raw_prompt"}},
+		{"data_not_seen", 1, []any{"pii_values"}},
+		{"claim_type", 1, "CLAIM_TYPE_EVENTS_RECORDED"},
+		{"request_id", 1, "req_f16_other"},
+		{"timestamp", 1, "2026-11-21T09:00:00Z"},
+		{"service_id", 0, "dsa-bridge-twin"},
+	}
+	for _, v3 := range []bool{false, true} {
+		for _, e := range edits {
+			name := map[bool]string{false: "v2", true: "v3"}[v3] + "/" + e.field
+			t.Run(name, func(t *testing.T) {
+				k, only, with := f16Setup(t)
+				with.ServicePublicKeys["dsa-bridge-twin"] = k.bridge.pub
+				cert := f16Cert(t, k, v3)
+				cert["claims"].([]any)[e.idx].(map[string]any)[e.field] = e.value
+				r, err := VerifyCertificate(cert, only)
+				if err != nil || r.ClaimSignaturesVerified {
+					t.Fatalf("witness-only: err %v", err)
+				}
+				if got := f16Reason(t, cert, with); got != string(ReasonInvalidSignature) {
+					t.Fatalf("edited outer %s: got %q, want invalid_signature", e.field, got)
+				}
+			})
+		}
+	}
+}
+
+func TestVerifyCertificate_ClaimSignatures_TimestampComparedAsInstant(t *testing.T) {
+	k, _, with := f16Setup(t)
+	cert := f16Cert(t, k, false)
+	cert["claims"].([]any)[1].(map[string]any)["timestamp"] = "2026-11-21T08:00:00.000Z"
+	r, err := VerifyCertificate(cert, with)
+	if err != nil || !r.ClaimSignaturesVerified {
+		t.Fatalf("same instant in another textual form: err %v", err)
+	}
+}
+
+func TestVerifyCertificate_ClaimSignatures_DuplicateClaimIDKeyRefused(t *testing.T) {
+	k, _, with := f16Setup(t)
+	cert := f16Cert(t, k, false)
+	c := cert["claims"].([]any)[1].(map[string]any)
+	raw, _ := base64.StdEncoding.DecodeString(c["canonical_payload"].(string))
+	dup := []byte(strings.Replace(string(raw), `{"claim_id":`, `{"claim_id":"clm_other","claim_id":`, 1))
+	c["canonical_payload"] = base64.StdEncoding.EncodeToString(dup)
+	c["signature"] = base64.StdEncoding.EncodeToString(ed25519.Sign(k.sanitizer.priv, dup))
+	if got := f16Reason(t, cert, with); got != string(ReasonInvalidSignature) {
+		t.Fatalf("duplicate claim_id key: got %q, want invalid_signature", got)
 	}
 }

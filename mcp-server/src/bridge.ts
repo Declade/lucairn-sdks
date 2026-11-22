@@ -158,6 +158,9 @@ export async function forwardFrame(opts: {
       headers,
       body: JSON.stringify(opts.frame),
       signal: AbortSignal.timeout(BRIDGE_FETCH_TIMEOUT_MS),
+      // Never follow a redirect: the Authorization and X-Upstream-Key headers
+      // would go to wherever the Location points (T-1474 F16).
+      redirect: 'manual',
     })
   } catch (err) {
     const name =
@@ -175,6 +178,15 @@ export async function forwardFrame(opts: {
       isTimeout
         ? `gateway request timed out after ${BRIDGE_FETCH_TIMEOUT_MS / 1000}s`
         : `network error reaching ${url}: ${detail}`,
+    )
+  }
+
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    await res.body?.cancel().catch(() => undefined)
+    return errorEnvelope(
+      frameId,
+      JSON_RPC_INTERNAL_ERROR,
+      `gateway redirected (${res.status}); redirects are not followed so the API key is never sent to another address`,
     )
   }
 

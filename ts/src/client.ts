@@ -63,7 +63,23 @@ function normalizeBaseUrl(raw: string): string {
       `baseUrl must use http or https, got: ${parsed.protocol}`,
     );
   }
+  // The API key travels in a header on every request: plain http only to
+  // this machine (localhost, 127.0.0.0/8, ::1). The WHATWG parser has already
+  // lower-cased the scheme and host and split off any user-info, so
+  // `http://localhost.evil.example` and `http://localhost@evil.example` reach
+  // this check with their real host and are refused.
+  if (parsed.protocol === 'http:' && !isLoopbackHost(parsed.hostname)) {
+    throw new LucairnConfigError(
+      `baseUrl must use https; plain http is accepted only for localhost, 127.0.0.0/8 or [::1], got host: ${parsed.hostname}`,
+    );
+  }
   return raw.replace(/\/+$/, '');
+}
+
+function isLoopbackHost(host: string): boolean {
+  if (host === 'localhost' || host === '[::1]') return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  return m !== null && m[1] === '127' && m.slice(2).every((o) => Number(o) <= 255);
 }
 
 // Shared validator so constructor-level and per-call timeouts reject the same
@@ -634,11 +650,22 @@ export class Lucairn {
     };
 
     try {
+      // Never follow a redirect: the API key header would go to wherever the
+      // Location points. A 3xx (or a browser's opaque redirect) is an error.
       const response = await fetch(url, {
         ...init,
         headers: mergedHeaders,
         signal: composedSignal,
+        redirect: 'manual',
       });
+      if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new LucairnHttpError(
+          `Lucairn request was redirected (${response.status}); the SDK does not follow redirects so the API key is never sent to another address`,
+          response.status,
+          undefined,
+        );
+      }
 
       // Bounded read: stream + accumulate up to maxResponseBytes so a
       // hostile / misbehaving gateway streaming an unbounded body can't OOM

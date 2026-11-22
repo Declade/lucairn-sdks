@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -95,9 +96,18 @@ func New(apiKey string, opts ...Option) (*Client, error) {
 		}
 	}
 
-	httpClient := cfg.http
-	if httpClient == nil {
+	// Never follow a redirect: the x-api-key header would go to wherever the
+	// Location points. A caller-supplied client is copied (never mutated) and
+	// its redirect policy replaced; a 3xx then surfaces as *HTTPError.
+	var httpClient *http.Client
+	if cfg.http == nil {
 		httpClient = &http.Client{}
+	} else {
+		cp := *cfg.http
+		httpClient = &cp
+	}
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	return &Client{
@@ -592,6 +602,13 @@ func (c *Client) doBytes(
 		}
 	}
 
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return resp.StatusCode, respBytes, &HTTPError{
+			Status:  resp.StatusCode,
+			Body:    bytesToHTTPErrorBody(respBytes),
+			Message: fmt.Sprintf("Lucairn request was redirected (%d); the SDK does not follow redirects so the API key is never sent to another address", resp.StatusCode),
+		}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return resp.StatusCode, respBytes, &HTTPError{
 			Status:  resp.StatusCode,
@@ -689,13 +706,17 @@ func decodeInto(body any, dst any) error {
 }
 
 // normalizeBaseURL parses raw, confirms http/https scheme + non-empty
-// host, rejects http:// outside loopback / mDNS-local hosts to prevent
-// cleartext api-key leakage, and strips trailing slashes.
+// host, rejects http:// outside this machine (localhost, 127.0.0.0/8, ::1)
+// to prevent cleartext api-key leakage, and strips trailing slashes.
+// mDNS *.local names are a LAN, not loopback, and are refused (T-1474 F16).
 func normalizeBaseURL(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", &ConfigError{Message: "invalid baseURL: " + err.Error()}
 	}
+	// url.Parse lower-cases the scheme; the host is lower-cased below and
+	// user-info is split off, so http://localhost@evil.example and
+	// http://localhost.evil.example are judged by their real host.
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return "", &ConfigError{
 			Message: fmt.Sprintf("baseURL must use http or https, got: %q", u.Scheme),
@@ -706,15 +727,25 @@ func normalizeBaseURL(raw string) (string, error) {
 	}
 	if u.Scheme == "http" {
 		host := strings.ToLower(u.Hostname())
-		loopback := host == "localhost" || host == "127.0.0.1" || host == "::1"
-		if !loopback && !strings.HasSuffix(host, ".local") {
+		if !isLoopbackHost(host) {
 			return "", &ConfigError{
 				Message: fmt.Sprintf(
-					"baseURL must use https:// for non-loopback hosts; got http://%s",
+					"baseURL must use https://; plain http is accepted only for localhost, 127.0.0.0/8 or [::1], got http://%s",
 					host,
 				),
 			}
 		}
 	}
 	return strings.TrimRight(raw, "/"), nil
+}
+
+// isLoopbackHost: localhost, a dotted-quad address in 127.0.0.0/8, or ::1.
+func isLoopbackHost(host string) bool {
+	if host == "localhost" || host == "::1" {
+		return true
+	}
+	if addr, err := netip.ParseAddr(host); err == nil {
+		return addr.Is4() && addr.IsLoopback()
+	}
+	return false
 }
