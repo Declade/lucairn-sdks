@@ -475,10 +475,35 @@ class VerifyCertificateKeys:
             ``reason="witness_mismatch"``.
         witness_public_key: Raw 32-byte Ed25519 public key OR a base64
             string. The pipeline normalizes both forms.
+        service_public_keys: Optional map of claim-emitting ``service_id``
+            (e.g. ``dsa-sanitizer``, ``dsa-bridge``) to that service's
+            Ed25519 public key (raw 32 bytes or base64). The witness
+            signature covers only the list of claim ids, not what each
+            claim says. When this map is supplied, :func:`verify_certificate`
+            also checks, for every claim (any failure is
+            ``reason="invalid_signature"``): its own Ed25519 signature over
+            ``canonical_payload`` under the key of its ``service_id``; that
+            the signed bytes are ONE strict JSON object (no duplicate or
+            case-variant key); that they name the same ``claim_id``; that
+            they equal the bytes rebuilt from the claim's OUTER ``claim_id``,
+            ``request_id``, ``service_id``, ``claim_type``, ``data_seen`` and
+            ``data_not_seen`` (the chain verifier's step 7g, shared code);
+            that the outer ``timestamp`` is the same instant as the signed
+            one; and that the signed ``request_id`` is the certificate's. A
+            claim whose service has no key here FAILS; it is never skipped.
+            NOT checked even then: the typed ``bridge`` / ``sanitizer`` /
+            ``inference`` / ``audit`` objects, egress digests and
+            ``cert_tier`` — use ``verify_certificate_chain`` for those. When
+            omitted, only the witness signature over the claim-id list is
+            checked: claim contents and outer claim fields are NOT checked
+            (``result.claim_signatures_verified`` is ``False``). Take these
+            keys (like the witness key) from a source independent of the
+            gateway whose certificate you are checking.
     """
 
     witness_key_id: str
     witness_public_key: bytes | str
+    service_public_keys: dict[str, bytes | str] | None = None
 
 
 @dataclass
@@ -536,6 +561,11 @@ class VerifyCertificateResult:
     overall_verdict: VeilVerdict
     signable_version: str = "v2"
     v3_signature_stripped: bool = False
+    # True when ``keys.service_public_keys`` was supplied and every claim's
+    # own signature over its canonical_payload verified and its outer fields
+    # matched the signed bytes; False when no
+    # service keys were supplied (claim CONTENTS were then not checked).
+    claim_signatures_verified: bool = False
 
 
 # ---------------------------------------------------------------------------

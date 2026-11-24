@@ -241,7 +241,8 @@ func TestNew_AcceptsHTTPForLoopbackHosts(t *testing.T) {
 		"http://127.0.0.1:9090",
 		"http://[::1]",
 		"http://[::1]:1234",
-		"http://myservice.local",
+		"http://127.10.20.30",
+		"HTTP://LOCALHOST:8080",
 	} {
 		_, err := New(validAPIKey, WithBaseURL(url))
 		if err != nil {
@@ -304,13 +305,20 @@ func TestNew_RejectsNegativeMaxResponseBytes(t *testing.T) {
 // -- HTTPClient injection --
 
 func TestNew_AcceptsCustomHTTPClient(t *testing.T) {
-	httpClient := &http.Client{Timeout: 0}
+	transport := &http.Transport{}
+	httpClient := &http.Client{Timeout: 0, Transport: transport}
 	c, err := New(validAPIKey, WithHTTPClient(httpClient))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.http != httpClient {
-		t.Error("custom http client not stored")
+	// T-1474 F16: the client is copied (its redirect policy replaced so the
+	// API key never follows a Location); the caller's transport is kept and
+	// the caller's own *http.Client is not mutated.
+	if c.http.Transport != transport {
+		t.Error("custom http client transport not used")
+	}
+	if httpClient.CheckRedirect != nil {
+		t.Error("caller's http client was mutated")
 	}
 }
 

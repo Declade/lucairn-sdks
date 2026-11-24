@@ -163,9 +163,9 @@ class TestHTTPBaseURLGuard:
 
     @pytest.mark.parametrize(
         "host",
-        ["localhost", "127.0.0.1", "::1", "myservice.local"],
+        ["localhost", "127.0.0.1", "::1"],
     )
-    def test_accepts_http_for_loopback_and_mdns(self, host: str) -> None:
+    def test_accepts_http_for_loopback(self, host: str) -> None:
         # Handle IPv6 bracket-wrapping for ::1
         if host == "::1":
             url = f"http://[{host}]:8080"
@@ -181,6 +181,12 @@ class TestHTTPBaseURLGuard:
                     api_key=VALID_KEY, base_url="http://gateway.example.com"
                 )
             )
+
+    def test_rejects_http_on_mdns_local_host(self) -> None:
+        # T-1474 F16: *.local is a LAN name, not this machine; plain http
+        # there would send the api_key in cleartext over the network.
+        with pytest.raises(LucairnConfigError, match="https://"):
+            Lucairn(LucairnConfig(api_key=VALID_KEY, base_url="http://myservice.local:8080"))
 
     def test_rejects_http_on_ip_outside_loopback(self) -> None:
         with pytest.raises(LucairnConfigError, match="https://"):

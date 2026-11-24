@@ -40,7 +40,13 @@ from lucairn.verify_certificate.signable import (
     derive_witness_signed_bytes,
 )
 from lucairn.verify_certificate.v3_signable import derive_v3_signed_bytes
-from lucairn.verify_certificate.chain import _b64, _trim_space
+from lucairn.verify_certificate.chain import (
+    _b64,
+    _outer_fields_match_signed,
+    _rfc3339nano_utc,
+    _signed_claim_document,
+    _trim_space,
+)
 from lucairn.verify_certificate.signature import verify_ed25519
 
 __all__ = ["verify_certificate"]
@@ -94,7 +100,17 @@ def verify_certificate(
         raw_cert: protojson-shaped certificate body as returned by
             ``GET /api/v1/veil/certificate/{request_id}``. Either a
             ``dict`` or an already-parsed :class:`VeilCertificate`.
-        keys: trust-root keys (:class:`VerifyCertificateKeys`).
+        keys: trust-root keys (:class:`VerifyCertificateKeys`). The witness
+            signature covers only the list of claim ids; supply
+            ``keys.service_public_keys`` to also verify each claim's own
+            signature over its ``canonical_payload`` AND that the claim's outer
+            fields (claim_id, request_id, service_id, claim_type, data_seen,
+            data_not_seen, timestamp) match those signed bytes
+            (``result.claim_signatures_verified`` is then ``True``). Without
+            them a claim whose contents or outer fields were changed after
+            signing is NOT detected. The typed claim objects, egress digests
+            and ``cert_tier`` are checked only by
+            ``verify_certificate_chain``.
         minimum_signable_version: Optional strict-mode floor. When set to
             ``'v3'``, raises
             :class:`~lucairn.errors.LucairnCertificateError` with
@@ -122,7 +138,11 @@ def verify_certificate(
           * ``witness_signature_missing`` — ``witness_signature`` field is
             empty/whitespace-only (checked before version dispatch)
           * ``invalid_signature`` — Ed25519 verification failed or key
-            input is malformed (wrong length, non-base64, etc.)
+            input is malformed (wrong length, non-base64, etc.); with
+            ``keys.service_public_keys`` also a claim's own signature failed,
+            a claim's service has no supplied key, the signed bytes are not one
+            strict JSON object, a signed payload names another claim_id, or
+            an outer claim field differs from the signed bytes
           * ``version_downgrade_detected`` — EITHER the version field is
             absent or < 3 while a non-empty ``signable_v3_signature`` is
             present (version stripped from a real v3 cert), OR the version
@@ -253,11 +273,13 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
             )
 
+        claims_ok = _verify_claim_signatures(cert, keys)
+
         # TOB-SDK-PY-01(b): strict-mode check after successful v3 verification.
         if minimum_signable_version == "v3":
             pass  # already on v3 path — constraint satisfied
 
-        return _build_result(cert, signable_version="v3")
+        return _build_result(cert, signable_version="v3", claim_signatures_verified=claims_ok)
 
     else:
         # v2 path: legacy 7-key signable + witness_signature.
@@ -317,6 +339,10 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
             )
 
+        # Claim signatures BEFORE the version floor, so a tampered claim
+        # surfaces as 'invalid_signature' rather than a policy verdict.
+        claims_ok = _verify_claim_signatures(cert, keys)
+
         # TOB-SDK-PY-01(b): strict-mode floor — enforced AFTER signature
         # verification so a tampered v2 cert surfaces as 'invalid_signature'
         # (matching TS verifyV2 and Go Run). Only a genuine, signature-valid
@@ -333,7 +359,12 @@ def verify_certificate(
                 certificate_id=cert.certificate_id,
             )
 
-        return _build_result(cert, signable_version="v2", v3_signature_stripped=v3_sig_stripped)
+        return _build_result(
+            cert,
+            signable_version="v2",
+            v3_signature_stripped=v3_sig_stripped,
+            claim_signatures_verified=claims_ok,
+        )
 
 
 _U64_MAX = 2**64 - 1
@@ -352,10 +383,97 @@ def _decode_signature_text(text: str, field: str, certificate_id: str) -> bytes:
     return raw
 
 
+def _verify_claim_signatures(cert: VeilCertificate, keys: VerifyCertificateKeys) -> bool:
+    """Verify every claim's own Ed25519 signature over its canonical_payload
+    with the caller-supplied key of its service_id, that the signed payload
+    names the same claim_id as the (witness-signed) outer claim, and that it
+    agrees with every outer claim field (the chain verifier's steps 7e-7h).
+
+    The witness signature covers only the claim ids, so without this a claim
+    whose contents were changed after signing still verified (level-3 review,
+    entry 5). Returns False when no service keys were supplied (nothing
+    checked).
+    """
+
+    service_keys = keys.service_public_keys
+    if service_keys is None:
+        return False
+    if not isinstance(service_keys, dict):
+        raise TypeError("verify_certificate: keys.service_public_keys must be a dict")
+    cid = cert.certificate_id
+
+    def fail(message: str, cause: BaseException | None = None) -> LucairnCertificateError:
+        return LucairnCertificateError(
+            message, reason="invalid_signature", certificate_id=cid, cause=cause
+        )
+
+    for i, claim in enumerate(cert.claims):
+        svc = claim.service_id
+        if not isinstance(svc, str) or svc not in service_keys:
+            raise fail(f"claims[{i}]: no service public key supplied for service_id {svc!r}")
+        payload = _b64(claim.canonical_payload)
+        signature = _b64(claim.signature)
+        if payload is None or signature is None:
+            raise fail(
+                f"claims[{i}]: canonical_payload and signature must be canonical "
+                "standard padded base64"
+            )
+        try:
+            valid = verify_ed25519(payload, signature, service_keys[svc])
+        except TypeError as exc:
+            raise fail(f"Invalid service_public_keys[{svc!r}]: {exc}", exc) from exc
+        if not valid:
+            raise fail(f"claims[{i}] ({svc}): claim Ed25519 signature verification failed")
+        # The chain verifier's steps 7e-7h, shared code: the signed bytes are
+        # ONE strict JSON object (a duplicate or case-variant key is refused),
+        # name this claim_id, rebuild byte-for-byte from the OUTER fields, and
+        # carry the certificate's request_id.
+        doc = _signed_claim_document(payload)
+        if doc is None:
+            raise fail(
+                f"claims[{i}] ({svc}): signed canonical_payload is not one strict JSON "
+                "object (duplicate or case-variant key, or bad grammar)"
+            )
+        signed_id = doc.get("claim_id")
+        if not isinstance(signed_id, str) or signed_id != claim.claim_id:
+            raise fail(
+                f"claims[{i}] ({svc}): signed canonical_payload does not name "
+                f"claim_id {claim.claim_id!r}"
+            )
+        outer = {
+            "claim_id": claim.claim_id,
+            "request_id": claim.request_id,
+            "service_id": claim.service_id,
+            "claim_type": claim.claim_type,
+            "data_seen": claim.data_seen,
+            "data_not_seen": claim.data_not_seen,
+        }
+        if _outer_fields_match_signed(outer, doc, payload) is None:
+            raise fail(
+                f"claims[{i}] ({svc}): an outer field (claim_id, request_id, service_id, "
+                "claim_type, data_seen, data_not_seen) differs from the signed canonical_payload"
+            )
+        # The outer timestamp is written in another textual form than the
+        # signed one (protojson pads fractions to 3/6/9 digits), so it is
+        # compared as an instant with the chain's ONE timestamp grammar.
+        signed_ts = doc.get("timestamp")
+        a = _rfc3339nano_utc(claim.timestamp) if isinstance(claim.timestamp, str) else None
+        b = _rfc3339nano_utc(signed_ts) if isinstance(signed_ts, str) else None
+        if a is None or b is None or a != b:
+            raise fail(f"claims[{i}] ({svc}): outer timestamp differs from the signed canonical_payload")
+        if doc.get("request_id") != cert.request_id:
+            raise fail(
+                f"claims[{i}] ({svc}): signed canonical_payload names another request_id "
+                "than the certificate"
+            )
+    return True
+
+
 def _build_result(
     cert: VeilCertificate,
     signable_version: str = "v2",
     v3_signature_stripped: bool = False,
+    claim_signatures_verified: bool = False,
 ) -> VerifyCertificateResult:
     try:
         issued_at = _parse_iso(cert.issued_at)
@@ -386,6 +504,7 @@ def _build_result(
         overall_verdict=cert.verification.overall_verdict,
         signable_version=signable_version,
         v3_signature_stripped=v3_signature_stripped,
+        claim_signatures_verified=claim_signatures_verified,
     )
 
 

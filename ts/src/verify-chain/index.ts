@@ -691,6 +691,53 @@ function typedBound(c: JObj, claimType: string, p: JObj): boolean {
   return true;
 }
 
+/**
+ * @internal README step 7e (grammar part): the signed `canonical_payload`
+ * bytes as ONE strict JSON document (no duplicate key, valid grammar), an
+ * object, with no case-variant key. null when any of that fails. Shared with
+ * verifyCertificate's claim check.
+ */
+export function signedClaimDocument(cp: Uint8Array): JObj | null {
+  let cm: JVal;
+  try {
+    cm = parseDocument(cp);
+  } catch {
+    return null;
+  }
+  if (!isObj(cm) || hasCaseVariantKey(cm)) return null;
+  return cm;
+}
+
+/**
+ * @internal README step 7g: the canonical bytes rebuilt from the claim's
+ * OUTER fields (`claim_id`, `request_id`, `service_id`, `claim_type`,
+ * `data_seen`, `data_not_seen`) plus the signed `payload` and `timestamp`
+ * equal the signed bytes `cp`. Returns the claim type short name ('' for an
+ * unknown type) on a match, null on a mismatch. Shared with
+ * verifyCertificate's claim check.
+ */
+export function outerFieldsMatchSigned(c: JObj, cm: JObj, cp: Uint8Array): string | null {
+  const ds = strList(get(c, 'data_seen'));
+  const dns = strList(get(c, 'data_not_seen'));
+  const [outerReq, okReq] = optStr(get(c, 'request_id'));
+  if (ds === null || dns === null || !okReq) return null;
+  const ctRaw = get(c, 'claim_type');
+  const claimType = typeof ctRaw === 'string' && Object.prototype.hasOwnProperty.call(CLAIM_TYPES, ctRaw) ? CLAIM_TYPES[ctRaw] : '';
+  const rebuilt = canonicalBytes(
+    new Map<string, JVal>([
+      ['claim_id', get(c, 'claim_id')],
+      ['request_id', outerReq],
+      ['service_id', get(c, 'service_id')],
+      ['claim_type', claimType],
+      ['data_seen', ds],
+      ['data_not_seen', dns],
+      ['payload', get(cm, 'payload')],
+      ['timestamp', get(cm, 'timestamp')],
+    ]),
+  );
+  return sameBytes(rebuilt, cp) ? claimType : null;
+}
+
 /** README step 8d → [signed tier, the unsigned label passes, capped at EGRESS_UNATTESTED (fix A)]. */
 export function certTierCheck(
   claims: JObj[],
@@ -979,38 +1026,16 @@ function run(certJson: string | Uint8Array, keys: PinnedKeys, minV3: boolean, bi
     // 7e. One strict document, an object, no case-variant key, and the
     // running `values` pointer total within its bound (counted BEFORE any
     // pointer is built).
-    let cm: JVal;
-    try {
-      cm = parseDocument(cp);
-    } catch {
-      return outcome('7e');
-    }
-    if (!isObj(cm) || hasCaseVariantKey(cm)) return outcome('7e');
+    const cm = signedClaimDocument(cp);
+    if (cm === null) return outcome('7e');
     valuesTotal += valuesBytes(cm, 0, MAX_VALUES_POINTER_BYTES - valuesTotal + 1);
     if (valuesTotal > MAX_VALUES_POINTER_BYTES) return outcome('7e');
     // 7f.
     const signedId = get(cm, 'claim_id');
     if (typeof signedId !== 'string' || !listed.has(signedId)) return outcome('7f');
     // 7g.
-    const ds = strList(get(c, 'data_seen'));
-    const dns = strList(get(c, 'data_not_seen'));
-    const [outerReq, okReq] = optStr(get(c, 'request_id'));
-    if (ds === null || dns === null || !okReq) return outcome('7g');
-    const ctRaw = get(c, 'claim_type');
-    const claimType = typeof ctRaw === 'string' && Object.prototype.hasOwnProperty.call(CLAIM_TYPES, ctRaw) ? CLAIM_TYPES[ctRaw] : '';
-    const rebuilt = canonicalBytes(
-      new Map<string, JVal>([
-        ['claim_id', get(c, 'claim_id')],
-        ['request_id', outerReq],
-        ['service_id', svc],
-        ['claim_type', claimType],
-        ['data_seen', ds],
-        ['data_not_seen', dns],
-        ['payload', get(cm, 'payload')],
-        ['timestamp', get(cm, 'timestamp')],
-      ]),
-    );
-    if (!sameBytes(rebuilt, cp)) return outcome('7g');
+    const claimType = outerFieldsMatchSigned(c, cm, cp);
+    if (claimType === null) return outcome('7g');
     // 7h.
     if (get(cm, 'request_id') !== reqId) return outcome('7h');
     // 7i.

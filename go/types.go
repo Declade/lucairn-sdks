@@ -253,6 +253,28 @@ type VerifyCertificateKeys struct {
 	// without invalidating the signature. Callers relying on those fields for
 	// access-control or audit decisions MUST set MinimumSignableVersion: "v3".
 	MinimumSignableVersion string
+
+	// ServicePublicKeys optionally maps each claim-emitting service_id (e.g.
+	// "dsa-sanitizer", "dsa-bridge", "dsa-ai", "dsa-audit") to that service's
+	// Ed25519 public key (raw 32 bytes or base64 string). The witness
+	// signature covers only the list of claim ids, not what each claim says.
+	// When this map is non-nil, VerifyCertificate also checks, for every claim
+	// (any failure is ReasonInvalidSignature): its own Ed25519 signature over
+	// canonical_payload under the key of its service_id; that the signed bytes
+	// are ONE strict JSON object (no duplicate or case-variant key); that they
+	// name the same claim_id; that they equal the bytes rebuilt from the
+	// claim's OUTER claim_id, request_id, service_id, claim_type, data_seen
+	// and data_not_seen (the chain verifier's step 7g, shared code); that the
+	// outer timestamp is the same instant as the signed one; and that the
+	// signed request_id is the certificate's. A claim whose service has no key
+	// here FAILS; it is never skipped. NOT checked even then: the typed
+	// bridge / sanitizer / inference / audit objects, egress digests and
+	// cert_tier — use VerifyCertificateChain for those. nil = only the witness
+	// signature over the claim-id list is checked; claim contents and outer
+	// claim fields are NOT checked (result.ClaimSignaturesVerified == false).
+	// Take these keys (like the witness key) from a source independent of the
+	// gateway whose certificate you are checking.
+	ServicePublicKeys map[string]any
 }
 
 // VerifyCertificateResult is returned from a successful VerifyCertificate.
@@ -309,6 +331,12 @@ type VerifyCertificateResult struct {
 	// surfaced here as a diagnostic field for callers that opt out of the
 	// stripping guard (not recommended) and inspect the raw result.
 	V3SignatureStripped bool
+
+	// ClaimSignaturesVerified is true when VerifyCertificateKeys.ServicePublicKeys
+	// was supplied and every claim's own signature over its canonical_payload
+	// verified and its outer fields matched the signed bytes. false when no service keys were supplied: the claim CONTENTS
+	// were then not checked, only the witness-signed list of claim ids.
+	ClaimSignaturesVerified bool
 }
 
 // -- Proxy request / response types --------------------------------------

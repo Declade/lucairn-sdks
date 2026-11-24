@@ -34,7 +34,10 @@ func WithTimeout(d time.Duration) Option {
 // testing (httptest) or when the caller needs a custom transport
 // (mTLS, corporate proxy, connection pooling tuned). The Client will
 // apply its timeout and context on top of whatever the custom HTTP
-// client does.
+// client does. The client is copied, never mutated, and the copy's
+// CheckRedirect is replaced so a redirect is never followed (the API key
+// header must not reach the address a Location names); a 3xx surfaces as
+// *HTTPError.
 func WithHTTPClient(h *http.Client) Option {
 	return func(c *clientConfig) { c.http = h }
 }

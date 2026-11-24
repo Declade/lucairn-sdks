@@ -7,7 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The next release from main is 2.0.0 (Go: `/v2` module path; new mcp-server major). No 1.x tag is cut from main; a 1.x fix is cut from the last 1.x tag.
+
+### Breaking
+- **Key-carrying clients never follow redirects (T-1474 F16).** TS
+  (`fetch` with `redirect: 'manual'`), Go (`CheckRedirect` returns
+  `http.ErrUseLastResponse`; a client passed via `WithHTTPClient` is copied,
+  never mutated), the mcp-server's `GatewayClient` and stdio bridge (`fetch`
+  with `redirect: 'manual'`; a 3xx is a `GatewayError` `redirect_refused` /
+  a JSON-RPC error) and Python (`httpx` `follow_redirects=False`, now pinned):
+  a 3xx response is a `LucairnHttpError` / `*HTTPError` naming the redirect,
+  so the API key is never sent to the address a `Location` header names.
+  Before this the TS, Go and mcp-server clients followed the redirect with
+  the key (the mcp-server also with the provider key).
+- **Plain `http://` base addresses only for this machine (T-1474 F16).** All
+  three clients accept `http://` only for `localhost`, `127.0.0.0/8`
+  (dotted quad) and `[::1]`; any other host needs `https://`. The TS client
+  previously accepted `http://` for any host; the Python and Go clients
+  previously also accepted mDNS `*.local` names, which are now refused
+  (a LAN name, not loopback). User-info and look-alike hosts
+  (`http://localhost@evil.example`, `http://localhost.evil.example`) are
+  judged by their real host. Breaking for callers that relied on plain
+  `http://` to a non-loopback host.
+
 ### Added
+- **Claim contents in the witness-only `verifyCertificate` (TS) /
+  `verify_certificate` (Python) / `VerifyCertificate` (Go), opt-in (T-1474
+  F16).** New optional key map `servicePublicKeys` / `service_public_keys` /
+  `ServicePublicKeys` (per claim-emitting `service_id`) and new result field
+  `claimSignaturesVerified` / `claim_signatures_verified` /
+  `ClaimSignaturesVerified` (additive; `false` when no service keys are
+  given). With service keys, every claim's own Ed25519 signature over its
+  `canonical_payload` is checked, the signed bytes must be one strict JSON
+  object (a duplicate or case-variant key is refused), must name the same
+  `claim_id`, must equal the bytes rebuilt from the claim's outer
+  `claim_id`, `request_id`, `service_id`, `claim_type`, `data_seen` and
+  `data_not_seen` (the chain verifier's step 7g, shared code), the outer
+  `timestamp` must be the same instant as the signed one, and the signed
+  `request_id` must be the certificate's; any failure, and a claim whose
+  service has no key, is `invalid_signature`. Before this, a certificate
+  whose claim contents or outer claim fields were changed after signing
+  verified as valid (the witness signs only the claim-id list). Without
+  service keys the behaviour is unchanged. The typed claim objects, egress
+  digests and `cert_tier` remain checked only by `verifyCertificateChain`.
+  Signable reconstruction untouched.
+- **READMEs: where verification keys come from.** Verifiers take the
+  witness and per-service public keys from a source independent of the
+  gateway they are checking; the SDKs never fetch keys.
+
 - **`lucairn-bundle-verify`: bundle format 2 (audit counter).** Reads the
   `audit/` folder (`events.json`, `proofs.json`, `roots.json`) and checks the
   per-conversation request counter (event hashes recompute, numbers run 1..N,
@@ -107,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same strict parser as every other read.
 
 ### Changed
+
 - **`protocol_version` and `signable_protocol_version_emitted` in the
   witness-only check: one value rule, `malformed` otherwise (T-1322).**
   `signable_protocol_version_emitted` absent or `null` still means 0. A
@@ -216,6 +264,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports the step-8d cap flag, matching TS and Go (no result changes).
 
 ### Known limits
+- **Planned for the next major version (not in this release): the v3
+  certificate format becomes the default minimum** of the witness-only
+  check (today the default accepts certificates carrying only the v2
+  witness signature; pass `minimumSignableVersion: 'v3'` /
+  `minimum_signable_version="v3"` / `MinimumSignableVersion: "v3"` to
+  require v3 now).
 These apply to the witness-only check (`verifyCertificate` /
 `verify_certificate` / `VerifyCertificate`); the chain verifier reads the raw
 text and is not affected by 1 to 3.

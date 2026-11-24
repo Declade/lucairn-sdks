@@ -736,6 +736,49 @@ def _outcome(
     )
 
 
+def _signed_claim_document(cp: bytes) -> dict[str, Any] | None:
+    """Step 7e (grammar part): the signed ``canonical_payload`` bytes as ONE
+    strict JSON document (no duplicate key), an object, with no case-variant
+    key. None when any of that fails. Shared with verify_certificate's claim
+    check."""
+    try:
+        cm = _loads(cp)
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(cm, dict) or _case_variant_key(cm):
+        return None
+    return cm
+
+
+def _outer_fields_match_signed(c: dict[str, Any], cm: dict[str, Any], cp: bytes) -> str | None:
+    """Step 7g: the canonical bytes rebuilt from the claim's OUTER fields
+    (claim_id, request_id, service_id, claim_type, data_seen, data_not_seen)
+    plus the signed payload and timestamp equal the signed bytes ``cp``.
+    Returns the claim type short name ("" for an unknown type) on a match,
+    None on a mismatch. Shared with verify_certificate's claim check."""
+    ds, dns = _str_list(c.get("data_seen")), _str_list(c.get("data_not_seen"))
+    outer_req, ok_req = _opt_str(c.get("request_id"))
+    if ds is None or dns is None or not ok_req:
+        return None
+    claim_type = _CLAIM_TYPES.get(c.get("claim_type"), "") if isinstance(c.get("claim_type"), str) else ""
+    try:
+        rebuilt = _canonical(
+            {
+                "claim_id": c.get("claim_id"),
+                "request_id": outer_req,
+                "service_id": c.get("service_id"),
+                "claim_type": claim_type,
+                "data_seen": ds,
+                "data_not_seen": dns,
+                "payload": cm.get("payload"),
+                "timestamp": cm.get("timestamp"),
+            }
+        ).encode()
+    except (TypeError, ValueError, RecursionError, UnicodeEncodeError):
+        return None
+    return claim_type if rebuilt == cp else None
+
+
 def _sanitizer_hash(claims: list[dict[str, Any]], key: str) -> Any:
     """Step 5c: the FIRST dsa-sanitizer claim's signed ``payload[key]`` as a
     non-empty string, else None — parsed with the SAME strict document parser
@@ -1210,11 +1253,8 @@ def _verify(
             return _outcome("7d")
         # 7e. The signed bytes are one strict JSON object, no case-variant
         # spec key, and their values stay within the running pointer bound.
-        try:
-            cm = _loads(cp)
-        except (ValueError, RecursionError):
-            return _outcome("7e")
-        if not isinstance(cm, dict) or _case_variant_key(cm):
+        cm = _signed_claim_document(cp)
+        if cm is None:
             return _outcome("7e")
         values_total += _values_bytes(cm, 0, MAX_VALUES_POINTER_BYTES - values_total + 1)
         if values_total > MAX_VALUES_POINTER_BYTES:
@@ -1223,27 +1263,8 @@ def _verify(
         if not isinstance(cm.get("claim_id"), str) or cm["claim_id"] not in listed:
             return _outcome("7f")
         # 7g. Rebuild from the outer fields.
-        ds, dns = _str_list(c.get("data_seen")), _str_list(c.get("data_not_seen"))
-        outer_req, ok_req = _opt_str(c.get("request_id"))
-        if ds is None or dns is None or not ok_req:
-            return _outcome("7g")
-        claim_type = _CLAIM_TYPES.get(c.get("claim_type"), "") if isinstance(c.get("claim_type"), str) else ""
-        try:
-            rebuilt = _canonical(
-                {
-                    "claim_id": c["claim_id"],
-                    "request_id": outer_req,
-                    "service_id": svc,
-                    "claim_type": claim_type,
-                    "data_seen": ds,
-                    "data_not_seen": dns,
-                    "payload": cm.get("payload"),
-                    "timestamp": cm.get("timestamp"),
-                }
-            ).encode()
-        except (TypeError, ValueError, RecursionError, UnicodeEncodeError):
-            return _outcome("7g")
-        if rebuilt != cp:
+        claim_type = _outer_fields_match_signed(c, cm, cp)
+        if claim_type is None:
             return _outcome("7g")
         # 7h. Signed request id.
         if cm.get("request_id") != cert["request_id"]:

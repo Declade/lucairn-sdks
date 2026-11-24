@@ -93,6 +93,8 @@ Every response through any SDK gets a signed Lucairn certificate. Two surfaces:
 
 - **Every claim, not only the witness signature** — `verifyCertificateChain` / `verify_certificate_chain` / `VerifyCertificateChain` check each claim's own signature against per-service keys you pin, the claim bytes, the typed copies, the signed upstream-request hashes and the unsigned `cert_tier`. All three return identical results on the shared 98-case corpus in [`testdata/parity-corpus/`](testdata/parity-corpus/). Render and decide only from the returned `verified` values; pass the expected request id so another turn's certificate is refused.
 
+- **Where the keys come from** — every verifier takes the witness public key and the per-service public keys from a source independent of the gateway it is checking (for example keys your operator gave you through a separate channel, pinned in your own configuration). A key read from the same gateway only shows that the certificate matches what that gateway says. The SDKs never fetch keys.
+
 External RFC 3161 + Sigstore Rekor anchor verification is currently surfaced as pass-through metadata; full external anchor verification lands in a follow-up release.
 
 ## Status

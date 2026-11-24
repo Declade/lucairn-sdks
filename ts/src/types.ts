@@ -407,6 +407,32 @@ export interface ListAuditEventsOptions {
 export interface VerifyCertificateKeys {
   witnessKeyId: string;
   witnessPublicKey: Uint8Array | string; // raw 32B OR base64
+  /**
+   * Optional: one Ed25519 public key (raw 32 bytes or base64) per
+   * claim-emitting `service_id` (e.g. `dsa-sanitizer`, `dsa-bridge`,
+   * `dsa-ai`, `dsa-audit`). The witness signature covers only the list of
+   * claim ids, not what each claim says. When this map is supplied,
+   * {@link verifyCertificate} also checks, for every claim (any failure is
+   * `invalid_signature`): its own Ed25519 signature over `canonical_payload`
+   * under the key of its `service_id`; that the signed bytes are ONE strict
+   * JSON object (no duplicate or case-variant key); that they name the same
+   * `claim_id`; that they equal the bytes rebuilt from the claim's OUTER
+   * `claim_id`, `request_id`, `service_id`, `claim_type`, `data_seen` and
+   * `data_not_seen` (the chain verifier's step 7g, shared code); that the
+   * outer `timestamp` is the same instant as the signed one; and that the
+   * signed `request_id` is the certificate's. A claim whose service has no
+   * key here FAILS; it is never skipped. NOT checked even then: the typed
+   * `bridge` / `sanitizer` / `inference` / `audit` objects, egress digests
+   * and `cert_tier` — use `verifyCertificateChain` for those.
+   *
+   * When omitted, only the witness signature over the claim-id list is
+   * checked: claim contents and outer claim fields are NOT checked
+   * (`result.claimSignaturesVerified === false`).
+   *
+   * Take these keys (like the witness key) from a source independent of the
+   * gateway whose certificate you are checking.
+   */
+  servicePublicKeys?: Record<string, Uint8Array | string>;
 }
 
 /**
@@ -498,6 +524,15 @@ export interface VerifyCertificateResult {
    * Criterion #7 from prd-2026-06-08-typed-message-schema-sanitizer-rewrite.
    */
   signableVersion: 'v2' | 'v3';
+
+  /**
+   * `true` when `keys.servicePublicKeys` was supplied and every claim's own
+   * signature over its `canonical_payload` verified and its outer fields
+   * matched the signed bytes (see `VerifyCertificateKeys.servicePublicKeys`). `false` when no service
+   * keys were supplied: the claim CONTENTS were then not checked, only the
+   * witness-signed list of claim ids.
+   */
+  claimSignaturesVerified: boolean;
 
   /**
    * `true` when a `signable_v3_signature` was present on the cert but the
